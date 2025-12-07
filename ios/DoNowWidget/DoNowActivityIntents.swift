@@ -9,17 +9,11 @@ struct CompleteStepIntent: LiveActivityIntent {
     static var description = IntentDescription("Mark current step as complete")
     
     func perform() async throws -> some IntentResult {
-        // Post notification to Flutter via UserDefaults (App Group)
+        // Store action in UserDefaults for Flutter to read
         let defaults = UserDefaults(suiteName: "group.com.donow.app")
         defaults?.set("complete", forKey: "lastAction")
         defaults?.set(Date().timeIntervalSince1970, forKey: "actionTimestamp")
         defaults?.synchronize()
-        
-        // Post notification for the main app to pick up
-        DistributedNotificationCenter.default().post(
-            name: Notification.Name("com.donow.completeStep"),
-            object: nil
-        )
         
         return .result()
     }
@@ -32,17 +26,11 @@ struct CancelTaskIntent: LiveActivityIntent {
     static var description = IntentDescription("Cancel the current task")
     
     func perform() async throws -> some IntentResult {
-        // Post notification to Flutter via UserDefaults (App Group)
+        // Store action in UserDefaults for Flutter to read
         let defaults = UserDefaults(suiteName: "group.com.donow.app")
         defaults?.set("cancel", forKey: "lastAction")
         defaults?.set(Date().timeIntervalSince1970, forKey: "actionTimestamp")
         defaults?.synchronize()
-        
-        // Post notification for the main app to pick up
-        DistributedNotificationCenter.default().post(
-            name: Notification.Name("com.donow.cancelTask"),
-            object: nil
-        )
         
         return .result()
     }
