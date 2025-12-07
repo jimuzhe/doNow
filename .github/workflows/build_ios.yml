@@ -75,13 +75,38 @@ jobs:
 
       - name: Build iOS (No Codesign)
         run: |
-          flutter build ios --release --no-codesign
+          # First let flutter generate the necessary files
+          flutter build ios --release --no-codesign --config-only
+          
+          # Then build with xcodebuild with explicit code signing disabled
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            -allowProvisioningUpdates \
+            build
+          cd ..
 
       - name: Package IPA
         run: |
+          # Find the built app
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH="build/ios/iphoneos/Runner.app"
+          fi
+          
+          echo "Found app at: $APP_PATH"
+          
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r "$APP_PATH" build/ios/iphoneos/Payload/
           cd build/ios/iphoneos
-          mkdir -p Payload
-          cp -r Runner.app Payload/
           zip -r DoNow_TrollStore.ipa Payload
           cd ../../..
 
