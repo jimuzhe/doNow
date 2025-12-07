@@ -49,5 +49,42 @@ class Task {
       createdAt: this.createdAt,
     );
   }
+
+  // JSON Serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'totalDurationSeconds': totalDuration.inSeconds,
+      'scheduledStart': scheduledStart.toIso8601String(),
+      'subTasks': subTasks.map((s) => s.toJson()).toList(),
+      'isGenerating': isGenerating,
+      'isCompleted': isCompleted,
+      'isAbandoned': isAbandoned,
+      'repeatDays': repeatDays,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      totalDuration: Duration(seconds: json['totalDurationSeconds'] as int),
+      scheduledStart: DateTime.parse(json['scheduledStart'] as String),
+      subTasks: (json['subTasks'] as List<dynamic>)
+          .map((s) => SubTask.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      isGenerating: json['isGenerating'] as bool? ?? false,
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      isAbandoned: json['isAbandoned'] as bool? ?? false,
+      repeatDays: (json['repeatDays'] as List<dynamic>?)
+          ?.map((e) => e as int)
+          .toList() ?? [],
+      createdAt: json['createdAt'] != null 
+          ? DateTime.parse(json['createdAt'] as String)
+          : null,
+    );
+  }
 }
 

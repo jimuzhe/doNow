@@ -16,4 +16,21 @@ class ApiSettings {
       model: model ?? this.model,
     );
   }
+
+  // JSON Serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'apiKey': apiKey,
+      'baseUrl': baseUrl,
+      'model': model,
+    };
+  }
+
+  factory ApiSettings.fromJson(Map<String, dynamic> json) {
+    return ApiSettings(
+      apiKey: json['apiKey'] as String,
+      baseUrl: json['baseUrl'] as String,
+      model: json['model'] as String,
+    );
+  }
 }

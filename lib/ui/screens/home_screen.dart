@@ -54,7 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             // 1. Header with Slogan (No Clock)
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -227,9 +227,7 @@ class _SlidableTaskCard extends ConsumerWidget {
             SlidableAction(
               onPressed: (context) {
                 // Delete Logic with Provider
-                ref.read(taskListProvider.notifier).update(
-                  (state) => state.where((t) => t.id != task.id).toList()
-                );
+                ref.read(taskListProvider.notifier).removeTask(task.id);
                 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Task deleted')),

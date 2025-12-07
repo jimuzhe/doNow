@@ -53,7 +53,7 @@ class SettingsScreen extends ConsumerWidget {
                       text: "EN", 
                       isSelected: !isChinese, 
                       onTap: () {
-                         ref.read(localeProvider.notifier).state = 'en';
+                         ref.read(localeProvider.notifier).setLocale('en');
                          HapticFeedback.selectionClick();
                       },
                       isDark: isDark,
@@ -62,7 +62,7 @@ class SettingsScreen extends ConsumerWidget {
                       text: "中文", 
                       isSelected: isChinese, 
                       onTap: () {
-                         ref.read(localeProvider.notifier).state = 'zh';
+                         ref.read(localeProvider.notifier).setLocale('zh');
                          HapticFeedback.selectionClick();
                       },
                       isDark: isDark,
@@ -74,7 +74,10 @@ class SettingsScreen extends ConsumerWidget {
             
             const Divider(height: 32),
             
-            // Theme Toggle
+            // Vibration Intensity Slider
+            _VibrationIntensityTile(isDark: isDark),
+
+            const Divider(height: 32),
 
              _SettingsTile(
               icon: Icons.delete_outline,
@@ -82,7 +85,7 @@ class SettingsScreen extends ConsumerWidget {
               trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
               onTap: () {
                 // Clear List Logic
-                ref.read(taskListProvider.notifier).state = [];
+                ref.read(taskListProvider.notifier).clear();
                 HapticFeedback.mediumImpact();
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Cleared")));
               },
@@ -279,11 +282,11 @@ class SettingsScreen extends ConsumerWidget {
               child: ElevatedButton(
                 onPressed: () {
                   // Update Provider
-                  ref.read(apiSettingsProvider.notifier).state = currentSettings.copyWith(
+                  ref.read(apiSettingsProvider.notifier).update(currentSettings.copyWith(
                     apiKey: keyController.text.trim(),
                     baseUrl: urlController.text.trim(),
                     model: modelController.text.trim(),
-                  );
+                  ));
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("AI Settings Updated")),
@@ -389,6 +392,99 @@ class _LanguageOption extends StatelessWidget {
             color: isSelected ? (isDark ? Colors.black : Colors.white) : Colors.grey[500],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _VibrationIntensityTile extends ConsumerWidget {
+  final bool isDark;
+
+  const _VibrationIntensityTile({required this.isDark});
+
+  String _getIntensityLabel(double intensity, String locale) {
+    if (intensity <= 0) {
+      return AppStrings.get('vibration_off', locale);
+    } else if (intensity < 0.4) {
+      return AppStrings.get('vibration_light', locale);
+    } else if (intensity < 0.7) {
+      return AppStrings.get('vibration_medium', locale);
+    } else {
+      return AppStrings.get('vibration_strong', locale);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+    final intensity = ref.watch(vibrationIntensityProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.vibration, size: 22, color: isDark ? Colors.white70 : Colors.black87),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  AppStrings.get('vibration_intensity', locale),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[800] : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _getIntensityLabel(intensity, locale),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: intensity <= 0 ? Colors.grey : (isDark ? Colors.white : Colors.black),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: isDark ? Colors.white : Colors.black,
+              inactiveTrackColor: isDark ? Colors.grey[700] : Colors.grey[300],
+              thumbColor: isDark ? Colors.white : Colors.black,
+              overlayColor: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: intensity,
+              min: 0.0,
+              max: 1.0,
+              divisions: 10,
+              onChanged: (value) {
+                ref.read(vibrationIntensityProvider.notifier).setIntensity(value);
+                // Give feedback with new intensity
+                if (value > 0) {
+                  if (value < 0.4) {
+                    HapticFeedback.lightImpact();
+                  } else if (value < 0.7) {
+                    HapticFeedback.mediumImpact();
+                  } else {
+                    HapticFeedback.heavyImpact();
+                  }
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

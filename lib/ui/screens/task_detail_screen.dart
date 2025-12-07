@@ -619,39 +619,46 @@ class _SuccessOverlayState extends ConsumerState<_SuccessOverlay> with SingleTic
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
 
-    // Semi-transparent black background
+    // Full-screen overlay covering status bar and navigation bar
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.85),
-      body: Center(
-        child: FadeTransition(
-          opacity: _opacityAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.verified, color: Colors.white, size: 80),
-                const SizedBox(height: 24),
-                Text(
-                  t('mission_accomplished'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2.0,
-                    height: 1.2
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      extendBody: true,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black.withOpacity(0.92),
+        child: Center(
+          child: FadeTransition(
+            opacity: _opacityAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.verified, color: Colors.white, size: 80),
+                  const SizedBox(height: 24),
+                  Text(
+                    t('mission_accomplished'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                      height: 1.2
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  t('great_work'),
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 18,
+                  const SizedBox(height: 16),
+                  Text(
+                    t('great_work'),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 18,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -701,47 +708,54 @@ class _EncouragementOverlayState extends ConsumerState<_EncouragementOverlay> wi
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
 
-    // Semi-transparent black background
+    // Full-screen overlay covering status bar and navigation bar
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.85),
-      body: Center(
-        child: FadeTransition(
-          opacity: _opacityAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                   const Icon(Icons.favorite, color: Colors.pinkAccent, size: 80),
-                   const SizedBox(height: 24),
-                   Text(
-                     t('encourage_title'),
-                     textAlign: TextAlign.center,
-                     style: const TextStyle(
-                       color: Colors.white,
-                       fontSize: 32,
-                       fontWeight: FontWeight.w900,
-                       letterSpacing: 1.0,
-                       height: 1.2
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      extendBody: true,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black.withOpacity(0.92),
+        child: Center(
+          child: FadeTransition(
+            opacity: _opacityAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                     const Icon(Icons.favorite, color: Colors.pinkAccent, size: 80),
+                     const SizedBox(height: 24),
+                     Text(
+                       t('encourage_title'),
+                       textAlign: TextAlign.center,
+                       style: const TextStyle(
+                         color: Colors.white,
+                         fontSize: 32,
+                         fontWeight: FontWeight.w900,
+                         letterSpacing: 1.0,
+                         height: 1.2
+                       ),
                      ),
-                   ),
-                   const SizedBox(height: 16),
-                   Text(
-                     t('encourage_content'),
-                     textAlign: TextAlign.center,
-                     style: TextStyle(
-                       color: Colors.white.withOpacity(0.8),
-                       fontSize: 18,
+                     const SizedBox(height: 16),
+                     Text(
+                       t('encourage_content'),
+                       textAlign: TextAlign.center,
+                       style: TextStyle(
+                         color: Colors.white.withOpacity(0.8),
+                         fontSize: 18,
+                       ),
                      ),
-                   ),
-                   const SizedBox(height: 32),
-                   TextButton(
-                     onPressed: () => Navigator.of(context).pop(),
-                     child: Text(t('ok_cool'), style: const TextStyle(color: Colors.white70)),
-                   )
-                ],
+                     const SizedBox(height: 32),
+                     TextButton(
+                       onPressed: () => Navigator.of(context).pop(),
+                       child: Text(t('ok_cool'), style: const TextStyle(color: Colors.white70)),
+                     )
+                  ],
+                ),
               ),
             ),
           ),

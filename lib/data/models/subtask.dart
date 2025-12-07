@@ -25,4 +25,23 @@ class SubTask {
       isCompleted: isCompleted ?? this.isCompleted,
     );
   }
+
+  // JSON Serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'estimatedDurationSeconds': estimatedDuration.inSeconds,
+      'isCompleted': isCompleted,
+    };
+  }
+
+  factory SubTask.fromJson(Map<String, dynamic> json) {
+    return SubTask(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      estimatedDuration: Duration(seconds: json['estimatedDurationSeconds'] as int),
+      isCompleted: json['isCompleted'] as bool? ?? false,
+    );
+  }
 }

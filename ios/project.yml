@@ -12,6 +12,14 @@ configFiles:
   Debug: Flutter/Debug.xcconfig
   Release: Flutter/Release.xcconfig
 
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Flutter/Debug.xcconfig
+  Release: Flutter/Release.xcconfig
+
 settings:
   base:
     CODE_SIGN_IDENTITY: "-"
