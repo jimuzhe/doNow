@@ -75,7 +75,12 @@ jobs:
 
       - name: Build iOS (No Codesign)
         run: |
-          flutter build ios --release --no-codesign
+          # Skip App Intents metadata extraction which fails in CI
+          flutter build ios --release --no-codesign \
+            -- \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited)' \
+            SKIP_INSTALL=NO \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=YES
 
       - name: Package IPA
         run: |

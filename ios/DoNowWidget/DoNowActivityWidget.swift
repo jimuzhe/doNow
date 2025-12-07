@@ -34,14 +34,39 @@ struct DoNowActivityWidget: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
-                    // Progress bar instead of buttons for iOS 16 compatibility
-                    VStack(spacing: 8) {
-                        ProgressView(value: context.state.progress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                    // Interactive Buttons
+                    HStack(spacing: 16) {
+                        // Cancel Button
+                        Button(intent: CancelTaskIntent()) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "xmark")
+                                    .font(.caption.bold())
+                                Text("取消")
+                                    .font(.caption.bold())
+                            }
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.red.opacity(0.2))
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
                         
-                        Text("点击打开应用操作")
-                            .font(.caption2)
-                            .foregroundColor(.gray)
+                        // Complete Button
+                        Button(intent: CompleteStepIntent()) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark")
+                                    .font(.caption.bold())
+                                Text("完成")
+                                    .font(.caption.bold())
+                            }
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.green.opacity(0.2))
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 
@@ -102,13 +127,39 @@ struct LockScreenView: View {
             ProgressView(value: context.state.progress)
                 .progressViewStyle(LinearProgressViewStyle(tint: .green))
             
-            // Hint text
-            HStack {
-                Spacer()
-                Text("点击打开应用")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
-                Spacer()
+            // Action Buttons
+            HStack(spacing: 12) {
+                // Cancel Button
+                Button(intent: CancelTaskIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark")
+                            .font(.caption.bold())
+                        Text("取消")
+                            .font(.caption.bold())
+                    }
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.red.opacity(0.2))
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                
+                // Complete Button
+                Button(intent: CompleteStepIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.caption.bold())
+                        Text("完成此步骤")
+                            .font(.caption.bold())
+                    }
+                    .foregroundColor(.green)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.green.opacity(0.2))
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding()
