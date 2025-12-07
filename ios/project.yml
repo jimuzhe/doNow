@@ -3,11 +3,14 @@ options:
   bundleIdPrefix: com.donow
   deploymentTarget:
     iOS: 16.2
+
 settings:
   base:
     CODE_SIGN_IDENTITY: ""
     CODE_SIGNING_REQUIRED: "NO"
     CODE_SIGN_ENTITLEMENTS: ""
+    IPHONEOS_DEPLOYMENT_TARGET: 16.2
+
 targets:
   Runner:
     type: application
@@ -37,6 +40,18 @@ targets:
     postBuildScripts:
       - script: /bin/sh "$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh" embed
         name: Embed Flutter Framework
+
+  RunnerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - RunnerTests
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Runner.app/Runner"
+    dependencies:
+      - target: Runner
 
   DoNowWidget:
     type: app-extension
