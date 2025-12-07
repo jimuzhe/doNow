@@ -80,9 +80,22 @@ jobs:
             mkdir -p build/ios/iphoneos
             cp -r build/ios/Release-iphoneos/Runner.app build/ios/iphoneos/
             
+            APP_PATH="build/ios/iphoneos/Runner.app"
+            WIDGET_PATH="$APP_PATH/PlugIns/DoNowWidget.appex"
+            
+            # Manually sign the Widget Extension first
+            if [ -d "$WIDGET_PATH" ]; then
+              echo "✍️ Manually signing DoNowWidget..."
+              codesign -f -s - --entitlements ios/DoNowWidget/DoNowWidget.entitlements "$WIDGET_PATH"
+            fi
+            
+            # Manually sign the Main App
+            echo "✍️ Manually signing Runner.app..."
+            codesign -f -s - --entitlements ios/Runner/Runner.entitlements "$APP_PATH"
+            
             # Verify entitlements
             echo "Verifying entitlements..."
-            codesign -d --entitlements :- build/ios/iphoneos/Runner.app || echo "⚠️ Could not read entitlements"
+            codesign -d --entitlements :- "$APP_PATH" || echo "⚠️ Could not read entitlements"
             
           elif [ -d "build/ios/iphoneos/Runner.app" ]; then
             echo "✅ App found at build/ios/iphoneos/Runner.app"
