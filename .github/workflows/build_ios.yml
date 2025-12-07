@@ -60,6 +60,12 @@ jobs:
           ls -la
           cd ..
 
+      - name: Generate App Icons
+        run: |
+          # Enable iOS icon generation temporarily
+          sed -i '' 's/ios: false/ios: true/' pubspec.yaml || sed -i 's/ios: false/ios: true/' pubspec.yaml
+          dart run flutter_launcher_icons
+
       - name: Pod Install
         run: |
           cd ios
