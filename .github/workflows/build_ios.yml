@@ -75,39 +75,33 @@ jobs:
 
       - name: Build iOS (No Codesign)
         run: |
-          # First let flutter generate the necessary files
-          flutter build ios --release --no-codesign --config-only
+          # Build iOS app with flutter, but continue even if code signing check fails
+          flutter build ios --release --no-codesign 2>&1 || true
           
-          # Then build with xcodebuild with explicit code signing disabled
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            -allowProvisioningUpdates \
-            build
-          cd ..
+          # Check if app was built in DerivedData or build folder
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "App found in build/ios/iphoneos/"
+          else
+            # Try to find in DerivedData
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*Release-iphoneos*" -type d 2>/dev/null | head -1)
+            if [ -n "$APP_PATH" ]; then
+              echo "App found in DerivedData: $APP_PATH"
+              mkdir -p build/ios/iphoneos
+              cp -r "$APP_PATH" build/ios/iphoneos/
+            else
+              echo "ERROR: Could not find Runner.app"
+              find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null || true
+              exit 1
+            fi
+          fi
 
       - name: Package IPA
         run: |
-          # Find the built app
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH="build/ios/iphoneos/Runner.app"
-          fi
-          
-          echo "Found app at: $APP_PATH"
-          
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r "$APP_PATH" build/ios/iphoneos/Payload/
           cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
           zip -r DoNow_TrollStore.ipa Payload
+          ls -la
           cd ../../..
 
       - name: Upload IPA
