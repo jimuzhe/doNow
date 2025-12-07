@@ -44,26 +44,9 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Generate Xcode Project First
+      - name: Generate Xcode Project
         run: |
           cd ios
-          xcodegen generate
-          ls -la
-          cd ..
-
-      - name: Build Flutter Framework
-        run: |
-          # Build Flutter iOS framework (now xcodeproj exists)
-          flutter build ios-framework --release --no-profile --no-debug --output=ios/Flutter --cocoapods
-          
-          # List the output
-          ls -la ios/Flutter/
-          ls -la ios/Flutter/Release/ || true
-
-      - name: Regenerate Xcode Project
-        run: |
-          cd ios
-          # Regenerate to include the Flutter framework
           xcodegen generate
           cd ..
 
@@ -72,55 +55,65 @@ jobs:
           sed -i '' 's/ios: false/ios: true/' pubspec.yaml || sed -i 's/ios: false/ios: true/' pubspec.yaml
           dart run flutter_launcher_icons || true
 
+      - name: Configure Code Signing
+        run: |
+          # Create xcconfig to disable code signing
+          cat > ios/Flutter/DisableCodeSigning.xcconfig << 'EOF'
+          CODE_SIGN_IDENTITY=
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGNING_ALLOWED=NO
+          DEVELOPMENT_TEAM=
+          PROVISIONING_PROFILE_SPECIFIER=
+          EOF
+          
+          # Append to Release.xcconfig
+          echo '#include "DisableCodeSigning.xcconfig"' >> ios/Flutter/Release.xcconfig
+          
+          cat ios/Flutter/Release.xcconfig
+
       - name: Pod Install
         run: |
           cd ios
           pod install --repo-update
           cd ..
 
-      - name: Build with Xcodebuild
+      - name: Build iOS with Flutter
         run: |
-          cd ios
+          # Set FLUTTER_ROOT environment variable
+          export FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
+          echo "FLUTTER_ROOT: $FLUTTER_ROOT"
           
-          # Build without code signing
-          xcodebuild \
-            -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            build
+          # Build and capture the app even if final validation fails
+          flutter build ios --release --no-codesign 2>&1 || true
           
-          cd ..
+          # Check if the app was built
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "✅ App built successfully at build/ios/iphoneos/Runner.app"
+          else
+            # Try to find in DerivedData
+            echo "Looking for app in DerivedData..."
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*Release-iphoneos*" -type d 2>/dev/null | head -1)
+            if [ -n "$APP_PATH" ]; then
+              echo "✅ Found app at: $APP_PATH"
+              mkdir -p build/ios/iphoneos
+              cp -r "$APP_PATH" build/ios/iphoneos/
+            else
+              echo "❌ App not found, checking all .app bundles..."
+              find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null
+              echo "Checking build folder..."
+              find build -name "*.app" -type d 2>/dev/null || true
+              exit 1
+            fi
+          fi
 
       - name: Package IPA
         run: |
-          # Find the app in the built products
-          APP_PATH="ios/build/Build/Products/Release-iphoneos/Runner.app"
-          
-          if [ ! -d "$APP_PATH" ]; then
-            echo "App not found at expected path, searching..."
-            find ios/build -name "*.app" -type d 2>/dev/null || true
-            APP_PATH=$(find ios/build -name "Runner.app" -type d 2>/dev/null | head -1)
-          fi
-          
-          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: Could not find Runner.app"
-            exit 1
-          fi
-          
-          echo "Found app at: $APP_PATH"
-          
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r "$APP_PATH" build/ios/iphoneos/Payload/
           cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
           zip -r DoNow_TrollStore.ipa Payload
-          ls -la
+          echo "📦 IPA created:"
+          ls -la DoNow_TrollStore.ipa
           cd ../../..
 
       - name: Upload IPA
