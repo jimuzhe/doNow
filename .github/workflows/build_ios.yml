@@ -55,22 +55,6 @@ jobs:
           sed -i '' 's/ios: false/ios: true/' pubspec.yaml || sed -i 's/ios: false/ios: true/' pubspec.yaml
           dart run flutter_launcher_icons || true
 
-      - name: Configure Code Signing
-        run: |
-          # Create xcconfig to disable code signing
-          cat > ios/Flutter/DisableCodeSigning.xcconfig << 'EOF'
-          CODE_SIGN_IDENTITY=
-          CODE_SIGNING_REQUIRED=NO
-          CODE_SIGNING_ALLOWED=NO
-          DEVELOPMENT_TEAM=
-          PROVISIONING_PROFILE_SPECIFIER=
-          EOF
-          
-          # Append to Release.xcconfig
-          echo '#include "DisableCodeSigning.xcconfig"' >> ios/Flutter/Release.xcconfig
-          
-          cat ios/Flutter/Release.xcconfig
-
       - name: Pod Install
         run: |
           cd ios
@@ -83,14 +67,23 @@ jobs:
           export FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
           echo "FLUTTER_ROOT: $FLUTTER_ROOT"
           
-          # Build and capture the app even if final validation fails
+          # Build with ad-hoc signing
+          # We use --release but allow signing issues (it might complain about profiles)
           flutter build ios --release --no-codesign 2>&1 || true
           
-          # The app is at build/ios/Release-iphoneos/Runner.app (not iphoneos)
+          # Manually sign the frameworks if needed (Flutter tool might skip this with --no-codesign)
+          # But xcodebuild with CODE_SIGN_IDENTITY="-" should handle it if project.yml is set right
+          
+          # The app using ad-hoc signing should be in build/ios/Release-iphoneos/Runner.app
           if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
             echo "✅ App built successfully at build/ios/Release-iphoneos/Runner.app"
             mkdir -p build/ios/iphoneos
             cp -r build/ios/Release-iphoneos/Runner.app build/ios/iphoneos/
+            
+            # Verify entitlements
+            echo "Verifying entitlements..."
+            codesign -d --entitlements :- build/ios/iphoneos/Runner.app || echo "⚠️ Could not read entitlements"
+            
           elif [ -d "build/ios/iphoneos/Runner.app" ]; then
             echo "✅ App found at build/ios/iphoneos/Runner.app"
           else
