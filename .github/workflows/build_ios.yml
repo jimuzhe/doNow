@@ -44,6 +44,15 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
+      - name: Build Flutter Framework
+        run: |
+          # Build Flutter iOS framework
+          flutter build ios-framework --release --no-profile --no-debug --output=ios/Flutter
+          
+          # List the output
+          ls -la ios/Flutter/
+          ls -la ios/Flutter/Release/ || true
+
       - name: Generate Xcode Project
         run: |
           cd ios
@@ -62,32 +71,7 @@ jobs:
           cd ..
 
       - name: Build with Xcodebuild
-        env:
-          FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
         run: |
-          # Get Flutter root path
-          FLUTTER_PATH=$(which flutter)
-          FLUTTER_ROOT=$(dirname $(dirname $FLUTTER_PATH))
-          export FLUTTER_ROOT
-          
-          echo "FLUTTER_ROOT: $FLUTTER_ROOT"
-          
-          # Create Flutter export environment file
-          mkdir -p ios/Flutter
-          echo "export FLUTTER_ROOT=\"$FLUTTER_ROOT\"" > ios/Flutter/flutter_export_environment.sh
-          echo "export FLUTTER_APPLICATION_PATH=\"$(pwd)\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export COCOAPODS_PARALLEL_CODE_SIGN=\"true\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export FLUTTER_TARGET=\"lib/main.dart\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export FLUTTER_BUILD_DIR=\"build\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export FLUTTER_BUILD_NAME=\"1.0.0\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export FLUTTER_BUILD_NUMBER=\"1\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export DART_OBFUSCATION=\"false\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export TRACK_WIDGET_CREATION=\"false\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export TREE_SHAKE_ICONS=\"true\"" >> ios/Flutter/flutter_export_environment.sh
-          echo "export PACKAGE_CONFIG=\"$(pwd)/.dart_tool/package_config.json\"" >> ios/Flutter/flutter_export_environment.sh
-          
-          chmod +x ios/Flutter/flutter_export_environment.sh
-          
           cd ios
           
           # Build without code signing
@@ -102,7 +86,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
-            FLUTTER_ROOT="$FLUTTER_ROOT" \
             build
           
           cd ..

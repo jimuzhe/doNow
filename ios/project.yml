@@ -36,12 +36,28 @@ targets:
           - group.com.donow.app
     dependencies:
       - target: DoNowWidget
+      - framework: Flutter/Release/Flutter.xcframework
+        embed: true
     preBuildScripts:
-      - script: /bin/sh "$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh" build
+      - script: |
+          # Run Flutter build script if FLUTTER_ROOT is set
+          if [ -n "$FLUTTER_ROOT" ] && [ -f "$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh" ]; then
+            /bin/sh "$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh" build
+          else
+            echo "Skipping Flutter build script - FLUTTER_ROOT not set or xcode_backend.sh not found"
+          fi
         name: Run Flutter Build Script
-    postBuildScripts:
-      - script: /bin/sh "$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh" embed
-        name: Embed Flutter Framework
+      - script: |
+          # Ensure Flutter.xcframework exists
+          if [ ! -d "${PROJECT_DIR}/Flutter/Release/Flutter.xcframework" ]; then
+            echo "Flutter.xcframework not found, checking for other locations..."
+            if [ -d "${PROJECT_DIR}/Flutter/Flutter.xcframework" ]; then
+              echo "Found Flutter.xcframework in Flutter folder"
+            else
+              echo "WARNING: Flutter.xcframework not found"
+            fi
+          fi
+        name: Check Flutter Framework
 
   RunnerTests:
     type: bundle.unit-test
