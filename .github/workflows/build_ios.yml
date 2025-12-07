@@ -44,18 +44,26 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
+      - name: Generate Xcode Project First
+        run: |
+          cd ios
+          xcodegen generate
+          ls -la
+          cd ..
+
       - name: Build Flutter Framework
         run: |
-          # Build Flutter iOS framework
-          flutter build ios-framework --release --no-profile --no-debug --output=ios/Flutter
+          # Build Flutter iOS framework (now xcodeproj exists)
+          flutter build ios-framework --release --no-profile --no-debug --output=ios/Flutter --cocoapods
           
           # List the output
           ls -la ios/Flutter/
           ls -la ios/Flutter/Release/ || true
 
-      - name: Generate Xcode Project
+      - name: Regenerate Xcode Project
         run: |
           cd ios
+          # Regenerate to include the Flutter framework
           xcodegen generate
           cd ..
 
