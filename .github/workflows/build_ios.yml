@@ -86,24 +86,17 @@ jobs:
           # Build and capture the app even if final validation fails
           flutter build ios --release --no-codesign 2>&1 || true
           
-          # Check if the app was built
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "✅ App built successfully at build/ios/iphoneos/Runner.app"
+          # The app is at build/ios/Release-iphoneos/Runner.app (not iphoneos)
+          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
+            echo "✅ App built successfully at build/ios/Release-iphoneos/Runner.app"
+            mkdir -p build/ios/iphoneos
+            cp -r build/ios/Release-iphoneos/Runner.app build/ios/iphoneos/
+          elif [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "✅ App found at build/ios/iphoneos/Runner.app"
           else
-            # Try to find in DerivedData
-            echo "Looking for app in DerivedData..."
-            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*Release-iphoneos*" -type d 2>/dev/null | head -1)
-            if [ -n "$APP_PATH" ]; then
-              echo "✅ Found app at: $APP_PATH"
-              mkdir -p build/ios/iphoneos
-              cp -r "$APP_PATH" build/ios/iphoneos/
-            else
-              echo "❌ App not found, checking all .app bundles..."
-              find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null
-              echo "Checking build folder..."
-              find build -name "*.app" -type d 2>/dev/null || true
-              exit 1
-            fi
+            echo "❌ App not found in expected locations"
+            find build -name "*.app" -type d 2>/dev/null || true
+            exit 1
           fi
 
       - name: Package IPA
