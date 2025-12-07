@@ -1,7 +1,34 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'services/storage_service.dart';
+import 'providers.dart';
 
-// 1. Provider for current Locale 'en' or 'zh'
-final localeProvider = StateProvider<String>((ref) => 'en');
+// 1. Provider for current Locale 'en' or 'zh' - Now with persistence
+final localeProvider = StateNotifierProvider<LocaleNotifier, String>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return LocaleNotifier(storage);
+});
+
+class LocaleNotifier extends StateNotifier<String> {
+  final StorageService _storage;
+
+  LocaleNotifier(this._storage) : super('en') {
+    // Auto-load from storage on init
+    _loadFromStorage();
+  }
+
+  void _loadFromStorage() {
+    try {
+      state = _storage.loadLocale();
+    } catch (_) {
+      // Storage not initialized yet, use defaults
+    }
+  }
+
+  void setLocale(String locale) {
+    state = locale;
+    _storage.saveLocale(locale);
+  }
+}
 
 // 2. String Map
 class AppStrings {
@@ -85,6 +112,11 @@ class AppStrings {
       'no_tasks_yet': 'No tasks yet',
       'time_in_past': 'Cannot schedule task in the past',
       'task_starting': 'Task is starting now!',
+      'vibration_intensity': 'Vibration Intensity',
+      'vibration_off': 'Off',
+      'vibration_light': 'Light',
+      'vibration_medium': 'Medium',
+      'vibration_strong': 'Strong',
     },
     'zh': {
       'home': '首页',
@@ -165,6 +197,11 @@ class AppStrings {
       'no_tasks_yet': '暂无任务',
       'time_in_past': '无法创建过去时间的任务',
       'task_starting': '任务即将开始！',
+      'vibration_intensity': '震动强度',
+      'vibration_off': '关闭',
+      'vibration_light': '轻微',
+      'vibration_medium': '中等',
+      'vibration_strong': '强烈',
     }
   };
 

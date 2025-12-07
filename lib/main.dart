@@ -10,6 +10,7 @@ import 'data/localization.dart';
 import 'data/models/task.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/task_scheduler_service.dart';
+import 'data/services/storage_service.dart';
 import 'ui/widgets/dynamic_island_simulation.dart';
 
 // Global navigator key for navigation from services
@@ -18,9 +19,17 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Storage Service before running app
+  final storageService = StorageService();
+  await storageService.init();
+  
   runApp(
-    const ProviderScope(
-      child: AtomicApp(),
+    ProviderScope(
+      overrides: [
+        // Override the storage service provider with initialized instance
+        storageServiceProvider.overrideWithValue(storageService),
+      ],
+      child: const AtomicApp(),
     ),
   );
 }
@@ -38,6 +47,7 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
   @override
   void initState() {
     super.initState();
+    
     // Initialize Notifications
     ref.read(notificationServiceProvider).init();
     
@@ -172,7 +182,12 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       builder: (context, child) {
-        return DynamicIslandSimulation(child: child!);
+        // Only show simulated Dynamic Island on non-iOS platforms (e.g. Android, Windows, Web)
+        // On iOS, we use the native Live Activity.
+        if (Theme.of(context).platform != TargetPlatform.iOS) {
+          return DynamicIslandSimulation(child: child!);
+        }
+        return child!;
       },
       home: const MainScreen(),
     );

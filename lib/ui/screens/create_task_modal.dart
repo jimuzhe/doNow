@@ -18,7 +18,7 @@ class CreateTaskModal extends ConsumerStatefulWidget {
 }
 
 class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
-  final PageController _pageController = PageController();
+  int _currentStep = 0;
   
   // State
   final TextEditingController _titleController = TextEditingController();
@@ -26,7 +26,6 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
   DateTime _selectedTime = DateTime.now();
   final Set<int> _selectedDays = {}; // 1-7
   
-  // Future for background AI
   // Future for background AI
   Future<List<SubTask>>? _aiFuture; 
 
@@ -47,36 +46,44 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
 
   @override
   Widget build(BuildContext context) {
-    // Reduced height: 60% or Wrap
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.65, 
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Center(
-             child: Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              width: 40, 
-              height: 4, 
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-             ),
+    // Dynamic height with keyboard support
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Center(
+                 child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  width: 40, 
+                  height: 4, 
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                 ),
+              ),
+      
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: 0.0,
+                    child: FadeTransition(opacity: animation, child: child),
+                  );
+                },
+                child: _currentStep == 0 
+                  ? _buildStep1() 
+                  : _buildStep2(),
+              ),
+            ],
           ),
-
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(), // Disable swipe
-              children: [
-                _buildStep1(),
-                _buildStep2(),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -87,9 +94,11 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
 
   Widget _buildStep1() {
     return Padding(
+      key: const ValueKey<int>(0),
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(t('step_1'), style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
@@ -115,14 +124,15 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               initialTimerDuration: _selectedDuration,
               onTimerDurationChanged: (val) {
                  if (val.inMinutes >= 1) {
-                   HapticFeedback.selectionClick();
+                   // Debounce haptic to avoid buzzing on scroll
+                   // HapticFeedback.selectionClick(); 
                    setState(() => _selectedDuration = val);
                  }
               },
             ),
           ),
 
-          const Spacer(),
+          const SizedBox(height: 32),
 
           SizedBox(
             width: double.infinity,
@@ -143,9 +153,11 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
 
   Widget _buildStep2() {
     return Padding(
+      key: const ValueKey<int>(1),
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(t('step_2'), style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
@@ -158,7 +170,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               initialDateTime: _selectedTime,
               use24hFormat: true,
               onDateTimeChanged: (val) {
-                HapticFeedback.selectionClick();
+                // HapticFeedback.selectionClick();
                 setState(() => _selectedTime = val);
               },
             ),
@@ -196,12 +208,12 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
              Padding(
                padding: const EdgeInsets.only(top: 8.0),
                child: Text(
-                 t('daily'), // Simplify logic: just show "Daily" if 7, or leave as chips
+                 t('daily'), // Simplify logic
                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                ),
              ),
 
-          const Spacer(),
+          const SizedBox(height: 32),
           
           // Action Buttons: "Now" and "Save (Later)"
           Row(
@@ -233,9 +245,11 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                ),
             ],
           ),
-          TextButton(
-             onPressed: () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-             child: Text(t('back'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Center(
+            child: TextButton(
+               onPressed: () => setState(() => _currentStep = 0),
+               child: Text(t('back'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            ),
           ),
         ],
       ),
@@ -261,7 +275,9 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     // Haptic
     HapticFeedback.lightImpact();
 
-    _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    setState(() {
+      _currentStep = 1;
+    });
   }
 
   Future<void> _finish({required bool now}) async {

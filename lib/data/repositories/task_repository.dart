@@ -13,19 +13,15 @@ class TaskRepository {
   List<Task> get tasks => _ref.read(taskListProvider);
 
   void addTask(Task task) {
-    _ref.read(taskListProvider.notifier).update((state) => [...state, task]);
+    _ref.read(taskListProvider.notifier).addTask(task);
   }
 
   void updateTask(Task task) {
-    _ref.read(taskListProvider.notifier).update((state) {
-      return state.map((t) => t.id == task.id ? task : t).toList();
-    });
+    _ref.read(taskListProvider.notifier).updateTask(task);
   }
 
   void deleteTask(String taskId) {
-    _ref.read(taskListProvider.notifier).update((state) {
-      return state.where((t) => t.id != taskId).toList();
-    });
+    _ref.read(taskListProvider.notifier).removeTask(taskId);
   }
 
   // Mark task as abandoned (keeps in history for analysis)
@@ -48,7 +44,7 @@ class TaskRepository {
     );
 
     // 3. Update state via Provider
-    _ref.read(taskListProvider.notifier).update((state) => [...state, newTask]);
+    _ref.read(taskListProvider.notifier).addTask(newTask);
     
     return newTask;
   }

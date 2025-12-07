@@ -25,6 +25,17 @@ class AnalysisScreen extends ConsumerWidget {
     final completedCount = completedTasks.length;
     final abandonedCount = abandonedTasks.length;
     final totalMinutes = completedTasks.fold(0, (sum, t) => sum + t.totalDuration.inMinutes);
+    
+    // Calculate additional statistics
+    final totalTasks = completedCount + abandonedCount;
+    final completionRate = totalTasks > 0 ? (completedCount / totalTasks * 100).toInt() : 0;
+    final avgMinutes = completedCount > 0 ? (totalMinutes / completedCount).toInt() : 0;
+    
+    // Calculate streak (consecutive days with completed tasks)
+    int currentStreak = _calculateStreak(completedTasks);
+    
+    // Find best time slot (hour of day with most completions)
+    String bestTimeSlot = _getBestTimeSlot(completedTasks, locale);
 
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
@@ -138,6 +149,60 @@ class AnalysisScreen extends ConsumerWidget {
                 ],
               ),
               
+              const SizedBox(height: 16),
+              
+              // New Stats Row: Completion Rate & Average Duration
+              Row(
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      label: locale == 'zh' ? '完成率' : 'Completion Rate',
+                      value: "$completionRate%",
+                      icon: Icons.trending_up,
+                      color: completionRate >= 70 ? Colors.green : (completionRate >= 40 ? Colors.orange : Colors.red),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _StatCard(
+                      label: locale == 'zh' ? '平均时长' : 'Avg Duration',
+                      value: "$avgMinutes${locale == 'zh' ? '分' : 'm'}",
+                      icon: Icons.access_time,
+                      color: Colors.purple,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Streak & Best Time Slot
+              Row(
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      label: locale == 'zh' ? '连续天数' : 'Streak',
+                      value: "$currentStreak${locale == 'zh' ? '天' : 'd'}",
+                      icon: Icons.local_fire_department,
+                      color: currentStreak >= 7 ? Colors.orange : (currentStreak >= 3 ? Colors.amber : Colors.grey),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _StatCard(
+                      label: locale == 'zh' ? '最佳时段' : 'Best Time',
+                      value: bestTimeSlot,
+                      icon: Icons.wb_sunny,
+                      color: Colors.cyan,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+              
               const SizedBox(height: 32),
               
               Text(
@@ -194,6 +259,76 @@ class AnalysisScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+  
+  int _calculateStreak(List<Task> completedTasks) {
+    if (completedTasks.isEmpty) return 0;
+    
+    // Sort tasks by completion date (most recent first)
+    final sortedTasks = completedTasks.toList()
+      ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
+    
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int streak = 0;
+    
+    // Check if there's a task completed today or yesterday
+    final mostRecent = DateTime(
+      sortedTasks.first.scheduledStart.year,
+      sortedTasks.first.scheduledStart.month,
+      sortedTasks.first.scheduledStart.day,
+    );
+    
+    final daysSinceLastTask = today.difference(mostRecent).inDays;
+    if (daysSinceLastTask > 1) return 0; // Streak broken
+    
+    // Count consecutive days
+    DateTime currentDay = mostRecent;
+    final Set<String> completedDays = {};
+    
+    for (var task in sortedTasks) {
+      final taskDay = DateTime(
+        task.scheduledStart.year,
+        task.scheduledStart.month,
+        task.scheduledStart.day,
+      );
+      completedDays.add(taskDay.toIso8601String().split('T')[0]);
+    }
+    
+    // Count backwards from most recent day
+    while (completedDays.contains(currentDay.toIso8601String().split('T')[0])) {
+      streak++;
+      currentDay = currentDay.subtract(const Duration(days: 1));
+    }
+    
+    return streak;
+  }
+  
+  String _getBestTimeSlot(List<Task> completedTasks, String locale) {
+    if (completedTasks.isEmpty) return locale == 'zh' ? '暂无' : 'N/A';
+    
+    // Count tasks by hour
+    final Map<int, int> hourCounts = {};
+    for (var task in completedTasks) {
+      final hour = task.scheduledStart.hour;
+      hourCounts[hour] = (hourCounts[hour] ?? 0) + 1;
+    }
+    
+    // Find hour with most tasks
+    int bestHour = hourCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+    
+    // Format time slot
+    if (locale == 'zh') {
+      if (bestHour >= 5 && bestHour < 12) return '早上';
+      if (bestHour >= 12 && bestHour < 18) return '下午';
+      if (bestHour >= 18 && bestHour < 22) return '晚上';
+      return '深夜';
+    } else {
+      if (bestHour >= 5 && bestHour < 12) return 'Morning';
+      if (bestHour >= 12 && bestHour < 18) return 'Afternoon';
+      if (bestHour >= 18 && bestHour < 22) return 'Evening';
+      return 'Night';
+    }
   }
 
   void _showTaskListSheet(
@@ -281,7 +416,7 @@ class AnalysisScreen extends ConsumerWidget {
           backDrawRodData: BackgroundBarChartRodData(
             show: true,
             toY: 10,
-            color: isDark ? Colors.grey[800] : Colors.grey[100],
+            color: isDark ? Colors.grey[700] : Colors.grey[300],
           ),
         ),
       ],
@@ -359,6 +494,69 @@ class _ClickableStatCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Non-clickable stat card for display-only statistics
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final bool isDark;
+
+  const _StatCard({
+    required this.label, 
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label, 
+                  style: TextStyle(
+                    color: isDark ? Colors.grey[400] : Colors.grey, 
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value, 
+            style: TextStyle(
+              fontSize: 24, 
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }
