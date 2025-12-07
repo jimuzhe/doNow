@@ -1,0 +1,52 @@
+name: Build iOS IPA for TrollStore
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build_ios:
+    name: Build iOS IPA
+    runs-on: macos-14 # Uses Apple Silicon Runner
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: |
+          cd ios
+          xcodegen generate
+          cd ..
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build iOS (No Codesign)
+        run: |
+          # Build the .app bundle without signing
+          flutter build ios --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          cd build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -r DoNow_TrollStore.ipa Payload
+          cd ../../..
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoNow_TrollStore_IPA
+          path: build/ios/iphoneos/DoNow_TrollStore.ipa

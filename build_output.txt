@@ -1,0 +1,64 @@
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+Compiling lib\main.dart for the Web...                          
+Wasm dry run succeeded. Consider building and testing your application with the `--wasm` flag. See docs for more info: https://docs.flutter.dev/platform-integration/web/wasm
+Use --no-wasm-dry-run to disable these warnings.
+Target dart2js failed: ProcessException: Process exited abnormally with exit code 1:
+lib/ui/screens/home_screen.dart:195:22:
+Error: The method 't' isn't defined for the type '_SlidableTaskCard'.
+ - '_SlidableTaskCard' is from 'package:do_now/ui/screens/home_screen.dart' ('lib/ui/screens/home_screen.dart').
+              label: t('slide_do'),
+                     ^
+lib/ui/screens/home_screen.dart:217:22:
+Error: The method 't' isn't defined for the type '_SlidableTaskCard'.
+ - '_SlidableTaskCard' is from 'package:do_now/ui/screens/home_screen.dart' ('lib/ui/screens/home_screen.dart').
+              label: t('slide_edit'),
+                     ^
+lib/ui/screens/home_screen.dart:239:22:
+Error: The method 't' isn't defined for the type '_SlidableTaskCard'.
+ - '_SlidableTaskCard' is from 'package:do_now/ui/screens/home_screen.dart' ('lib/ui/screens/home_screen.dart').
+              label: t('slide_drop'),
+                     ^
+Error: Compilation failed.
+  Command: C:\Users\LongDz\Downloads\flutter\bin\cache\dart-sdk\bin\dart.exe compile js --platform-binaries=C:\Users\LongDz\Downloads\flutter\bin\cache\flutter_web_sdk\kernel --invoker=flutter_tool -Ddart.vm.product=true -DFLUTTER_VERSION=3.35.5 -DFLUTTER_CHANNEL=stable -DFLUTTER_GIT_URL=https://github.com/flutter/flutter.git -DFLUTTER_FRAMEWORK_REVISION=ac4e799d23 -DFLUTTER_ENGINE_REVISION=d3d45dcf25 -DFLUTTER_DART_VERSION=3.9.2 -DFLUTTER_WEB_USE_SKIA=true -DFLUTTER_WEB_USE_SKWASM=false -DFLUTTER_WEB_CANVASKIT_URL=https://www.gstatic.com/flutter-canvaskit/d3d45dcf251823c1769909cd43698d126db38deb/ --native-null-assertions --no-source-maps -O4 --minify -o C:\Users\LongDz\Desktop\doNow\.dart_tool\flutter_build\10f79d31907b485ef0467b40b1a34ea9\app.dill --packages=C:\Users\LongDz\Desktop\doNow\.dart_tool\package_config.json --cfe-only C:\Users\LongDz\Desktop\doNow\.dart_tool\flutter_build\10f79d31907b485ef0467b40b1a34ea9\main.dart
+#0      RunResult.throwException (package:flutter_tools/src/base/process.dart:118:5)
+#1      _DefaultProcessUtils.run (package:flutter_tools/src/base/process.dart:344:19)
+<asynchronous suspension>
+#2      Dart2JSTarget.build (package:flutter_tools/src/build_system/targets/web.dart:204:5)
+<asynchronous suspension>
+#3      _BuildInstance._invokeInternal (package:flutter_tools/src/build_system/build_system.dart:873:9)
+<asynchronous suspension>
+#4      Future.wait.<anonymous closure> (dart:async/future.dart:525:21)
+<asynchronous suspension>
+#5      _BuildInstance.invokeTarget (package:flutter_tools/src/build_system/build_system.dart:811:32)
+<asynchronous suspension>
+#6      Future.wait.<anonymous closure> (dart:async/future.dart:525:21)
+<asynchronous suspension>
+#7      _BuildInstance.invokeTarget (package:flutter_tools/src/build_system/build_system.dart:811:32)
+<asynchronous suspension>
+#8      FlutterBuildSystem.build (package:flutter_tools/src/build_system/build_system.dart:631:16)
+<asynchronous suspension>
+#9      WebBuilder.buildWeb (package:flutter_tools/src/web/compile.dart:90:34)
+<asynchronous suspension>
+#10     BuildWebCommand.runCommand (package:flutter_tools/src/commands/build_web.dart:282:5)
+<asynchronous suspension>
+#11     FlutterCommand.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command.dart:1581:27)
+<asynchronous suspension>
+#12     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#13     CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#14     FlutterCommandRunner.runCommand.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:503:9)
+<asynchronous suspension>
+#15     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#16     FlutterCommandRunner.runCommand (package:flutter_tools/src/runner/flutter_command_runner.dart:438:5)
+<asynchronous suspension>
+#17     run.<anonymous closure>.<anonymous closure> (package:flutter_tools/runner.dart:98:11)
+<asynchronous suspension>
+#18     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#19     main (package:flutter_tools/executable.dart:101:3)
+<asynchronous suspension>
+
+Compiling lib\main.dart for the Web...                             10.5s
+Error: Failed to compile application for the Web.
