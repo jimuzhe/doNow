@@ -8,11 +8,18 @@ on:
 jobs:
   build_ios:
     name: Build iOS IPA
-    runs-on: macos-14 # Uses Apple Silicon Runner
+    runs-on: macos-14 # Uses Apple Silicon Runner with latest Xcode
     
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: |
+          # List available Xcode versions and select the latest
+          ls /Applications/ | grep Xcode
+          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -23,14 +30,32 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate Xcode Project
+      - name: Clean and Prepare iOS Project
+        run: |
+          cd ios
+          # Remove old Xcode project files that may have incompatible format
+          rm -rf Runner.xcodeproj
+          rm -rf Runner.xcworkspace
+          rm -rf Pods
+          rm -f Podfile.lock
+          cd ..
+
+      - name: Flutter Clean and Pub Get
+        run: |
+          flutter clean
+          flutter pub get
+
+      - name: Generate Fresh Xcode Project
         run: |
           cd ios
           xcodegen generate
           cd ..
 
-      - name: Flutter Pub Get
-        run: flutter pub get
+      - name: Install CocoaPods Dependencies
+        run: |
+          cd ios
+          pod install --repo-update || true
+          cd ..
 
       - name: Build iOS (No Codesign)
         run: |
@@ -40,7 +65,7 @@ jobs:
       - name: Package IPA
         run: |
           cd build/ios/iphoneos
-          mkdir Payload
+          mkdir -p Payload
           cp -r Runner.app Payload/
           zip -r DoNow_TrollStore.ipa Payload
           cd ../../..
