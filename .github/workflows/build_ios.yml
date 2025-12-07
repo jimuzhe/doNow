@@ -75,22 +75,7 @@ jobs:
 
       - name: Build iOS (No Codesign)
         run: |
-          # First run flutter build to generate the xcode project
-          flutter build ios --release --no-codesign || true
-          
-          # If flutter build fails, try with xcodebuild directly
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            ENABLE_APP_INTENTS_DEPLOYMENT_AWARE_PROCESSING=NO \
-            clean build || flutter build ios --release --no-codesign
-          cd ..
+          flutter build ios --release --no-codesign
 
       - name: Package IPA
         run: |
