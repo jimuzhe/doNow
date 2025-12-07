@@ -147,8 +147,20 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 32),
              Container(
                width: 80, height: 80,
-               decoration: BoxDecoration(color: isDark ? Colors.white : Colors.black, borderRadius: BorderRadius.circular(20)),
-               child: Icon(Icons.check, color: isDark ? Colors.black : Colors.white, size: 48),
+               decoration: BoxDecoration(
+                 boxShadow: [
+                   BoxShadow(
+                     color: Colors.black.withOpacity(0.1),
+                     blurRadius: 10,
+                     offset: const Offset(0, 4),
+                   )
+                 ],
+                 borderRadius: BorderRadius.circular(20),
+               ),
+               child: ClipRRect(
+                 borderRadius: BorderRadius.circular(20),
+                 child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
+               ),
              ),
              const SizedBox(height: 16),
              Text("Version 1.0.1", style: TextStyle(color: Colors.grey[600])),
