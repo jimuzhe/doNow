@@ -573,7 +573,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _TaskHistoryItem extends StatelessWidget {
+class _TaskHistoryItem extends ConsumerWidget {
   final Task task;
   final TaskStatus status;
   final String locale;
@@ -587,7 +587,7 @@ class _TaskHistoryItem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final statusColor = switch (status) {
       TaskStatus.completed => Colors.green,
       TaskStatus.abandoned => Colors.red,
@@ -604,7 +604,7 @@ class _TaskHistoryItem extends StatelessWidget {
     final durationStr = "${task.totalDuration.inMinutes} min";
 
     return GestureDetector(
-      onLongPress: () => _showSubtasksSheet(context),
+      onLongPress: () => _showSubtasksSheet(context, ref),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
         padding: const EdgeInsets.all(16),
@@ -680,9 +680,9 @@ class _TaskHistoryItem extends StatelessWidget {
     );
   }
   
-  void _showSubtasksSheet(BuildContext context) {
+  void _showSubtasksSheet(BuildContext context, WidgetRef ref) {
     // Haptic feedback
-    HapticFeedback.mediumImpact();
+    HapticHelper(ref).mediumImpact();
     
     showModalBottomSheet(
       context: context,

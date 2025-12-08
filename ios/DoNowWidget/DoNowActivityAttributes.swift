@@ -6,7 +6,9 @@ struct DoNowActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         // Dynamic state updated via Flutter
         var currentStep: String
-        var progress: Double // 0.0 to 1.0
+        var progress: Double // 0.0 to 1.0 (Legacy/Fallback)
+        var startTime: Date?
+        var endTime: Date?
     }
 
     // Static data passed at start
@@ -30,6 +32,22 @@ extension DoNowActivityAttributes.ContentState {
     static func createFromDictionary(_ dict: [String: Any]) -> DoNowActivityAttributes.ContentState? {
         let currentStep = dict["currentStep"] as? String ?? "..."
         let progress = dict["progress"] as? Double ?? 0.0
-        return DoNowActivityAttributes.ContentState(currentStep: currentStep, progress: progress)
+        
+        var startTime: Date? = nil
+        if let startTimestamp = dict["startTime"] as? Double {
+            startTime = Date(timeIntervalSince1970: startTimestamp)
+        }
+        
+        var endTime: Date? = nil
+        if let endTimestamp = dict["endTime"] as? Double {
+            endTime = Date(timeIntervalSince1970: endTimestamp)
+        }
+        
+        return DoNowActivityAttributes.ContentState(
+            currentStep: currentStep, 
+            progress: progress,
+            startTime: startTime,
+            endTime: endTime
+        )
     }
 }

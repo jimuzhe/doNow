@@ -13,12 +13,28 @@ struct DoNowActivityWidget: Widget {
                 // Expanded UI - Shows when user long-presses
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 4) {
-                        ProgressView(value: context.state.progress)
-                            .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                            .frame(width: 24, height: 24)
-                        Text("\(Int(context.state.progress * 100))%")
-                            .font(.caption.bold())
-                            .foregroundColor(.green)
+                        if let start = context.state.startTime, let end = context.state.endTime {
+                           ProgressView(timerInterval: start...end, countsDown: false)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                                .frame(width: 24, height: 24)
+                        } else {
+                           ProgressView(value: context.state.progress)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                                .frame(width: 24, height: 24)
+                        }
+                        
+                        if let end = context.state.endTime {
+                            Text(timerInterval: Date()...end, countsDown: true)
+                                .multilineTextAlignment(.center)
+                                .monospacedDigit()
+                                .font(.caption.bold())
+                                .foregroundColor(.green)
+                                .frame(width: 50)
+                        } else {
+                            Text("\(Int(context.state.progress * 100))%")
+                                .font(.caption.bold())
+                                .foregroundColor(.green)
+                        }
                     }
                 }
                 
@@ -36,8 +52,13 @@ struct DoNowActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     // Progress bar (no buttons for iOS 16 compatibility)
                     VStack(spacing: 8) {
-                        ProgressView(value: context.state.progress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                        if let start = context.state.startTime, let end = context.state.endTime {
+                            ProgressView(timerInterval: start...end, countsDown: false)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                        } else {
+                            ProgressView(value: context.state.progress)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                        }
                         
                         Text("点击打开应用操作")
                             .font(.caption2)
@@ -47,19 +68,39 @@ struct DoNowActivityWidget: Widget {
                 
             } compactLeading: {
                 // Compact Leading - Progress indicator
-                ProgressView(value: context.state.progress)
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .frame(width: 16, height: 16)
+                if let start = context.state.startTime, let end = context.state.endTime {
+                   ProgressView(timerInterval: start...end, countsDown: false)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .frame(width: 16, height: 16)
+                } else {
+                   ProgressView(value: context.state.progress)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .frame(width: 16, height: 16)
+                }
             } compactTrailing: {
-                // Compact Trailing - Percentage
-                Text("\(Int(context.state.progress * 100))%")
-                    .font(.caption2.bold())
-                    .foregroundColor(.white)
+                // Compact Trailing - Timer or Percentage
+                if let end = context.state.endTime {
+                    Text(timerInterval: Date()...end, countsDown: true)
+                        .monospacedDigit()
+                        .font(.caption2.bold())
+                        .foregroundColor(.white)
+                        .frame(maxWidth: 40)
+                } else {
+                    Text("\(Int(context.state.progress * 100))%")
+                        .font(.caption2.bold())
+                        .foregroundColor(.white)
+                }
             } minimal: {
                 // Minimal - Just icon
-                Image(systemName: "timer")
-                    .foregroundColor(.white)
-                    .font(.caption)
+                if let start = context.state.startTime, let end = context.state.endTime {
+                     ProgressView(timerInterval: start...end, countsDown: false)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                        .frame(width: 20, height: 20)
+                } else {
+                    Image(systemName: "timer")
+                        .foregroundColor(.white)
+                        .font(.caption)
+                }
             }
             .contentMargins(.horizontal, 4, for: .compactLeading)
             .contentMargins(.horizontal, 4, for: .compactTrailing)
@@ -87,9 +128,16 @@ struct LockScreenView: View {
                 
                 Spacer()
                 
-                Text("\(Int(context.state.progress * 100))%")
-                    .font(.caption.bold())
-                    .foregroundColor(.green)
+                if let end = context.state.endTime {
+                    Text(timerInterval: Date()...end, countsDown: true)
+                        .monospacedDigit()
+                        .font(.caption.bold())
+                        .foregroundColor(.green)
+                } else {
+                    Text("\(Int(context.state.progress * 100))%")
+                        .font(.caption.bold())
+                        .foregroundColor(.green)
+                }
             }
             
             // Current Step
@@ -99,8 +147,13 @@ struct LockScreenView: View {
                 .lineLimit(2)
             
             // Progress Bar
-            ProgressView(value: context.state.progress)
-                .progressViewStyle(LinearProgressViewStyle(tint: .green))
+            if let start = context.state.startTime, let end = context.state.endTime {
+                 ProgressView(timerInterval: start...end, countsDown: false)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+            } else {
+                ProgressView(value: context.state.progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+            }
             
             // Hint text (no buttons)
             HStack {
@@ -126,7 +179,9 @@ struct DoNowActivityWidget_Previews: PreviewProvider {
     )
     static let contentState = DoNowActivityAttributes.ContentState(
         currentStep: "整理资料和数据",
-        progress: 0.35
+        progress: 0.35,
+        startTime: Date(),
+        endTime: Date().addingTimeInterval(1200)
     )
     
     static var previews: some View {

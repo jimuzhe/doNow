@@ -6,6 +6,7 @@ import '../../data/models/subtask.dart';
 import '../../data/models/task.dart';
 import '../../data/providers.dart';
 import '../../data/localization.dart';
+import '../../utils/haptic_helper.dart';
 import '../widgets/custom_loading_overlay.dart';
 import 'task_detail_screen.dart';
 
@@ -273,7 +274,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     }
     
     // Haptic
-    HapticFeedback.lightImpact();
+    HapticHelper(ref).lightImpact();
 
     setState(() {
       _currentStep = 1;
@@ -281,7 +282,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
   }
 
   Future<void> _finish({required bool now}) async {
-    HapticFeedback.mediumImpact();
+    HapticHelper(ref).mediumImpact();
     final title = _titleController.text.trim();
     
     // Validate: For non-repeating tasks saved for later, time must not be in the past

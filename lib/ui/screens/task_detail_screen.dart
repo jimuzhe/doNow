@@ -21,7 +21,7 @@ class TaskDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<TaskDetailScreen> createState() => _TaskDetailScreenState();
 }
 
-class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
+class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with WidgetsBindingObserver {
   late Timer _timer;
   late Duration _remainingTime;
   StreamSubscription<IslandAction>? _actionSubscription;
@@ -49,7 +49,12 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Calculate target end time based on initial duration
     _remainingTime = widget.task.totalDuration;
+    _endTime = DateTime.now().add(_remainingTime);
+    
     _completedSteps = List.generate(widget.task.subTasks.length, (_) => false);
     
     // Mark this task as active (to prevent duplicate navigation from scheduler)
@@ -65,11 +70,33 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     _listenToIslandActions();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh timer immediately when app comes to foreground
+      if (mounted) {
+        setState(() {
+           // Force update will happen in next timer tick, 
+           // but we can also manually check if we want immediate feedback
+           _updateTimers();
+        });
+      }
+    }
+  }
+
+  // Target end time for the whole task
+  late DateTime _endTime;
+  // Target end time for the current step
+  DateTime? _stepEndTime;
+
   void _initCurrentStepTimer() {
     if (_forceActiveStepIndex >= 0 && _forceActiveStepIndex < widget.task.subTasks.length) {
-      _currentStepRemaining = widget.task.subTasks[_forceActiveStepIndex].estimatedDuration;
+      final stepDuration = widget.task.subTasks[_forceActiveStepIndex].estimatedDuration;
+      _currentStepRemaining = stepDuration;
+      _stepEndTime = DateTime.now().add(stepDuration);
     } else {
       _currentStepRemaining = Duration.zero;
+      _stepEndTime = null;
     }
   }
 
@@ -95,7 +122,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     final activeIdx = _activeStepIndex;
     if (activeIdx != -1) {
       // Haptic feedback for step completion
-      HapticFeedback.mediumImpact();
+      HapticHelper(ref).mediumImpact();
       
       setState(() {
         _completedSteps[activeIdx] = true;
@@ -127,63 +154,96 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
   // Start Live Activity
   void _startNotifications() async {
-     await ref.read(notificationServiceProvider).startTaskActivity(widget.task);
+     final now = DateTime.now();
+     // If we have a current step timer
+     DateTime? stepEnd = _stepEndTime;
+     
+     await ref.read(notificationServiceProvider).startTaskActivity(
+       widget.task, 
+       startTime: now,
+       endTime: stepEnd,
+     );
   }
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        setState(() {
-          // 1. Global Timer
-          if (_remainingTime.inSeconds > 0) {
-            _remainingTime = _remainingTime - const Duration(seconds: 1);
-          } else {
-            _timer.cancel();
-            _showTimeoutDialog();
-            return;
-          }
-
-          // 2. Step Timer
-          final activeIdx = _activeStepIndex;
-          if (activeIdx != -1) {
-             if (_currentStepRemaining.inSeconds > 0) {
-               _currentStepRemaining -= const Duration(seconds: 1);
-             }
-             
-             // AUTO-ADVANCE: When step timer reaches 0, move to next step WITHOUT marking as complete
-             // The user must manually check the step to mark it complete
-             if (_currentStepRemaining.inSeconds <= 0) {
-               // Move to next step if there is one
-               if (_forceActiveStepIndex < widget.task.subTasks.length - 1) {
-                 _forceActiveStepIndex++;
-                 _initCurrentStepTimer(); // Initialize timer for next step
-               }
-               // If this is the last step and its timer ended, just wait for total timer
-               // Don't auto-complete - let the total timer handle it via _showTimeoutDialog
-             }
-             
-             // Update Live Activity
-             if (_forceActiveStepIndex >= 0 && _forceActiveStepIndex < widget.task.subTasks.length) {
-               final stepTotal = widget.task.subTasks[_forceActiveStepIndex].estimatedDuration.inSeconds;
-               final progress = stepTotal > 0 
-                   ? 1.0 - (_currentStepRemaining.inSeconds / stepTotal)
-                   : 1.0;
-                   
-               ref.read(notificationServiceProvider).updateTaskProgress(
-                 widget.task.subTasks[_forceActiveStepIndex].title, 
-                 progress
-               );
-             }
-          }
-        });
+        _updateTimers();
       }
     });
+  }
+
+  void _updateTimers() {
+     setState(() {
+        final now = DateTime.now();
+
+        // 1. Global Timer calculation
+        final remaining = _endTime.difference(now);
+        
+        if (remaining.inSeconds > 0) {
+           _remainingTime = remaining;
+        } else {
+           _remainingTime = Duration.zero;
+           _timer.cancel();
+           _showTimeoutDialog();
+           return;
+        }
+
+        // 2. Step Timer
+        final activeIdx = _activeStepIndex;
+        if (activeIdx != -1 && _stepEndTime != null) {
+           final stepRemaining = _stepEndTime!.difference(now);
+           
+           if (stepRemaining.inSeconds > 0) {
+             _currentStepRemaining = stepRemaining;
+           } else {
+             _currentStepRemaining = Duration.zero; // Clamp to zero
+             
+             // AUTO-ADVANCE logic
+             if (_forceActiveStepIndex < widget.task.subTasks.length - 1) {
+                // Move to next step
+                _forceActiveStepIndex++;
+                _initCurrentStepTimer(); // Initialize timer (sets new _stepEndTime)
+                
+                // Update Live Activity immediately for new step
+                if (_forceActiveStepIndex < widget.task.subTasks.length) {
+                   ref.read(notificationServiceProvider).updateTaskProgress(
+                     widget.task.subTasks[_forceActiveStepIndex].title, 
+                     0.0, // starts at 0 progress (or 1.0 depending on view, new step)
+                     startTime: DateTime.now(),
+                     endTime: _stepEndTime,
+                   );
+                }
+             }
+             // else: Last step ended
+           }
+           
+           // Update Live Activity (Periodic)
+           // We still send updates to keep 'progress' variable sync if needed, 
+           // but native now relies on timestamps mostly.
+           if (_forceActiveStepIndex >= 0 && _forceActiveStepIndex < widget.task.subTasks.length) {
+             final stepTotal = widget.task.subTasks[_forceActiveStepIndex].estimatedDuration.inSeconds;
+             final progress = stepTotal > 0 
+                 ? 1.0 - (_currentStepRemaining.inSeconds / stepTotal)
+                 : 1.0;
+                 
+             ref.read(notificationServiceProvider).updateTaskProgress(
+               widget.task.subTasks[_forceActiveStepIndex].title, 
+               progress,
+               startTime: _stepEndTime?.subtract(widget.task.subTasks[_forceActiveStepIndex].estimatedDuration),
+               endTime: _stepEndTime,
+             );
+           }
+        }
+     });
   }
 
   @override
   void dispose() {
     if (_timer.isActive) _timer.cancel();
     _actionSubscription?.cancel();
+    
+    WidgetsBinding.instance.removeObserver(this);
     
     // Clear active task ID when leaving (unless we completed early)
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -197,9 +257,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
   Future<void> _completeMission() async {
     // Strong haptic feedback for mission completion!
-    HapticFeedback.heavyImpact();
+    HapticHelper(ref).heavyImpact();
     await Future.delayed(const Duration(milliseconds: 100));
-    HapticFeedback.heavyImpact();
+    HapticHelper(ref).heavyImpact();
     
     // 1. Mark as completed in repo
     final repo = ref.read(taskRepositoryProvider);
@@ -371,7 +431,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 return InkWell(
                   onTap: () {
                     // Haptic feedback for step toggle
-                    HapticFeedback.selectionClick();
+                    HapticHelper(ref).selectionClick();
                     
                     setState(() {
                       bool wasChecked = _completedSteps[index];
@@ -379,7 +439,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                       
                       // Extra haptic for completing a step
                       if (!wasChecked) {
-                        HapticFeedback.mediumImpact();
+                        HapticHelper(ref).mediumImpact();
                         
                         // If user manually checked a step, move force index to next unchecked
                         if (index >= _forceActiveStepIndex) {
@@ -560,7 +620,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                    use24hFormat: true,
                    onDateTimeChanged: (val) {
                      // Haptic feedback on scroll
-                     HapticFeedback.selectionClick();
+                     HapticHelper(ref).selectionClick();
                      selectedTime = val;
                    },
                  ),
