@@ -347,7 +347,8 @@ struct DynamicCompactLeadingView: View {
             tint: .white,
             lineWidth: 2
         )
-        .frame(width: 18, height: 18)
+        .frame(width: 16, height: 16)
+        .padding(.leading, 4)
     }
 }
 
