@@ -150,8 +150,6 @@ struct DoNowActivityWidget: Widget {
                     DynamicMinimalView(state: context.state, currentDate: timeline.date)
                 }
             }
-            .contentMargins(.leading, 0, for: .compactLeading)
-            .contentMargins(.trailing, 0, for: .compactTrailing)
         }
     }
 }
@@ -340,16 +338,26 @@ struct DynamicCompactLeadingView: View {
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
+        let progress = stepInfo?.progress ?? state.progress
         
-        // Just circular progress, no text (custom view)
-        CircleProgressView(
-            progress: stepInfo?.progress ?? state.progress,
-            tint: .white,
-            lineWidth: 2
-        )
-        .frame(width: 12, height: 12)
-        .padding(.leading, 10)
-        .padding(.trailing, 0)
+        // Use HStack with Spacer to push content away from edge
+        HStack(spacing: 0) {
+            Spacer()
+                .frame(width: 8)
+            
+            // Use native ProgressView for better iOS 16 compatibility
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                    .frame(width: 14, height: 14)
+                
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .frame(width: 14, height: 14)
+                    .rotationEffect(.degrees(-90))
+            }
+        }
     }
 }
 
