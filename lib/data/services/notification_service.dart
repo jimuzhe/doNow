@@ -6,7 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/task.dart';
 
-// Action types from Dynamic Island
+// Action types from Dynamic Island / Android Notification
 enum IslandAction { complete, cancel }
 
 // Simple model for state updates to Simulation Overlay
@@ -34,17 +34,21 @@ class NotificationService {
   // MethodChannel for iOS Live Activities
   static const MethodChannel _liveActivityChannel = MethodChannel('com.donow.app/live_activity');
   
+  // MethodChannel for Android Foreground Notification
+  static const MethodChannel _androidNotificationChannel = MethodChannel('com.donow.app/android_notification');
+  
   // Stream for In-App Simulation
   final StreamController<ActivityState> _activityStreamController = StreamController<ActivityState>.broadcast();
   Stream<ActivityState> get activityStream => _activityStreamController.stream;
 
-  // Stream for action callbacks (complete/cancel from Dynamic Island)
+  // Stream for action callbacks (complete/cancel from Dynamic Island / Android Notification)
   final StreamController<IslandAction> _actionStreamController = StreamController<IslandAction>.broadcast();
   Stream<IslandAction> get actionStream => _actionStreamController.stream;
 
   Task? _currentTask;
   bool _isLiveActivitySupported = false;
   bool _isLiveActivityActive = false;
+  bool _isAndroidNotificationActive = false;
 
   Future<void> init() async {
     // 1. Local Notifications Init
@@ -63,6 +67,28 @@ class NotificationService {
 
     // 2. Check iOS Live Activity support
     await _checkLiveActivitySupport();
+    
+    // 3. Setup Android notification action handler
+    _setupAndroidActionHandler();
+  }
+
+  /// Setup handler for Android notification actions
+  void _setupAndroidActionHandler() {
+    if (_isAndroid()) {
+      _androidNotificationChannel.setMethodCallHandler((call) async {
+        if (call.method == 'onNotificationAction') {
+          final String action = call.arguments as String;
+          debugPrint('📲 Android notification action: $action');
+          
+          if (action == 'complete') {
+            triggerComplete();
+          } else if (action == 'cancel') {
+            triggerCancel();
+          }
+        }
+        return null;
+      });
+    }
   }
 
   /// Check if iOS Live Activities are supported
@@ -88,24 +114,37 @@ class NotificationService {
       return false;
     }
   }
+  
+  /// Check if running on Android
+  bool _isAndroid() {
+    if (kIsWeb) return false;
+    try {
+      return Platform.isAndroid;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Check if Live Activity is currently active
   bool get isLiveActivityActive => _isLiveActivityActive;
 
   /// Check if Live Activity is supported
   bool get isLiveActivitySupported => _isLiveActivitySupported;
+  
+  /// Check if Android notification is active
+  bool get isAndroidNotificationActive => _isAndroidNotificationActive;
 
-  // Trigger complete action from Dynamic Island / In-App Simulation
+  // Trigger complete action from Dynamic Island / Android Notification / In-App Simulation
   void triggerComplete() {
     _actionStreamController.add(IslandAction.complete);
   }
 
-  // Trigger cancel action from Dynamic Island / In-App Simulation
+  // Trigger cancel action from Dynamic Island / Android Notification / In-App Simulation
   void triggerCancel() {
     _actionStreamController.add(IslandAction.cancel);
   }
 
-  // Start a new Activity (In-App Simulation + Native iOS if available)
+  // Start a new Activity (In-App Simulation + Native iOS/Android if available)
   Future<void> startTaskActivity(Task task, {DateTime? startTime, DateTime? endTime}) async {
     _currentTask = task;
     
@@ -147,24 +186,59 @@ class NotificationService {
         _isLiveActivityActive = false;
       }
     }
+    
+    // 3. Start Android Foreground Notification
+    if (_isAndroid()) {
+      try {
+        await _androidNotificationChannel.invokeMethod('startTaskNotification', {
+          'taskTitle': task.title,
+          'currentStep': currentStep,
+          'progress': 0.0,
+          'endTime': endTime != null ? endTime.millisecondsSinceEpoch / 1000.0 : 0.0,
+        });
+        _isAndroidNotificationActive = true;
+        debugPrint('🤖 Android notification started');
+      } catch (e) {
+        debugPrint('❌ Error starting Android notification: $e');
+        _isAndroidNotificationActive = false;
+      }
+    }
   }
 
-  /// Check for any pending actions triggered from Dynamic Island (iOS 17+)
+  /// Check for any pending actions triggered from Dynamic Island (iOS 17+) or Android notification
   Future<void> checkPendingAction() async {
-    if (!_isIOS()) return;
-    
-    try {
-      final String? action = await _liveActivityChannel.invokeMethod('checkPendingAction');
-      if (action != null) {
-        debugPrint('📲 Pending Action found: $action');
-        if (action == 'complete') {
-          triggerComplete();
-        } else if (action == 'cancel') {
-          triggerCancel();
+    // iOS
+    if (_isIOS()) {
+      try {
+        final String? action = await _liveActivityChannel.invokeMethod('checkPendingAction');
+        if (action != null) {
+          debugPrint('📲 iOS Pending Action found: $action');
+          if (action == 'complete') {
+            triggerComplete();
+          } else if (action == 'cancel') {
+            triggerCancel();
+          }
         }
+      } catch (e) {
+        debugPrint('❌ Error checking iOS pending action: $e');
       }
-    } catch (e) {
-      debugPrint('❌ Error checking pending action: $e');
+    }
+    
+    // Android
+    if (_isAndroid()) {
+      try {
+        final String? action = await _androidNotificationChannel.invokeMethod('checkPendingAction');
+        if (action != null) {
+          debugPrint('📲 Android Pending Action found: $action');
+          if (action == 'complete') {
+            triggerComplete();
+          } else if (action == 'cancel') {
+            triggerCancel();
+          }
+        }
+      } catch (e) {
+        debugPrint('❌ Error checking Android pending action: $e');
+      }
     }
   }
 
@@ -195,9 +269,21 @@ class NotificationService {
         }
 
         await _liveActivityChannel.invokeMethod('updateActivity', args);
-        // debugPrint('🔄 Live Activity updated: $stepName'); 
       } catch (e) {
         debugPrint('❌ Error updating Live Activity: $e');
+      }
+    }
+    
+    // 3. Update Android Foreground Notification if active
+    if (_isAndroid() && _isAndroidNotificationActive) {
+      try {
+        await _androidNotificationChannel.invokeMethod('updateTaskNotification', {
+          'currentStep': stepName,
+          'progress': progress,
+          'endTime': endTime != null ? endTime.millisecondsSinceEpoch / 1000.0 : 0.0,
+        });
+      } catch (e) {
+        debugPrint('❌ Error updating Android notification: $e');
       }
     }
   }
@@ -219,7 +305,18 @@ class NotificationService {
       }
     }
     
-    // 3. Cancel any Android notification
+    // 3. Stop Android Foreground Notification if active
+    if (_isAndroid() && _isAndroidNotificationActive) {
+      try {
+        await _androidNotificationChannel.invokeMethod('stopTaskNotification');
+        _isAndroidNotificationActive = false;
+        debugPrint('🏁 Android notification ended');
+      } catch (e) {
+        debugPrint('❌ Error ending Android notification: $e');
+      }
+    }
+    
+    // 4. Cancel any fallback local notification
     if (!kIsWeb) {
       try {
         await _localNotifications.cancel(888);
