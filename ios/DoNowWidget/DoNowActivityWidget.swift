@@ -156,6 +156,36 @@ struct DoNowActivityWidget: Widget {
     }
 }
 
+// MARK: - Custom Circle Progress (No Text Inside)
+
+@available(iOS 16.1, *)
+struct CircleProgressView: View {
+    let progress: Double
+    let tint: Color
+    let lineWidth: CGFloat
+    
+    init(progress: Double, tint: Color = .green, lineWidth: CGFloat = 3) {
+        self.progress = min(max(progress, 0), 1)
+        self.tint = tint
+        self.lineWidth = lineWidth
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background circle
+            Circle()
+                .stroke(tint.opacity(0.2), lineWidth: lineWidth)
+            
+            // Progress arc
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.3), value: progress)
+        }
+    }
+}
+
 // MARK: - Subviews for Dynamic Island
 
 @available(iOS 16.1, *)
@@ -167,16 +197,13 @@ struct DynamicLeadingView: View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
         HStack(spacing: 8) {
-            // Circular progress - no text inside
-            if let info = stepInfo {
-                ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
-                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                    .frame(width: 28, height: 28)
-            } else {
-                ProgressView(value: state.progress)
-                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                    .frame(width: 28, height: 28)
-            }
+            // Circular progress - no text inside (custom view)
+            CircleProgressView(
+                progress: stepInfo?.progress ?? state.progress,
+                tint: .green,
+                lineWidth: 3
+            )
+            .frame(width: 28, height: 28)
         }
     }
 }
@@ -188,31 +215,97 @@ struct DynamicCenterView: View {
     let currentDate: Date
     
     var body: some View {
-        let stepInfo = DynamicStepInfo.from(state: state)
-        
         VStack(spacing: 4) {
-            // Current step title (auto-calculates based on time)
-            Text(stepInfo?.title ?? state.currentStep)
+            // Auto-advancing step title
+            AutoAdvancingStepTextView(state: state, currentDate: currentDate)
+            
+            // Step counter and countdown
+            AutoAdvancingStepCounterView(state: state, currentDate: currentDate)
+        }
+    }
+}
+
+// MARK: - Auto Advancing Step Title View
+// Uses ZStack with opacity to switch between steps automatically
+@available(iOS 16.1, *)
+struct AutoAdvancingStepTextView: View {
+    let state: DoNowActivityAttributes.ContentState
+    let currentDate: Date
+    
+    var body: some View {
+        if let steps = state.steps, !steps.isEmpty {
+            // Use ZStack with multiple Text views, only one visible at a time
+            ZStack {
+                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                    let isCurrentStep = currentDate >= stepStart && currentDate < step.endTime
+                    let isPastAllSteps = index == steps.count - 1 && currentDate >= step.endTime
+                    
+                    Text(step.title)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .opacity(isCurrentStep || isPastAllSteps ? 1 : 0)
+                }
+            }
+        } else {
+            // Fallback to static step
+            Text(state.currentStep)
                 .font(.headline)
                 .foregroundColor(.white)
                 .lineLimit(1)
-            
+        }
+    }
+}
+
+// MARK: - Auto Advancing Step Counter View
+@available(iOS 16.1, *)
+struct AutoAdvancingStepCounterView: View {
+    let state: DoNowActivityAttributes.ContentState
+    let currentDate: Date
+    
+    var body: some View {
+        if let steps = state.steps, !steps.isEmpty {
             HStack(spacing: 8) {
-                // Step counter
-                if let info = stepInfo, info.totalSteps > 1 {
-                    Text("\(info.index + 1)/\(info.totalSteps)")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
+                // Step counter - ZStack approach
+                ZStack {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                        let isCurrentStep = currentDate >= stepStart && currentDate < step.endTime
+                        let isPastAllSteps = index == steps.count - 1 && currentDate >= step.endTime
+                        
+                        if steps.count > 1 {
+                            Text("\(index + 1)/\(steps.count)")
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                                .opacity(isCurrentStep || isPastAllSteps ? 1 : 0)
+                        }
+                    }
                 }
                 
-                // Countdown timer
-                if let info = stepInfo, info.endTime > currentDate {
-                    Text(timerInterval: currentDate...info.endTime, countsDown: true)
-                        .monospacedDigit()
-                        .font(.caption.bold())
-                        .foregroundColor(.green)
+                // Countdown timer - use the first step that hasn't ended yet
+                ZStack {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        if step.endTime > currentDate {
+                            let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                            let isCurrentStep = currentDate >= stepStart
+                            
+                            if isCurrentStep {
+                                Text(timerInterval: currentDate...step.endTime, countsDown: true)
+                                    .monospacedDigit()
+                                    .font(.caption.bold())
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
                 }
             }
+        } else if let endTime = state.endTime, endTime > currentDate {
+            // Fallback countdown
+            Text(timerInterval: currentDate...endTime, countsDown: true)
+                .monospacedDigit()
+                .font(.caption.bold())
+                .foregroundColor(.green)
         }
     }
 }
@@ -248,16 +341,13 @@ struct DynamicCompactLeadingView: View {
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
-        // Just circular progress, no text
-        if let info = stepInfo {
-            ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
-                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .frame(width: 18, height: 18)
-        } else {
-            ProgressView(value: state.progress)
-                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .frame(width: 18, height: 18)
-        }
+        // Just circular progress, no text (custom view)
+        CircleProgressView(
+            progress: stepInfo?.progress ?? state.progress,
+            tint: .white,
+            lineWidth: 2
+        )
+        .frame(width: 18, height: 18)
     }
 }
 
@@ -267,18 +357,45 @@ struct DynamicCompactTrailingView: View {
     let currentDate: Date
     
     var body: some View {
-        let stepInfo = DynamicStepInfo.from(state: state)
-        
-        if let info = stepInfo, info.endTime > currentDate {
-            Text(timerInterval: currentDate...info.endTime, countsDown: true)
-                .monospacedDigit()
-                .font(.caption2.bold())
-                .foregroundColor(.white)
-                .frame(maxWidth: 45)
+        if let steps = state.steps, !steps.isEmpty {
+            // Use ZStack approach for auto-advancing countdown
+            ZStack {
+                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    if step.endTime > currentDate {
+                        let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                        let isCurrentStep = currentDate >= stepStart
+                        
+                        if isCurrentStep {
+                            Text(timerInterval: currentDate...step.endTime, countsDown: true)
+                                .monospacedDigit()
+                                .font(.caption2.bold())
+                                .foregroundColor(.white)
+                                .frame(maxWidth: 45)
+                        }
+                    }
+                }
+                
+                // Show checkmark if all steps completed
+                if let lastStep = steps.last, currentDate >= lastStep.endTime {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                }
+            }
         } else {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .font(.caption)
+            // Fallback
+            let stepInfo = DynamicStepInfo.from(state: state)
+            if let info = stepInfo, info.endTime > currentDate {
+                Text(timerInterval: currentDate...info.endTime, countsDown: true)
+                    .monospacedDigit()
+                    .font(.caption2.bold())
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 45)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+            }
         }
     }
 }
@@ -291,16 +408,13 @@ struct DynamicMinimalView: View {
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
-        // Just circular progress
-        if let info = stepInfo {
-            ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
-                .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                .frame(width: 22, height: 22)
-        } else {
-            ProgressView(value: state.progress)
-                .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                .frame(width: 22, height: 22)
-        }
+        // Just circular progress (custom view)
+        CircleProgressView(
+            progress: stepInfo?.progress ?? state.progress,
+            tint: .green,
+            lineWidth: 2.5
+        )
+        .frame(width: 22, height: 22)
     }
 }
 
@@ -311,7 +425,7 @@ struct LockScreenView: View {
     let currentDate: Date
     
     var body: some View {
-        let stepInfo = DynamicStepInfo.from(state: context.state)
+        let steps = context.state.steps
         
         VStack(alignment: .leading, spacing: 8) {
             // Header
@@ -327,8 +441,30 @@ struct LockScreenView: View {
                 
                 Spacer()
                 
-                if let info = stepInfo, info.endTime > currentDate {
-                    Text(timerInterval: currentDate...info.endTime, countsDown: true)
+                // Auto-advancing countdown timer
+                if let steps = steps, !steps.isEmpty {
+                    ZStack {
+                        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                            if step.endTime > currentDate {
+                                let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                                let isCurrentStep = currentDate >= stepStart
+                                
+                                if isCurrentStep {
+                                    Text(timerInterval: currentDate...step.endTime, countsDown: true)
+                                        .monospacedDigit()
+                                        .font(.caption.bold())
+                                        .foregroundColor(.green)
+                                }
+                            }
+                        }
+                        
+                        if let lastStep = steps.last, currentDate >= lastStep.endTime {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        }
+                    }
+                } else if let endTime = context.state.endTime, endTime > currentDate {
+                    Text(timerInterval: currentDate...endTime, countsDown: true)
                         .monospacedDigit()
                         .font(.caption.bold())
                         .foregroundColor(.green)
@@ -338,29 +474,71 @@ struct LockScreenView: View {
                 }
             }
             
-            // Current Step with step number (auto-calculated)
+            // Current Step with step number (auto-advancing)
             HStack {
-                Text(stepInfo?.title ?? context.state.currentStep)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.9))
-                    .lineLimit(2)
+                // Auto-advancing step title
+                if let steps = steps, !steps.isEmpty {
+                    ZStack(alignment: .leading) {
+                        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                            let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                            let isCurrentStep = currentDate >= stepStart && currentDate < step.endTime
+                            let isPastAllSteps = index == steps.count - 1 && currentDate >= step.endTime
+                            
+                            Text(step.title)
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(2)
+                                .opacity(isCurrentStep || isPastAllSteps ? 1 : 0)
+                        }
+                    }
+                } else {
+                    Text(context.state.currentStep)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                        .lineLimit(2)
+                }
                 
-                if let info = stepInfo, info.totalSteps > 1 {
+                // Step counter (auto-advancing)
+                if let steps = steps, steps.count > 1 {
                     Spacer()
-                    Text("\(info.index + 1)/\(info.totalSteps)")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.gray.opacity(0.3))
-                        .cornerRadius(8)
+                    ZStack {
+                        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                            let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                            let isCurrentStep = currentDate >= stepStart && currentDate < step.endTime
+                            let isPastAllSteps = index == steps.count - 1 && currentDate >= step.endTime
+                            
+                            Text("\(index + 1)/\(steps.count)")
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.gray.opacity(0.3))
+                                .cornerRadius(8)
+                                .opacity(isCurrentStep || isPastAllSteps ? 1 : 0)
+                        }
+                    }
                 }
             }
             
-            // Progress Bar
-            if let info = stepInfo {
-                ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
-                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+            // Progress Bar (auto-advancing)
+            if let steps = steps, !steps.isEmpty {
+                ZStack {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+                        let isCurrentStep = currentDate >= stepStart && currentDate < step.endTime
+                        
+                        if isCurrentStep {
+                            ProgressView(timerInterval: stepStart...step.endTime, countsDown: false)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                        }
+                    }
+                    
+                    // Show full progress if all done
+                    if let lastStep = steps.last, currentDate >= lastStep.endTime {
+                        ProgressView(value: 1.0)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                    }
+                }
             } else {
                 ProgressView(value: context.state.progress)
                     .progressViewStyle(LinearProgressViewStyle(tint: .green))
