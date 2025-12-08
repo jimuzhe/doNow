@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
+import '../../utils/haptic_helper.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -54,7 +55,7 @@ class SettingsScreen extends ConsumerWidget {
                       isSelected: !isChinese, 
                       onTap: () {
                          ref.read(localeProvider.notifier).setLocale('en');
-                         HapticFeedback.selectionClick();
+                         HapticHelper(ref).selectionClick();
                       },
                       isDark: isDark,
                     ),
@@ -63,7 +64,7 @@ class SettingsScreen extends ConsumerWidget {
                       isSelected: isChinese, 
                       onTap: () {
                          ref.read(localeProvider.notifier).setLocale('zh');
-                         HapticFeedback.selectionClick();
+                         HapticHelper(ref).selectionClick();
                       },
                       isDark: isDark,
                     ),
@@ -86,7 +87,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () {
                 // Clear List Logic
                 ref.read(taskListProvider.notifier).clear();
-                HapticFeedback.mediumImpact();
+                HapticHelper(ref).mediumImpact();
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Cleared")));
               },
             ),
@@ -128,7 +129,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   void _showAboutModal(BuildContext context, WidgetRef ref) {
-    HapticFeedback.lightImpact();
+    HapticHelper(ref).lightImpact();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     showModalBottomSheet(
@@ -188,7 +189,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   void _showFeedbackModal(BuildContext context, WidgetRef ref) {
-     HapticFeedback.lightImpact();
+     HapticHelper(ref).lightImpact();
      final locale = ref.read(localeProvider);
      final email = AppStrings.get('feedback_email', locale);
      final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -218,7 +219,7 @@ class SettingsScreen extends ConsumerWidget {
                     color: isDark ? Colors.white : Colors.black,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: email));
-                      HapticFeedback.mediumImpact();
+                      HapticHelper(ref).mediumImpact();
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.get('email_copied', locale))));
                     },
@@ -473,13 +474,7 @@ class _VibrationIntensityTile extends ConsumerWidget {
                 ref.read(vibrationIntensityProvider.notifier).setIntensity(value);
                 // Give feedback with new intensity
                 if (value > 0) {
-                  if (value < 0.4) {
-                    HapticFeedback.lightImpact();
-                  } else if (value < 0.7) {
-                    HapticFeedback.mediumImpact();
-                  } else {
-                    HapticFeedback.heavyImpact();
-                  }
+                   HapticHelper(ref).mediumImpact();
                 }
               },
             ),

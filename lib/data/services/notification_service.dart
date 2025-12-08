@@ -15,12 +15,16 @@ class ActivityState {
   final String currentStep;
   final double progress; // 0.0 to 1.0
   final bool isActive;
+  final DateTime? startTime;
+  final DateTime? endTime;
 
   ActivityState({
     this.taskTitle = '', 
     this.currentStep = '', 
     this.progress = 0.0, 
-    this.isActive = false
+    this.isActive = false,
+    this.startTime,
+    this.endTime,
   });
 }
 
@@ -102,7 +106,7 @@ class NotificationService {
   }
 
   // Start a new Activity (In-App Simulation + Native iOS if available)
-  Future<void> startTaskActivity(Task task) async {
+  Future<void> startTaskActivity(Task task, {DateTime? startTime, DateTime? endTime}) async {
     _currentTask = task;
     
     final currentStep = task.subTasks.isNotEmpty ? task.subTasks.first.title : "Starting...";
@@ -113,17 +117,28 @@ class NotificationService {
       currentStep: currentStep,
       progress: 0.0,
       isActive: true,
+      startTime: startTime,
+      endTime: endTime,
     ));
 
     // 2. Start iOS Live Activity if supported
     if (_isIOS() && _isLiveActivitySupported) {
       try {
-        final result = await _liveActivityChannel.invokeMethod('startActivity', {
+        final Map<String, dynamic> args = {
           'taskTitle': task.title,
           'currentStep': currentStep,
           'progress': 0.0,
           'totalDuration': task.totalDuration.inMinutes,
-        });
+        };
+        
+        if (startTime != null) {
+           args['startTime'] = startTime.millisecondsSinceEpoch / 1000.0;
+        }
+        if (endTime != null) {
+           args['endTime'] = endTime.millisecondsSinceEpoch / 1000.0;
+        }
+
+        final result = await _liveActivityChannel.invokeMethod('startActivity', args);
         
         _isLiveActivityActive = result != null;
         debugPrint('🏝️ Live Activity started: $result');
@@ -134,23 +149,34 @@ class NotificationService {
     }
   }
 
-  Future<void> updateTaskProgress(String stepName, double progress) async {
+  Future<void> updateTaskProgress(String stepName, double progress, {DateTime? startTime, DateTime? endTime}) async {
     // 1. In-App Simulation
     _activityStreamController.add(ActivityState(
       taskTitle: _currentTask?.title ?? "Current Task",
       currentStep: stepName,
       progress: progress,
       isActive: true,
+      startTime: startTime,
+      endTime: endTime,
     ));
 
     // 2. Update iOS Live Activity if active
     if (_isIOS() && _isLiveActivityActive) {
       try {
-        await _liveActivityChannel.invokeMethod('updateActivity', {
+        final Map<String, dynamic> args = {
           'currentStep': stepName,
           'progress': progress,
-        });
-        debugPrint('🔄 Live Activity updated: $stepName - ${(progress * 100).toInt()}%');
+        };
+        
+        if (startTime != null) {
+           args['startTime'] = startTime.millisecondsSinceEpoch / 1000.0;
+        }
+        if (endTime != null) {
+           args['endTime'] = endTime.millisecondsSinceEpoch / 1000.0;
+        }
+
+        await _liveActivityChannel.invokeMethod('updateActivity', args);
+        // debugPrint('🔄 Live Activity updated: $stepName'); 
       } catch (e) {
         debugPrint('❌ Error updating Live Activity: $e');
       }
