@@ -438,11 +438,12 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     
     if (now) {
       try {
-        showDialog(
+        showGeneralDialog(
            context: context,
            barrierDismissible: false,
-           builder: (_) => CustomLoadingOverlay(message: t('generating'))
-        );
+           barrierColor: Colors.white,
+           pageBuilder: (_, __, ___) => CustomLoadingOverlay(message: t('generating')),
+         );
         
         // Wait result
         final subTasks = await _aiFuture!;
@@ -486,11 +487,12 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           List<SubTask> finalSubTasks = widget.taskToEdit!.subTasks;
           
           if (needsRegeneration && _aiFuture != null) {
-            showDialog(
+            showGeneralDialog(
                context: context,
                barrierDismissible: false,
-               builder: (_) => CustomLoadingOverlay(message: t('generating'))
-            );
+               barrierColor: Colors.white,
+               pageBuilder: (_, __, ___) => CustomLoadingOverlay(message: t('generating')),
+             );
             
             final newSubTasks = await _aiFuture!;
             if (mounted) Navigator.pop(context);
