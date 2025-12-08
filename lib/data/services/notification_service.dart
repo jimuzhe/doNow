@@ -49,6 +49,9 @@ class NotificationService {
   bool _isLiveActivitySupported = false;
   bool _isLiveActivityActive = false;
   bool _isAndroidNotificationActive = false;
+  
+  // Cached step schedule for iOS auto-advance
+  List<Map<String, dynamic>>? _cachedStepSchedule;
 
   Future<void> init() async {
     // 1. Local Notifications Init
@@ -143,12 +146,34 @@ class NotificationService {
   void triggerCancel() {
     _actionStreamController.add(IslandAction.cancel);
   }
+  
+  /// Build step schedule for iOS auto-advance
+  /// Each step has: title, durationSeconds, endTime (timestamp)
+  List<Map<String, dynamic>> _buildStepSchedule(Task task, DateTime taskStartTime) {
+    final List<Map<String, dynamic>> steps = [];
+    DateTime currentEndTime = taskStartTime;
+    
+    for (final subTask in task.subTasks) {
+      currentEndTime = currentEndTime.add(subTask.estimatedDuration);
+      steps.add({
+        'title': subTask.title,
+        'durationSeconds': subTask.estimatedDuration.inSeconds,
+        'endTime': currentEndTime.millisecondsSinceEpoch / 1000.0,
+      });
+    }
+    
+    return steps;
+  }
 
   // Start a new Activity (In-App Simulation + Native iOS/Android if available)
   Future<void> startTaskActivity(Task task, {DateTime? startTime, DateTime? endTime}) async {
     _currentTask = task;
     
     final currentStep = task.subTasks.isNotEmpty ? task.subTasks.first.title : "Starting...";
+    final taskStartTime = startTime ?? DateTime.now();
+    
+    // Build step schedule for iOS
+    _cachedStepSchedule = _buildStepSchedule(task, taskStartTime);
     
     // 1. In-App Simulation (works on all platforms including web)
     _activityStreamController.add(ActivityState(
@@ -168,6 +193,8 @@ class NotificationService {
           'currentStep': currentStep,
           'progress': 0.0,
           'totalDuration': task.totalDuration.inMinutes,
+          'currentStepIndex': 0,
+          'steps': _cachedStepSchedule,
         };
         
         if (startTime != null) {
@@ -176,11 +203,18 @@ class NotificationService {
         if (endTime != null) {
            args['endTime'] = endTime.millisecondsSinceEpoch / 1000.0;
         }
+        
+        // For first step, set its specific start/end times
+        if (task.subTasks.isNotEmpty) {
+          final firstStepEnd = taskStartTime.add(task.subTasks.first.estimatedDuration);
+          args['startTime'] = taskStartTime.millisecondsSinceEpoch / 1000.0;
+          args['endTime'] = firstStepEnd.millisecondsSinceEpoch / 1000.0;
+        }
 
         final result = await _liveActivityChannel.invokeMethod('startActivity', args);
         
         _isLiveActivityActive = result != null;
-        debugPrint('🏝️ Live Activity started: $result');
+        debugPrint('🏝️ Live Activity started with ${_cachedStepSchedule?.length ?? 0} steps');
       } catch (e) {
         debugPrint('❌ Error starting Live Activity: $e');
         _isLiveActivityActive = false;
@@ -242,7 +276,11 @@ class NotificationService {
     }
   }
 
-  Future<void> updateTaskProgress(String stepName, double progress, {DateTime? startTime, DateTime? endTime}) async {
+  Future<void> updateTaskProgress(
+    String stepName, 
+    double progress, 
+    {DateTime? startTime, DateTime? endTime, int currentStepIndex = 0}
+  ) async {
     // 1. In-App Simulation
     _activityStreamController.add(ActivityState(
       taskTitle: _currentTask?.title ?? "Current Task",
@@ -259,6 +297,8 @@ class NotificationService {
         final Map<String, dynamic> args = {
           'currentStep': stepName,
           'progress': progress,
+          'currentStepIndex': currentStepIndex,
+          'steps': _cachedStepSchedule, // Pass full schedule for auto-advance
         };
         
         if (startTime != null) {
@@ -290,6 +330,7 @@ class NotificationService {
 
   Future<void> endActivity() async {
     _currentTask = null;
+    _cachedStepSchedule = null;
     
     // 1. In-App Simulation
     _activityStreamController.add(ActivityState(isActive: false));
