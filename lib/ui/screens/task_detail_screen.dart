@@ -7,7 +7,9 @@ import '../../data/models/task.dart';
 import '../../data/models/subtask.dart';
 import '../../data/providers.dart';
 import '../../data/services/notification_service.dart';
+import '../../data/services/task_scheduler_service.dart';
 import '../../data/localization.dart';
+import '../../utils/haptic_helper.dart';
 
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
@@ -29,7 +31,20 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   
   // Per-step timer
   late Duration _currentStepRemaining;
-  int get _activeStepIndex => _completedSteps.indexOf(false); // -1 if all done
+  
+  // Track current step index even if previous steps are not checked
+  int _forceActiveStepIndex = 0;
+  
+  // Get the active step: either the first unchecked step, or the forced active step
+  int get _activeStepIndex {
+    // Find first unchecked step
+    final firstUnchecked = _completedSteps.indexOf(false);
+    if (firstUnchecked == -1) return -1; // All done
+    
+    // Use the maximum between first unchecked and forced index
+    // This allows auto-advance without marking steps as complete
+    return _forceActiveStepIndex.clamp(0, widget.task.subTasks.length - 1);
+  }
 
   @override
   void initState() {
@@ -51,8 +66,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   void _initCurrentStepTimer() {
-    if (_activeStepIndex != -1 && _activeStepIndex < widget.task.subTasks.length) {
-      _currentStepRemaining = widget.task.subTasks[_activeStepIndex].estimatedDuration;
+    if (_forceActiveStepIndex >= 0 && _forceActiveStepIndex < widget.task.subTasks.length) {
+      _currentStepRemaining = widget.task.subTasks[_forceActiveStepIndex].estimatedDuration;
     } else {
       _currentStepRemaining = Duration.zero;
     }
@@ -84,6 +99,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       
       setState(() {
         _completedSteps[activeIdx] = true;
+        
+        // Move to next step
+        if (_forceActiveStepIndex < widget.task.subTasks.length - 1) {
+          _forceActiveStepIndex++;
+        }
         _initCurrentStepTimer();
         
         // Check if all steps are done
@@ -130,30 +150,27 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                _currentStepRemaining -= const Duration(seconds: 1);
              }
              
-             // AUTO-ADVANCE: When step timer reaches 0, auto-complete and move to next
-             if (_currentStepRemaining.inSeconds <= 0 && !_completedSteps[activeIdx]) {
-               _completedSteps[activeIdx] = true;
-               _initCurrentStepTimer(); // Initialize timer for next step
-               
-               // Check if all steps are now complete
-               if (!_completedSteps.contains(false)) {
-                 // All done! Show completion
-                 _timer.cancel();
-                 Future.microtask(() => _completeMission());
-                 return;
+             // AUTO-ADVANCE: When step timer reaches 0, move to next step WITHOUT marking as complete
+             // The user must manually check the step to mark it complete
+             if (_currentStepRemaining.inSeconds <= 0) {
+               // Move to next step if there is one
+               if (_forceActiveStepIndex < widget.task.subTasks.length - 1) {
+                 _forceActiveStepIndex++;
+                 _initCurrentStepTimer(); // Initialize timer for next step
                }
+               // If this is the last step and its timer ended, just wait for total timer
+               // Don't auto-complete - let the total timer handle it via _showTimeoutDialog
              }
              
              // Update Live Activity
-             final newActiveIdx = _activeStepIndex;
-             if (newActiveIdx != -1) {
-               final stepTotal = widget.task.subTasks[newActiveIdx].estimatedDuration.inSeconds;
+             if (_forceActiveStepIndex >= 0 && _forceActiveStepIndex < widget.task.subTasks.length) {
+               final stepTotal = widget.task.subTasks[_forceActiveStepIndex].estimatedDuration.inSeconds;
                final progress = stepTotal > 0 
                    ? 1.0 - (_currentStepRemaining.inSeconds / stepTotal)
                    : 1.0;
                    
                ref.read(notificationServiceProvider).updateTaskProgress(
-                 widget.task.subTasks[newActiveIdx].title, 
+                 widget.task.subTasks[_forceActiveStepIndex].title, 
                  progress
                );
              }
@@ -336,7 +353,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               itemBuilder: (context, index) {
                 final subTask = widget.task.subTasks[index];
                 final isChecked = _completedSteps[index];
-                final isActive = index == _activeStepIndex;
+                final isActive = index == _forceActiveStepIndex && !_completedSteps.every((c) => c);
                 final stepDuration = subTask.estimatedDuration;
                 
                 // Calculate progress for this specific step
@@ -363,10 +380,24 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                       // Extra haptic for completing a step
                       if (!wasChecked) {
                         HapticFeedback.mediumImpact();
+                        
+                        // If user manually checked a step, move force index to next unchecked
+                        if (index >= _forceActiveStepIndex) {
+                          // Find next unchecked step
+                          int nextUnchecked = -1;
+                          for (int i = 0; i < _completedSteps.length; i++) {
+                            if (!_completedSteps[i]) {
+                              nextUnchecked = i;
+                              break;
+                            }
+                          }
+                          if (nextUnchecked != -1) {
+                            _forceActiveStepIndex = nextUnchecked;
+                          }
+                        }
                       }
                       
-                      // If we just checked the active step (or unchecked something),
-                      // we should update the timer for the NEW active step.
+                      // Update timer for the current active step
                       _initCurrentStepTimer();
                     });
                   },
@@ -556,6 +587,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
      final updatedTask = widget.task.copyWith(scheduledStart: selectedTime);
      ref.read(taskRepositoryProvider).updateTask(updatedTask);
      
+     // Reset notification state so scheduler can trigger again at new time
+     ref.read(taskSchedulerServiceProvider).resetTaskNotification(widget.task.id);
+     
      // End Activity
      ref.read(notificationServiceProvider).endActivity();
 
@@ -618,16 +652,17 @@ class _SuccessOverlayState extends ConsumerState<_SuccessOverlay> with SingleTic
   Widget build(BuildContext context) {
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
+    
+    // Get full screen size including status bar and navigation bar
+    final screenSize = MediaQuery.of(context).size;
 
     // Full-screen overlay covering status bar and navigation bar
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      extendBody: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: Colors.black.withOpacity(0.92),
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: screenSize.width,
+        height: screenSize.height,
+        color: Colors.black.withOpacity(0.95),
         child: Center(
           child: FadeTransition(
             opacity: _opacityAnimation,
@@ -707,16 +742,17 @@ class _EncouragementOverlayState extends ConsumerState<_EncouragementOverlay> wi
   Widget build(BuildContext context) {
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
+    
+    // Get full screen size including status bar and navigation bar
+    final screenSize = MediaQuery.of(context).size;
 
     // Full-screen overlay covering status bar and navigation bar
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      extendBody: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: Colors.black.withOpacity(0.92),
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: screenSize.width,
+        height: screenSize.height,
+        color: Colors.black.withOpacity(0.95),
         child: Center(
           child: FadeTransition(
             opacity: _opacityAnimation,
