@@ -6,8 +6,10 @@ import '../../data/models/subtask.dart';
 import '../../data/models/task.dart';
 import '../../data/providers.dart';
 import '../../data/localization.dart';
+import '../../data/services/ai_service.dart'; // For AIEstimateResult
 import '../../utils/haptic_helper.dart';
 import '../widgets/custom_loading_overlay.dart';
+import '../widgets/subtask_editor_sheet.dart';
 import 'task_detail_screen.dart';
 
 class CreateTaskModal extends ConsumerStatefulWidget {
@@ -29,6 +31,12 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
   
   // Future for background AI
   Future<List<SubTask>>? _aiFuture; 
+  
+  // AI Estimation Cache
+  AIEstimateResult? _cachedAIResult; // Cached result from "AI Estimate" button
+  String? _lastAITitle; // Title when AI estimate was called (for cache invalidation)
+  Duration? _lastAIDuration; // Duration when AI estimate was called
+  bool _isAIEstimating = false; // Loading state for AI estimate button 
 
   @override
   void initState() {
@@ -113,27 +121,78 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               hintStyle: TextStyle(color: Colors.black26),
             ),
             autofocus: true,
+            onChanged: (_) {
+              // Invalidate cache when title changes
+              if (_cachedAIResult != null && _lastAITitle != _titleController.text.trim()) {
+                setState(() {
+                  _cachedAIResult = null;
+                });
+              }
+            },
           ),
           
           const SizedBox(height: 24),
           
-          Text(t('how_long'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-           SizedBox(
+          // Duration section with AI button
+          Row(
+            children: [
+              Expanded(
+                child: Text(t('how_long'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              ),
+              // AI Estimate Button
+              TextButton.icon(
+                onPressed: _isAIEstimating ? null : _onAIEstimate,
+                icon: _isAIEstimating 
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome, size: 16),
+                label: Text(_isAIEstimating ? t('estimating') : t('ai_estimate')),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.deepPurple,
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(
             height: 100,
             child: CupertinoTimerPicker(
+              key: ValueKey(_selectedDuration), // Force rebuild when duration changes programmatically
               mode: CupertinoTimerPickerMode.hm,
               initialTimerDuration: _selectedDuration,
               onTimerDurationChanged: (val) {
                  if (val.inMinutes >= 1) {
-                   // Debounce haptic to avoid buzzing on scroll
-                   // HapticFeedback.selectionClick(); 
                    setState(() => _selectedDuration = val);
+                   // Invalidate cache if duration changed
+                   if (_cachedAIResult != null && _lastAIDuration != val) {
+                     setState(() {
+                       _cachedAIResult = null;
+                     });
+                   }
                  }
               },
             ),
           ),
+          
+          // Show cache status hint
+          if (_cachedAIResult != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      t('ai_ready'),
+                      style: const TextStyle(fontSize: 12, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
           SizedBox(
             width: double.infinity,
@@ -150,6 +209,58 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
         ],
       ),
     );
+  }
+  
+  /// AI Estimate: Get duration + subtasks in one call
+  Future<void> _onAIEstimate() async {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('enter_title_first')), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    
+    setState(() => _isAIEstimating = true);
+    HapticHelper(ref).lightImpact();
+    
+    try {
+      final aiService = ref.read(aiServiceProvider);
+      final result = await aiService.estimateAndDecompose(title);
+      
+      if (mounted) {
+        setState(() {
+          _cachedAIResult = result;
+          _lastAITitle = title;
+          _lastAIDuration = result.estimatedDuration;
+          _selectedDuration = result.estimatedDuration;
+          _isAIEstimating = false;
+        });
+        
+        HapticHelper(ref).mediumImpact();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${t('estimated')}: ${result.estimatedDuration.inMinutes} ${t('minutes')}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isAIEstimating = false);
+        
+        String errorMsg = t('error_ai_generic');
+        if (e.toString().contains('security_audit_fail')) {
+          errorMsg = t('security_error');
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildStep2() {
@@ -261,16 +372,32 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
     
-    // Always regenerate AI if title or duration changed (for both new and edit)
-    final needsRegeneration = widget.taskToEdit == null || 
-        widget.taskToEdit!.title != title ||
-        widget.taskToEdit!.totalDuration != _selectedDuration;
+    // Check if we have a valid cached AI result
+    final hasCachedResult = _cachedAIResult != null && 
+        _cachedAIResult!.subTasks.isNotEmpty &&
+        _lastAITitle == title &&
+        _lastAIDuration == _selectedDuration;
     
-    if (needsRegeneration) {
-        final aiService = ref.read(aiServiceProvider);
-        setState(() {
-          _aiFuture = aiService.decomposeTask(title, _selectedDuration);
-        });
+    if (hasCachedResult) {
+      // Use cached result - no need to call AI again
+      setState(() {
+        _aiFuture = Future.value(_cachedAIResult!.subTasks);
+      });
+    } else {
+      // No valid cache - need to regenerate
+      // Clear any stale cache
+      _cachedAIResult = null;
+      
+      final needsRegeneration = widget.taskToEdit == null || 
+          widget.taskToEdit!.title != title ||
+          widget.taskToEdit!.totalDuration != _selectedDuration;
+      
+      if (needsRegeneration) {
+          final aiService = ref.read(aiServiceProvider);
+          setState(() {
+            _aiFuture = aiService.decomposeTask(title, _selectedDuration);
+          });
+      }
     }
     
     // Haptic
@@ -326,31 +453,24 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
            throw Exception("Empty result");
         }
 
-        final newTask = Task(
-          id: taskId,
-          title: title,
-          totalDuration: _selectedDuration,
-          scheduledStart: DateTime.now(), // Override to now
-          subTasks: subTasks,
-          isGenerating: false,
-          repeatDays: _selectedDays.toList(),
-        );
-        
-        final repo = ref.read(taskRepositoryProvider);
-        if (widget.taskToEdit != null) {
-          repo.updateTask(newTask);
-        } else {
-          repo.addTask(newTask);
-        }
-        
+        // Show confirmation/edit sheet before starting
         if (mounted) {
-           Navigator.pop(context); // Close Modal
-           Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(task: newTask)));
+          _showSubTaskConfirmation(
+            taskId: taskId,
+            title: title,
+            subTasks: subTasks,
+          );
         }
       } catch (e) {
         if (mounted) {
            Navigator.pop(context); 
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('error_ai_generic')), backgroundColor: Colors.red));
+           
+           String errorMsg = t('error_ai_generic');
+           if (e.toString().contains('security_audit_fail')) {
+              errorMsg = t('security_error');
+           }
+           
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
         }
       }
     } else {
@@ -392,7 +512,13 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
         } catch (e) {
           if (mounted) {
             Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('error_ai_generic')), backgroundColor: Colors.red));
+            
+            String errorMsg = t('error_ai_generic');
+            if (e.toString().contains('security_audit_fail')) {
+               errorMsg = t('security_error');
+            }
+            
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
           }
         }
       } else {
@@ -420,10 +546,53 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
              );
              repo.updateTask(completedTask);
           }).catchError((e) {
-             // Handle error
+             // Stop spinning on error
+             final failedTask = pendingTask.copyWith(isGenerating: false);
+             repo.updateTask(failedTask);
           });
       }
     }
+  }
+  
+  /// Show subtask confirmation/edit sheet before starting task
+  void _showSubTaskConfirmation({
+    required String taskId,
+    required String title,
+    required List<SubTask> subTasks,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SubTaskEditorSheet(
+        initialSubTasks: subTasks,
+        totalDuration: _selectedDuration,
+        showStartButton: true,
+        onSave: (editedSubTasks) {
+          // Create and start the task with edited subtasks
+          final newTask = Task(
+            id: taskId,
+            title: title,
+            totalDuration: _selectedDuration,
+            scheduledStart: DateTime.now(),
+            subTasks: editedSubTasks,
+            isGenerating: false,
+            repeatDays: _selectedDays.toList(),
+          );
+          
+          final repo = ref.read(taskRepositoryProvider);
+          if (widget.taskToEdit != null) {
+            repo.updateTask(newTask);
+          } else {
+            repo.addTask(newTask);
+          }
+          
+          // Close modal and navigate to task detail
+          Navigator.pop(context); // Close CreateTaskModal
+          Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(task: newTask)));
+        },
+      ),
+    );
   }
 }
 

@@ -1,164 +1,227 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Do Now</title>
-    <link rel="icon" type="image/png" href="assets/icon.png">
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body class="lang-en">
-    
-    <header>
-        <div class="header-inner">
-            <div class="header-left">
-                <a href="#" class="logo-link">
-                    <img src="assets/icon.png" alt="Do Now" class="nav-logo">
-                    <span class="logo">Do Now</span>
-                </a>
-            </div>
-            <div class="header-right">
-                <button id="lang-toggle" onclick="toggleLanguage()">中文</button>
-            </div>
-        </div>
-    </header>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Do Now</title>
+        <link rel="icon" type="image/png" href="assets/icon.png" />
 
-    <main>
-        <!-- Hero Section -->
-        <section class="hero-wrapper">
-            <div class="hero-container fade-in-up">
-                <h1 class="en-text">Simplicity in every step.</h1>
-                <h1 class="zh-text">至简，至行。</h1>
-                
-                <p class="en-text hero-sub">Transform overwhelming goals into actionable momentum. <br>Do Now combines AI intelligence with deep focus tools.</p>
-                <p class="zh-text hero-sub">将宏大目标转化为可执行的每一步动力。<br>Do Now 融合 AI 智慧与深度专注工具，助你即刻出发。</p>
-                
-                <div class="hero-actions">
-                    <a href="#download" class="hero-btn primary">
-                        <span class="en-text">Download App</span>
-                        <span class="zh-text">下载应用</span>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body class="lang-en">
+        <header>
+            <div class="header-inner">
+                <div class="header-left">
+                    <a href="#" class="logo-link">
+                        <img
+                            src="assets/icon.png"
+                            alt="Do Now"
+                            class="nav-logo"
+                        />
+                        <span class="logo">Do Now</span>
                     </a>
                 </div>
-            </div>
-        </section>
-
-        <!-- Pure Text Features Section (Editorial Layout) -->
-        <section class="features-wrapper">
-            <div class="features-grid-text">
-                <!-- Feature 1 -->
-                <div class="feature-col fade-in delay-1">
-                    <h2 class="en-text">Clarify with AI</h2>
-                    <h2 class="zh-text">AI 智能厘清</h2>
-                    <div class="divider-small"></div>
-                    <p class="en-text">Don't know where to start? Just type your goal. Our AI instantly breaks it down into a logical sequence of bite-sized tasks, complete with time estimates.</p>
-                    <p class="zh-text">不知道从何入手？只需输入目标，AI 立刻将其拆解为符合逻辑的微小步骤序列，并自动估算所需时间。不再由于任务庞大而拖延。</p>
-                </div>
-
-                <!-- Feature 2 -->
-                <div class="feature-col fade-in delay-2">
-                    <h2 class="en-text">Deep Focus</h2>
-                    <h2 class="zh-text">深度专注模式</h2>
-                    <div class="divider-small"></div>
-                    <p class="en-text">Immerse yourself in one step at a time. The full-screen minimalist timer eliminates all visual distractions, helping you enter a flow state effortlessly.</p>
-                    <p class="zh-text">一次只关注一步。全屏极简计时器消除一切视觉干扰，配合可选白噪音，助你快速进入心流状态。</p>
-                </div>
-
-                <!-- Feature 3 -->
-                <div class="feature-col fade-in delay-3">
-                    <h2 class="en-text">Always Ready</h2>
-                    <h2 class="zh-text">随时待命</h2>
-                    <div class="divider-small"></div>
-                    <p class="en-text">Track your countdown and progress directly from the iOS Dynamic Island or Android Notification. Mark steps complete without unlocking your phone.</p>
-                    <p class="zh-text">支持 iOS 灵动岛与实时活动。无需解锁手机，在锁屏或通知栏即可查看剩余时间、完成当前步骤，从容掌控进度。</p>
+                <div class="header-right">
+                    <button id="lang-toggle" onclick="toggleLanguage()">
+                        中文
+                    </button>
                 </div>
             </div>
-        </section>
+        </header>
 
-        <!-- Download Section -->
-        <section id="download" class="download-wrapper">
-            <div class="download-inner fade-in">
-                <h2 class="section-title en-text">Start Doing</h2>
-                <h2 class="section-title zh-text">即刻开始</h2>
-                
-                <div class="download-columns">
-                    <!-- iOS -->
-                    <div class="dl-col border-right">
-                        <h3 class="platform-title">iOS</h3>
-                        <a href="https://github.com/jimuzhe/doNow/releases/download/latest-ios17/DoNow_TrollStore.ipa" class="dl-link en-text">Latest IPA (iOS 17+) &rarr;</a>
-                        <a href="https://github.com/jimuzhe/doNow/releases/download/latest-ios17/DoNow_TrollStore.ipa" class="dl-link zh-text">最新 IPA (iOS 17+) &rarr;</a>
-                        
-                        <a href="https://github.com/jimuzhe/doNow/releases/download/latest-ios16/DoNow_TrollStore.ipa" class="dl-link en-text secondary">Stable IPA (iOS 16) &rarr;</a>
-                        <a href="https://github.com/jimuzhe/doNow/releases/download/latest-ios16/DoNow_TrollStore.ipa" class="dl-link zh-text secondary">稳定版 IPA (iOS 16) &rarr;</a>
-                    </div>
-                    
-                    <!-- Android -->
-                    <div class="dl-col">
-                        <h3 class="platform-title">Android</h3>
-                        <a href="https://github.com/jimuzhe/doNow/releases/latest/download/app-release.apk" class="dl-link en-text">Universal APK &rarr;</a>
-                        <a href="https://github.com/jimuzhe/doNow/releases/latest/download/app-release.apk" class="dl-link zh-text">下载通用版 APK &rarr;</a>
+        <main>
+            <!-- Hero Section -->
+            <section class="hero-wrapper">
+                <div class="hero-container fade-in-up">
+                    <h1 class="en-text">Simplicity in every step.</h1>
+                    <h1 class="zh-text">至简，至行。</h1>
+
+                    <p class="en-text hero-sub">
+                        Transform overwhelming goals into actionable momentum.
+                        <br />Do Now combines AI intelligence with deep focus
+                        tools.
+                    </p>
+                    <p class="zh-text hero-sub">
+                        将宏大目标转化为可执行的每一步动力。<br />Do Now 融合 AI
+                        智慧与深度专注工具，助你即刻出发。
+                    </p>
+
+                    <div class="hero-actions">
+                        <a href="#download" class="hero-btn primary">
+                            <span class="en-text">Download App</span>
+                            <span class="zh-text">下载应用</span>
+                        </a>
                     </div>
                 </div>
+            </section>
+
+            <!-- Pure Text Features Section (Editorial Layout) -->
+            <section class="features-wrapper">
+                <div class="features-grid-text">
+                    <!-- Feature 1 -->
+                    <div class="feature-col fade-in delay-1">
+                        <h2 class="en-text">Clarify with AI</h2>
+                        <h2 class="zh-text">AI 智能厘清</h2>
+                        <div class="divider-small"></div>
+                        <p class="en-text">
+                            Don't know where to start? Just type your goal. Our
+                            AI instantly breaks it down into a logical sequence
+                            of bite-sized tasks, complete with time estimates.
+                        </p>
+                        <p class="zh-text">
+                            不知道从何入手？只需输入目标，AI
+                            立刻将其拆解为符合逻辑的微小步骤序列，并自动估算所需时间。不再由于任务庞大而拖延。
+                        </p>
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="feature-col fade-in delay-2">
+                        <h2 class="en-text">Deep Focus</h2>
+                        <h2 class="zh-text">深度专注模式</h2>
+                        <div class="divider-small"></div>
+                        <p class="en-text">
+                            Immerse yourself in one step at a time. The
+                            full-screen minimalist timer eliminates all visual
+                            distractions, helping you enter a flow state
+                            effortlessly.
+                        </p>
+                        <p class="zh-text">
+                            一次只关注一步。全屏极简计时器消除一切视觉干扰，配合可选白噪音，助你快速进入心流状态。
+                        </p>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="feature-col fade-in delay-3">
+                        <h2 class="en-text">Always Ready</h2>
+                        <h2 class="zh-text">随时待命</h2>
+                        <div class="divider-small"></div>
+                        <p class="en-text">
+                            Track your countdown and progress directly from the
+                            iOS Dynamic Island or Android Notification. Mark
+                            steps complete without unlocking your phone.
+                        </p>
+                        <p class="zh-text">
+                            支持 iOS
+                            灵动岛与实时活动。无需解锁手机，在锁屏或通知栏即可查看剩余时间、完成当前步骤，从容掌控进度。
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Download Section -->
+            <section id="download" class="download-wrapper">
+                <div class="download-inner fade-in">
+                    <h2 class="section-title en-text">Start Doing</h2>
+                    <h2 class="section-title zh-text">即刻开始</h2>
+
+                    <div class="download-columns">
+                        <!-- iOS -->
+                        <div class="dl-col border-right">
+                            <h3 class="platform-title">iOS</h3>
+                            <a
+                                href="https://github.com/jimuzhe/doNow/releases/download/latest-ios17/DoNow_TrollStore.ipa"
+                                class="dl-link en-text"
+                                >Latest IPA (iOS 17+) &rarr;</a
+                            >
+                            <a
+                                href="https://github.com/jimuzhe/doNow/releases/download/latest-ios17/DoNow_TrollStore.ipa"
+                                class="dl-link zh-text"
+                                >最新 IPA (iOS 17+) &rarr;</a
+                            >
+
+                            <a
+                                href="https://github.com/jimuzhe/doNow/releases/download/latest-ios16/DoNow_TrollStore.ipa"
+                                class="dl-link en-text secondary"
+                                >Stable IPA (iOS 16) &rarr;</a
+                            >
+                            <a
+                                href="https://github.com/jimuzhe/doNow/releases/download/latest-ios16/DoNow_TrollStore.ipa"
+                                class="dl-link zh-text secondary"
+                                >稳定版 IPA (iOS 16) &rarr;</a
+                            >
+                        </div>
+
+                        <!-- Android -->
+                        <div class="dl-col">
+                            <h3 class="platform-title">Android</h3>
+                            <a
+                                href="https://github.com/jimuzhe/doNow/releases/latest/download/app-release.apk"
+                                class="dl-link en-text"
+                                >Universal APK &rarr;</a
+                            >
+                            <a
+                                href="https://github.com/jimuzhe/doNow/releases/latest/download/app-release.apk"
+                                class="dl-link zh-text"
+                                >下载通用版 APK &rarr;</a
+                            >
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="footer-inner">
+                <span class="copyright">&copy; 2024 Do Now</span>
+                <!-- 已移除 Source Code 链接 -->
             </div>
-        </section>
-    </main>
+        </footer>
 
-    <footer>
-        <div class="footer-inner">
-            <span class="copyright">&copy; 2024 Do Now</span>
-            <a href="https://github.com/jimuzhe/doNow" class="github-link">Source Code</a>
-        </div>
-    </footer>
+        <script>
+            // Language Toggle Logic
+            const bodyKey = "doNowLang";
 
-    <script>
-        // Language Toggle Logic
-        const bodyKey = 'doNowLang';
-        
-        function toggleLanguage() {
-            const body = document.body;
-            const btn = document.getElementById('lang-toggle');
-            
-            if (body.classList.contains('lang-en')) {
-                body.classList.remove('lang-en');
-                body.classList.add('lang-zh');
-                btn.textContent = 'English';
-                localStorage.setItem(bodyKey, 'zh');
-            } else {
-                body.classList.remove('lang-zh');
-                body.classList.add('lang-en');
-                btn.textContent = '中文';
-                localStorage.setItem(bodyKey, 'en');
-            }
-        }
+            function toggleLanguage() {
+                const body = document.body;
+                const btn = document.getElementById("lang-toggle");
 
-        // Init language
-        (function() {
-            const savedLang = localStorage.getItem(bodyKey);
-            const body = document.body;
-            const btn = document.getElementById('lang-toggle');
-            
-            if (savedLang === 'zh') {
-                body.classList.remove('lang-en');
-                body.classList.add('lang-zh');
-                btn.textContent = 'English';
-            }
-        })();
-
-        // Fade in
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
+                if (body.classList.contains("lang-en")) {
+                    body.classList.remove("lang-en");
+                    body.classList.add("lang-zh");
+                    btn.textContent = "English";
+                    localStorage.setItem(bodyKey, "zh");
+                } else {
+                    body.classList.remove("lang-zh");
+                    body.classList.add("lang-en");
+                    btn.textContent = "中文";
+                    localStorage.setItem(bodyKey, "en");
                 }
-            });
-        }, { threshold: 0.1 });
+            }
 
-        document.querySelectorAll('.fade-in, .fade-in-up').forEach((el) => {
-            observer.observe(el);
-        });
-    </script>
-</body>
+            // Init language
+            (function () {
+                const savedLang = localStorage.getItem(bodyKey);
+                const body = document.body;
+                const btn = document.getElementById("lang-toggle");
+
+                if (savedLang === "zh") {
+                    body.classList.remove("lang-en");
+                    body.classList.add("lang-zh");
+                    btn.textContent = "English";
+                }
+            })();
+
+            // Fade in
+            const observer = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add("visible");
+                        }
+                    });
+                },
+                { threshold: 0.1 },
+            );
+
+            document.querySelectorAll(".fade-in, .fade-in-up").forEach((el) => {
+                observer.observe(el);
+            });
+        </script>
+    </body>
 </html>
