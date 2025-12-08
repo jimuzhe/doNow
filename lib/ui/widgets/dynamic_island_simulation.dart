@@ -121,16 +121,16 @@ class _DynamicIslandSimulationState extends ConsumerState<DynamicIslandSimulatio
     if (_widthAnimation.value < 100) return const SizedBox();
     
     return Padding(
-      padding: const EdgeInsets.only(left: 22.0, right: 12.0),
+      padding: const EdgeInsets.only(left: 28.0, right: 12.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
            // Left Icon/Progress
            SizedBox(
-             width: 20, height: 20,
+             width: 16, height: 16,
              child: CircularProgressIndicator(
                value: _currentState?.progress ?? 0,
-               strokeWidth: 3,
+               strokeWidth: 2,
                backgroundColor: Colors.grey[800],
                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
              ),
