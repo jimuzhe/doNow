@@ -149,6 +149,25 @@ class NotificationService {
     }
   }
 
+  /// Check for any pending actions triggered from Dynamic Island (iOS 17+)
+  Future<void> checkPendingAction() async {
+    if (!_isIOS()) return;
+    
+    try {
+      final String? action = await _liveActivityChannel.invokeMethod('checkPendingAction');
+      if (action != null) {
+        debugPrint('📲 Pending Action found: $action');
+        if (action == 'complete') {
+          triggerComplete();
+        } else if (action == 'cancel') {
+          triggerCancel();
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error checking pending action: $e');
+    }
+  }
+
   Future<void> updateTaskProgress(String stepName, double progress, {DateTime? startTime, DateTime? endTime}) async {
     // 1. In-App Simulation
     _activityStreamController.add(ActivityState(
