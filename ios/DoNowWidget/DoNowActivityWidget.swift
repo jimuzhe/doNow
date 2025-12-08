@@ -71,13 +71,17 @@ struct DynamicStepInfo {
 struct DoNowActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DoNowActivityAttributes.self) { context in
-            // Lock Screen / Banner UI
-            LockScreenView(context: context)
+            // Lock Screen / Banner UI - uses TimelineView for auto-refresh
+            TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                LockScreenView(context: context, currentDate: timeline.date)
+            }
         } dynamicIsland: { context in
             DynamicIsland {
                 // Expanded UI - Shows when user long-presses
                 DynamicIslandExpandedRegion(.leading) {
-                    DynamicLeadingView(state: context.state)
+                    TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                        DynamicLeadingView(state: context.state, currentDate: timeline.date)
+                    }
                 }
                 
                 DynamicIslandExpandedRegion(.trailing) {
@@ -85,7 +89,9 @@ struct DoNowActivityWidget: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.center) {
-                    DynamicCenterView(state: context.state, taskTitle: context.attributes.taskTitle)
+                    TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                        DynamicCenterView(state: context.state, taskTitle: context.attributes.taskTitle, currentDate: timeline.date)
+                    }
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
@@ -129,14 +135,20 @@ struct DoNowActivityWidget: Widget {
                 }
                 
             } compactLeading: {
-                // Compact Leading - Progress indicator
-                DynamicCompactLeadingView(state: context.state)
+                // Compact Leading - Just circular progress, no text inside
+                TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                    DynamicCompactLeadingView(state: context.state, currentDate: timeline.date)
+                }
             } compactTrailing: {
-                // Compact Trailing - Timer
-                DynamicCompactTrailingView(state: context.state)
+                // Compact Trailing - Timer text
+                TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                    DynamicCompactTrailingView(state: context.state, currentDate: timeline.date)
+                }
             } minimal: {
-                // Minimal - Just progress
-                DynamicMinimalView(state: context.state)
+                // Minimal - Just progress circle
+                TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                    DynamicMinimalView(state: context.state, currentDate: timeline.date)
+                }
             }
             .contentMargins(.horizontal, 4, for: .compactLeading)
             .contentMargins(.horizontal, 4, for: .compactTrailing)
@@ -149,36 +161,21 @@ struct DoNowActivityWidget: Widget {
 @available(iOS 16.1, *)
 struct DynamicLeadingView: View {
     let state: DoNowActivityAttributes.ContentState
+    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
+            // Circular progress - no text inside
             if let info = stepInfo {
                 ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
                     .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                    .frame(width: 24, height: 24)
-                
-                if info.endTime > Date() {
-                    Text(timerInterval: Date()...info.endTime, countsDown: true)
-                        .multilineTextAlignment(.center)
-                        .monospacedDigit()
-                        .font(.caption.bold())
-                        .foregroundColor(.green)
-                        .frame(width: 50)
-                } else {
-                    Text("Done")
-                        .font(.caption.bold())
-                        .foregroundColor(.green)
-                }
+                    .frame(width: 28, height: 28)
             } else {
                 ProgressView(value: state.progress)
                     .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                    .frame(width: 24, height: 24)
-                
-                Text("\(Int(state.progress * 100))%")
-                    .font(.caption.bold())
-                    .foregroundColor(.green)
+                    .frame(width: 28, height: 28)
             }
         }
     }
@@ -188,20 +185,33 @@ struct DynamicLeadingView: View {
 struct DynamicCenterView: View {
     let state: DoNowActivityAttributes.ContentState
     let taskTitle: String
+    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
-        VStack(spacing: 2) {
+        VStack(spacing: 4) {
+            // Current step title (auto-calculates based on time)
             Text(stepInfo?.title ?? state.currentStep)
                 .font(.headline)
                 .foregroundColor(.white)
                 .lineLimit(1)
             
-            if let info = stepInfo, info.totalSteps > 1 {
-                Text("Step \(info.index + 1)/\(info.totalSteps)")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+            HStack(spacing: 8) {
+                // Step counter
+                if let info = stepInfo, info.totalSteps > 1 {
+                    Text("\(info.index + 1)/\(info.totalSteps)")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+                
+                // Countdown timer
+                if let info = stepInfo, info.endTime > currentDate {
+                    Text(timerInterval: currentDate...info.endTime, countsDown: true)
+                        .monospacedDigit()
+                        .font(.caption.bold())
+                        .foregroundColor(.green)
+                }
             }
         }
     }
@@ -233,18 +243,20 @@ struct DynamicBottomFallbackView: View {
 @available(iOS 16.1, *)
 struct DynamicCompactLeadingView: View {
     let state: DoNowActivityAttributes.ContentState
+    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
+        // Just circular progress, no text
         if let info = stepInfo {
             ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .frame(width: 16, height: 16)
+                .frame(width: 18, height: 18)
         } else {
             ProgressView(value: state.progress)
                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .frame(width: 16, height: 16)
+                .frame(width: 18, height: 18)
         }
     }
 }
@@ -252,20 +264,21 @@ struct DynamicCompactLeadingView: View {
 @available(iOS 16.1, *)
 struct DynamicCompactTrailingView: View {
     let state: DoNowActivityAttributes.ContentState
+    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
-        if let info = stepInfo, info.endTime > Date() {
-            Text(timerInterval: Date()...info.endTime, countsDown: true)
+        if let info = stepInfo, info.endTime > currentDate {
+            Text(timerInterval: currentDate...info.endTime, countsDown: true)
                 .monospacedDigit()
                 .font(.caption2.bold())
                 .foregroundColor(.white)
-                .frame(maxWidth: 40)
+                .frame(maxWidth: 45)
         } else {
-            Text("\(Int(state.progress * 100))%")
-                .font(.caption2.bold())
-                .foregroundColor(.white)
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .font(.caption)
         }
     }
 }
@@ -273,18 +286,20 @@ struct DynamicCompactTrailingView: View {
 @available(iOS 16.1, *)
 struct DynamicMinimalView: View {
     let state: DoNowActivityAttributes.ContentState
+    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         
+        // Just circular progress
         if let info = stepInfo {
             ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
                 .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                .frame(width: 20, height: 20)
+                .frame(width: 22, height: 22)
         } else {
-            Image(systemName: "timer")
-                .foregroundColor(.white)
-                .font(.caption)
+            ProgressView(value: state.progress)
+                .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                .frame(width: 22, height: 22)
         }
     }
 }
@@ -293,6 +308,7 @@ struct DynamicMinimalView: View {
 @available(iOS 16.1, *)
 struct LockScreenView: View {
     let context: ActivityViewContext<DoNowActivityAttributes>
+    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: context.state)
@@ -311,19 +327,18 @@ struct LockScreenView: View {
                 
                 Spacer()
                 
-                if let info = stepInfo, info.endTime > Date() {
-                    Text(timerInterval: Date()...info.endTime, countsDown: true)
+                if let info = stepInfo, info.endTime > currentDate {
+                    Text(timerInterval: currentDate...info.endTime, countsDown: true)
                         .monospacedDigit()
                         .font(.caption.bold())
                         .foregroundColor(.green)
                 } else {
-                    Text("\(Int(context.state.progress * 100))%")
-                        .font(.caption.bold())
+                    Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                 }
             }
             
-            // Current Step with step number
+            // Current Step with step number (auto-calculated)
             HStack {
                 Text(stepInfo?.title ?? context.state.currentStep)
                     .font(.subheadline)
