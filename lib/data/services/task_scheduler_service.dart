@@ -66,28 +66,43 @@ class TaskSchedulerService {
       
       // Skip if already notified
       if (_notifiedTaskIds.contains(task.id)) continue;
+
+      DateTime? targetTime;
       
-      // Check if it's time to execute this task (within 1 minute window)
-      final scheduledTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        task.scheduledStart.hour,
-        task.scheduledStart.minute,
-      );
-      
-      // For repeating tasks, check if today is one of the repeat days
+      // 1. Determine the target scheduled time for specific types
       if (task.repeatDays.isNotEmpty) {
-        final todayWeekday = now.weekday; // 1 = Monday, 7 = Sunday
-        if (!task.repeatDays.contains(todayWeekday)) continue;
+         // REPEATING TASK: Logic is based on "Today + Time"
+         final todayWeekday = now.weekday; // 1 = Monday, 7 = Sunday
+         if (!task.repeatDays.contains(todayWeekday)) continue;
+         
+         targetTime = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            task.scheduledStart.hour,
+            task.scheduledStart.minute,
+          );
+      } else {
+         // ONE-OFF TASK: Respect the full scheduled date
+         // If the date is in the past (e.g. yesterday), we might have missed it.
+         // But usually we just compare strictly.
+         targetTime = task.scheduledStart;
       }
       
-      // Check if the task is due (within 1 minute before or after scheduled time)
-      final diff = now.difference(scheduledTime).inSeconds.abs();
-      if (diff <= 60) {
-        // Task is due! Mark as notified and trigger
-        _notifiedTaskIds.add(task.id);
-        _triggerTaskDue(task);
+      if (targetTime == null) continue;
+
+      // 2. Check if due
+      // Allow triggering if we are slightly past the time (caught up after sleep)
+      // or slightly before.
+      // E.g. [Target - 30s, Target + 5 min]
+      final diffSeconds = now.difference(targetTime).inSeconds;
+      
+      // If now is 10s before target: diff = -10.
+      // If now is 300s after target: diff = 300.
+      if (diffSeconds >= -30 && diffSeconds <= 300) {
+         // Valid window: 30s before up to 5 minutes after
+         _notifiedTaskIds.add(task.id);
+         _triggerTaskDue(task);
       }
     }
   }
