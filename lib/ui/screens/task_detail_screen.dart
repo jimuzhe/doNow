@@ -10,7 +10,7 @@ import '../../data/services/notification_service.dart';
 import '../../data/services/task_scheduler_service.dart';
 import '../../data/localization.dart';
 import '../../utils/haptic_helper.dart';
-
+import '../../data/services/focus_audio_service.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final Task task;
@@ -50,6 +50,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Initialize background audio for persistent timer logic
+    ref.read(focusAudioServiceProvider).init().then((_) {
+       ref.read(focusAudioServiceProvider).startFocusSound();
+    });
     
     // Calculate target end time based on initial duration
     _remainingTime = widget.task.totalDuration;
@@ -245,6 +250,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     
     WidgetsBinding.instance.removeObserver(this);
     
+    // Stop background sound
+    ref.read(focusAudioServiceProvider).stopFocusSound();
+    
     // Clear active task ID when leaving (unless we completed early)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -429,11 +437,12 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                 }
 
                 return InkWell(
-                  onTap: () {
+                    onTap: () {
                     // Haptic feedback for step toggle
                     HapticHelper(ref).selectionClick();
                     
                     setState(() {
+                      final oldActiveIndex = _forceActiveStepIndex;
                       bool wasChecked = _completedSteps[index];
                       _completedSteps[index] = !wasChecked;
                       
@@ -442,6 +451,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                         HapticHelper(ref).mediumImpact();
                         
                         // If user manually checked a step, move force index to next unchecked
+                        // ONLY if we are checking the currently active step or a future one.
+                        // If we check a past step, we probably just forgot to check it, so don't move focus.
                         if (index >= _forceActiveStepIndex) {
                           // Find next unchecked step
                           int nextUnchecked = -1;
@@ -457,8 +468,20 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                         }
                       }
                       
-                      // Update timer for the current active step
-                      _initCurrentStepTimer();
+                      // Update timer ONLY if the active step index effectively changed
+                      if (oldActiveIndex != _forceActiveStepIndex) {
+                        _initCurrentStepTimer();
+                        
+                        // Also update live activity since step changed
+                        if (_forceActiveStepIndex < widget.task.subTasks.length) {
+                           ref.read(notificationServiceProvider).updateTaskProgress(
+                             widget.task.subTasks[_forceActiveStepIndex].title, 
+                             0.0,
+                             startTime: DateTime.now(),
+                             endTime: _stepEndTime,
+                           );
+                        }
+                      }
                     });
                   },
                   child: AnimatedContainer(
