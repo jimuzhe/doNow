@@ -121,7 +121,7 @@ class _DynamicIslandSimulationState extends ConsumerState<DynamicIslandSimulatio
     if (_widthAnimation.value < 100) return const SizedBox();
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      padding: const EdgeInsets.only(left: 22.0, right: 12.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
