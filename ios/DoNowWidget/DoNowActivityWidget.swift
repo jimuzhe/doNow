@@ -150,8 +150,8 @@ struct DoNowActivityWidget: Widget {
                     DynamicMinimalView(state: context.state, currentDate: timeline.date)
                 }
             }
-            .contentMargins(.horizontal, 4, for: .compactLeading)
-            .contentMargins(.horizontal, 4, for: .compactTrailing)
+            .contentMargins(.leading, 0, for: .compactLeading)
+            .contentMargins(.trailing, 0, for: .compactTrailing)
         }
     }
 }
@@ -347,8 +347,9 @@ struct DynamicCompactLeadingView: View {
             tint: .white,
             lineWidth: 2
         )
-        .frame(width: 16, height: 16)
-        .padding(.leading, 4)
+        .frame(width: 12, height: 12)
+        .padding(.leading, 10)
+        .padding(.trailing, 0)
     }
 }
 
