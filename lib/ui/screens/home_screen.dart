@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/task.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
+import '../../utils/haptic_helper.dart';
 import 'task_detail_screen.dart';
 import 'create_task_modal.dart';
 
@@ -241,65 +243,204 @@ class _SlidableTaskCard extends ConsumerWidget {
             ),
           ],
         ),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Big Time
-              Text(
-                DateFormat('HH:mm').format(task.scheduledStart),
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w200,
-                  letterSpacing: -1,
-                  color: isDark ? Colors.white : Colors.black,
+        child: GestureDetector(
+          onLongPress: () => _showSubtasksSheet(context, task, isDark, ref),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
                 ),
-              ),
-              const SizedBox(width: 24),
-              
-              // Divider
-              Container(width: 1, height: 40, color: isDark ? Colors.white24 : Colors.grey[200]),
-              const SizedBox(width: 24),
-              
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${task.totalDuration.inMinutes} min • ${task.subTasks.length} steps',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
+              ],
+            ),
+            child: Row(
+              children: [
+                // Big Time
+                Text(
+                  DateFormat('HH:mm').format(task.scheduledStart),
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w200,
+                    letterSpacing: -1,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 24),
+                
+                // Divider
+                Container(width: 1, height: 40, color: isDark ? Colors.white24 : Colors.grey[200]),
+                const SizedBox(width: 24),
+                
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        task.title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${task.totalDuration.inMinutes} min • ${task.subTasks.length} steps',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Show subtasks in a bottom sheet
+  void _showSubtasksSheet(BuildContext context, Task task, bool isDark, WidgetRef ref) {
+    // Haptic feedback using user settings
+    HapticHelper(ref).mediumImpact();
+    
+    final locale = ref.read(localeProvider);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[900] : Colors.grey[100],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${task.totalDuration.inMinutes} ${locale == 'zh' ? '分钟' : 'min'} • ${task.subTasks.length} ${locale == 'zh' ? '个步骤' : 'steps'}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const Divider(height: 1),
+            
+            // Subtasks List
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                itemCount: task.subTasks.length,
+                itemBuilder: (context, index) {
+                  final subtask = task.subTasks[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey[700] : Colors.grey[300],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                subtask.title,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? Colors.white : Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${subtask.estimatedDuration.inMinutes} ${locale == 'zh' ? '分钟' : 'min'}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            
+            // Close button padding
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          ],
         ),
       ),
     );

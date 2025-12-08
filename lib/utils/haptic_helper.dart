@@ -2,31 +2,41 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/providers.dart';
 
-/// Helper class for haptic feedback with intensity control
+/// Helper class to provide haptic feedback based on user settings
 class HapticHelper {
-  /// Trigger light impact haptic based on intensity setting
-  static void lightImpact(WidgetRef ref) {
-    final intensity = ref.read(vibrationIntensityProvider);
+  final WidgetRef ref;
+
+  HapticHelper(this.ref);
+
+  /// Get the current vibration intensity from settings
+  double get intensity => ref.read(vibrationIntensityProvider);
+
+  /// Light impact - for selection feedback
+  void lightImpact() {
     if (intensity <= 0) return;
     
-    HapticFeedback.lightImpact();
+    if (intensity < 0.4) {
+      HapticFeedback.selectionClick();
+    } else {
+      HapticFeedback.lightImpact();
+    }
   }
 
-  /// Trigger medium impact haptic based on intensity setting
-  static void mediumImpact(WidgetRef ref) {
-    final intensity = ref.read(vibrationIntensityProvider);
+  /// Medium impact - for confirmations
+  void mediumImpact() {
     if (intensity <= 0) return;
     
-    if (intensity < 0.5) {
+    if (intensity < 0.4) {
+      HapticFeedback.selectionClick();
+    } else if (intensity < 0.7) {
       HapticFeedback.lightImpact();
     } else {
       HapticFeedback.mediumImpact();
     }
   }
 
-  /// Trigger heavy impact haptic based on intensity setting
-  static void heavyImpact(WidgetRef ref) {
-    final intensity = ref.read(vibrationIntensityProvider);
+  /// Heavy impact - for important actions
+  void heavyImpact() {
     if (intensity <= 0) return;
     
     if (intensity < 0.4) {
@@ -38,24 +48,33 @@ class HapticHelper {
     }
   }
 
-  /// Trigger selection click haptic based on intensity setting
-  static void selectionClick(WidgetRef ref) {
-    final intensity = ref.read(vibrationIntensityProvider);
+  /// Selection click - for subtle feedback
+  void selectionClick() {
     if (intensity <= 0) return;
-    
     HapticFeedback.selectionClick();
   }
+}
 
-  /// Get a human-readable label for current intensity
-  static String getIntensityLabel(double intensity, String locale) {
-    if (intensity <= 0) {
-      return locale == 'zh' ? '关闭' : 'Off';
-    } else if (intensity < 0.4) {
-      return locale == 'zh' ? '轻微' : 'Light';
-    } else if (intensity < 0.7) {
-      return locale == 'zh' ? '中等' : 'Medium';
-    } else {
-      return locale == 'zh' ? '强烈' : 'Strong';
-    }
+/// Static helper for places where WidgetRef is not available
+/// Uses full intensity since settings can't be accessed
+class HapticHelperStatic {
+  /// Light impact
+  static void lightImpact() {
+    HapticFeedback.lightImpact();
+  }
+
+  /// Medium impact
+  static void mediumImpact() {
+    HapticFeedback.mediumImpact();
+  }
+
+  /// Heavy impact
+  static void heavyImpact() {
+    HapticFeedback.heavyImpact();
+  }
+
+  /// Selection click
+  static void selectionClick() {
+    HapticFeedback.selectionClick();
   }
 }

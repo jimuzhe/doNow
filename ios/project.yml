@@ -33,6 +33,8 @@ targets:
     sources: 
       - Runner
       - Flutter
+      - path: DoNowWidget/DoNowActivityAttributes.swift
+        group: Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.donow.app
