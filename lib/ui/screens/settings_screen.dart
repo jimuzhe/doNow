@@ -23,106 +23,111 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24.0),
-          children: [
-            Text(
-              t('settings').toUpperCase(),
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.0,
-                color: theme.textTheme.bodyLarge?.color,
-              ),
-            ),
-            const SizedBox(height: 32),
-            
-            // Language
-            _SettingsTile(
-              icon: Icons.language,
-              title: t('language'),
-              trailing: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(12),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: ListView(
+              padding: const EdgeInsets.all(24.0),
+              children: [
+                Text(
+                  t('settings').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.0,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _LanguageOption(
-                      text: "EN", 
-                      isSelected: !isChinese, 
-                      onTap: () {
-                         ref.read(localeProvider.notifier).setLocale('en');
-                         HapticHelper(ref).selectionClick();
-                      },
-                      isDark: isDark,
+                const SizedBox(height: 32),
+                
+                // Language
+                _SettingsTile(
+                  icon: Icons.language,
+                  title: t('language'),
+                  trailing: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    _LanguageOption(
-                      text: "中文", 
-                      isSelected: isChinese, 
-                      onTap: () {
-                         ref.read(localeProvider.notifier).setLocale('zh');
-                         HapticHelper(ref).selectionClick();
-                      },
-                      isDark: isDark,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LanguageOption(
+                          text: "EN", 
+                          isSelected: !isChinese, 
+                          onTap: () {
+                             ref.read(localeProvider.notifier).setLocale('en');
+                             HapticHelper(ref).selectionClick();
+                          },
+                          isDark: isDark,
+                        ),
+                        _LanguageOption(
+                          text: "中文", 
+                          isSelected: isChinese, 
+                          onTap: () {
+                             ref.read(localeProvider.notifier).setLocale('zh');
+                             HapticHelper(ref).selectionClick();
+                          },
+                          isDark: isDark,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            
-            const Divider(height: 32),
-            
-            // Vibration Intensity Slider
-            _VibrationIntensityTile(isDark: isDark),
+                
+                const Divider(height: 32),
+                
+                // Vibration Intensity Slider
+                _VibrationIntensityTile(isDark: isDark),
 
-            const Divider(height: 32),
+                const Divider(height: 32),
 
-             _SettingsTile(
-              icon: Icons.delete_outline,
-              title: t('clear_data'),
-              trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-              onTap: () {
-                // Clear List Logic
-                ref.read(taskListProvider.notifier).clear();
-                HapticHelper(ref).mediumImpact();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Cleared")));
-              },
-            ),
-            
-            const Divider(height: 32),
-            
-            _SettingsTile(
-              icon: Icons.feedback_outlined,
-              title: t('feedback'),
-              trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-              onTap: () => _showFeedbackModal(context, ref),
-            ),
-            
-            _SettingsTile(
-              icon: Icons.psychology_outlined,
-              title: "AI Configuration", // Not localized for now or add to localization
-              trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-              onTap: () => _showAiConfigModal(context, ref),
-            ),
+                 _SettingsTile(
+                  icon: Icons.delete_outline,
+                  title: t('clear_data'),
+                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  onTap: () {
+                    // Clear List Logic
+                    ref.read(taskListProvider.notifier).clear();
+                    HapticHelper(ref).mediumImpact();
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Cleared")));
+                  },
+                ),
+                
+                const Divider(height: 32),
+                
+                _SettingsTile(
+                  icon: Icons.feedback_outlined,
+                  title: t('feedback'),
+                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  onTap: () => _showFeedbackModal(context, ref),
+                ),
+                
+                _SettingsTile(
+                  icon: Icons.psychology_outlined,
+                  title: "AI Configuration", // Not localized for now or add to localization
+                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  onTap: () => _showAiConfigModal(context, ref),
+                ),
 
-            _SettingsTile(
-              icon: Icons.info_outline,
-              title: t('about'),
-              trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-              onTap: () => _showAboutModal(context, ref),
+                _SettingsTile(
+                  icon: Icons.info_outline,
+                  title: t('about'),
+                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  onTap: () => _showAboutModal(context, ref),
+                ),
+                 
+                 const SizedBox(height: 48),
+                 Center(
+                   child: Text(
+                     "${t('version')} 1.0.1", 
+                     style: TextStyle(color: Colors.grey[400], fontSize: 12)
+                   ),
+                 ),
+              ],
             ),
-             
-             const SizedBox(height: 48),
-             Center(
-               child: Text(
-                 "${t('version')} 1.0.1", 
-                 style: TextStyle(color: Colors.grey[400], fontSize: 12)
-               ),
-             ),
-          ],
+          ),
         ),
       ),
     );
