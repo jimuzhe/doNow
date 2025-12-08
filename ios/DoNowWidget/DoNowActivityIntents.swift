@@ -2,7 +2,8 @@ import AppIntents
 import WidgetKit
 import Foundation
 
-@available(iOS 16.0, *)
+// LiveActivityIntent requires iOS 17.0+ for interactive buttons in Dynamic Island
+@available(iOS 17.0, *)
 struct CompleteStepIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Complete Step"
     static var description = IntentDescription("Completes the current step of the active task.")
@@ -20,7 +21,7 @@ struct CompleteStepIntent: LiveActivityIntent {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 17.0, *)
 struct CancelTaskIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Cancel Task"
     static var description = IntentDescription("Cancels the active task.")
