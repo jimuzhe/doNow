@@ -3,8 +3,19 @@ import 'package:uuid/uuid.dart';
 import '../models/task.dart';
 import '../models/subtask.dart';
 
+/// Result from AI estimation (time + subtasks in one call)
+class AIEstimateResult {
+  final Duration estimatedDuration;
+  final List<SubTask> subTasks;
+  
+  AIEstimateResult({required this.estimatedDuration, required this.subTasks});
+}
+
 abstract class AIService {
   Future<List<SubTask>> decomposeTask(String taskTitle, Duration totalDuration);
+  
+  /// Estimate task duration and decompose into subtasks in one AI call
+  Future<AIEstimateResult> estimateAndDecompose(String taskTitle);
 }
 
 class MockAIService implements AIService {
@@ -40,5 +51,24 @@ class MockAIService implements AIService {
         estimatedDuration: stepDuration,
       ),
     ];
+  }
+  
+  @override
+  Future<AIEstimateResult> estimateAndDecompose(String taskTitle) async {
+    await Future.delayed(const Duration(seconds: 2));
+    
+    // Mock: estimate 60 minutes and split into 4 parts
+    const totalMinutes = 60;
+    final stepDuration = const Duration(minutes: 15);
+    
+    return AIEstimateResult(
+      estimatedDuration: const Duration(minutes: totalMinutes),
+      subTasks: [
+        SubTask(id: _uuid.v4(), title: 'Prepare for "$taskTitle"', estimatedDuration: stepDuration),
+        SubTask(id: _uuid.v4(), title: 'Start "$taskTitle"', estimatedDuration: stepDuration),
+        SubTask(id: _uuid.v4(), title: 'Execute "$taskTitle"', estimatedDuration: stepDuration),
+        SubTask(id: _uuid.v4(), title: 'Finalize "$taskTitle"', estimatedDuration: stepDuration),
+      ],
+    );
   }
 }

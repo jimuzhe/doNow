@@ -87,12 +87,7 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.delete_outline,
                   title: t('clear_data'),
                   trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                  onTap: () {
-                    // Clear List Logic
-                    ref.read(taskListProvider.notifier).clear();
-                    HapticHelper(ref).mediumImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Cleared")));
-                  },
+                  onTap: () => _showClearDataConfirmation(context, ref),
                 ),
                 
                 const Divider(height: 32),
@@ -121,7 +116,7 @@ class SettingsScreen extends ConsumerWidget {
                  const SizedBox(height: 48),
                  Center(
                    child: Text(
-                     "${t('version')} 1.0.1", 
+                     "${t('version')} 1.1.0", 
                      style: TextStyle(color: Colors.grey[400], fontSize: 12)
                    ),
                  ),
@@ -129,6 +124,63 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showClearDataConfirmation(BuildContext context, WidgetRef ref) {
+    HapticHelper(ref).lightImpact();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    String t(String key) => AppStrings.get(key, ref.read(localeProvider));
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                t('clear_data_title'),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          t('clear_data_confirm'),
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(t('cancel'), style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(taskListProvider.notifier).clear();
+              HapticHelper(ref).mediumImpact();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(t('data_cleared')),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(t('confirm_clear'), style: const TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -172,7 +224,7 @@ class SettingsScreen extends ConsumerWidget {
                ),
              ),
              const SizedBox(height: 16),
-             Text("Version 1.0.1", style: TextStyle(color: Colors.grey[600])),
+             Text("Version 1.1.0", style: TextStyle(color: Colors.grey[600])),
              const SizedBox(height: 32),
              Padding(
                padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -341,12 +393,16 @@ class _SettingsTile extends StatelessWidget {
   final String title;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final Color? iconColor;
+  final Color? textColor;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
     this.trailing,
     this.onTap,
+    this.iconColor,
+    this.textColor,
   });
 
   @override
@@ -360,9 +416,13 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: isDark ? Colors.white70 : Colors.black87),
+            Icon(icon, size: 22, color: iconColor ?? (isDark ? Colors.white70 : Colors.black87)),
             const SizedBox(width: 16),
-            Expanded(child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black87))),
+            Expanded(child: Text(title, style: TextStyle(
+              fontSize: 16, 
+              fontWeight: FontWeight.w500, 
+              color: textColor ?? (isDark ? Colors.white : Colors.black87)
+            ))),
             if (trailing != null) trailing!,
           ],
         ),

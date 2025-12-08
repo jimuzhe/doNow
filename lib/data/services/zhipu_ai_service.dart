@@ -42,6 +42,15 @@ class ZhipuAIService implements AIService {
 
         if (response.statusCode == 200) {
           final data = jsonDecode(utf8.decode(response.bodyBytes));
+          
+          if (data['error'] != null) {
+              final error = data['error'];
+              if (error['code'] == 'security_audit_fail') {
+                  throw Exception('security_audit_fail'); 
+              }
+              throw Exception("AI Error: ${error['message']}");
+          }
+
           final content = data['choices'][0]['message']['content'];
           
           // Try to parse and validate
@@ -223,6 +232,200 @@ class ZhipuAIService implements AIService {
       
     } catch (e) {
       print('Parse error: $e. Content was: $content');
+      return null;
+    }
+  }
+  
+  @override
+  Future<AIEstimateResult> estimateAndDecompose(String taskTitle) async {
+    if (settings.apiKey == 'YOUR_API_KEY_HERE') {
+      throw Exception('Please set your API Key in Settings');
+    }
+
+    const maxAttempts = 3;
+    int attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        final prompt = _buildEstimatePrompt(taskTitle);
+
+        final response = await http.post(
+          Uri.parse(settings.baseUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${settings.apiKey}',
+          },
+          body: jsonEncode({
+            "model": settings.model,
+            "messages": [
+              {"role": "user", "content": prompt}
+            ]
+          }),
+        ).timeout(const Duration(seconds: 30));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(response.bodyBytes));
+          
+          if (data['error'] != null) {
+              final error = data['error'];
+              if (error['code'] == 'security_audit_fail') {
+                  throw Exception('security_audit_fail'); 
+              }
+              throw Exception("AI Error: ${error['message']}");
+          }
+          
+          final content = data['choices'][0]['message']['content'];
+          
+          final result = _parseEstimateResult(content);
+          
+          if (result != null) {
+            return result;
+          }
+          
+          print('Attempt $attempts: Invalid format, retrying...');
+          continue;
+        } else {
+          if (attempts == maxAttempts) throw Exception("AI Error: ${response.statusCode}");
+        }
+      } on TimeoutException {
+        if (attempts == maxAttempts) throw Exception("timeout"); 
+      } catch (e) {
+        if (attempts == maxAttempts) rethrow;
+      }
+    }
+    
+    // Fallback: return default 60 min estimate
+    return AIEstimateResult(
+      estimatedDuration: const Duration(minutes: 60),
+      subTasks: [],
+    );
+  }
+  
+  String _buildEstimatePrompt(String title) {
+    return '''
+你是一个专业的任务规划助手。
+
+【任务】
+用户想要完成: "$title"
+
+【你的任务】
+1. 根据任务标题，估算完成这个任务合理需要多少分钟（必须是5的倍数，最少15分钟，最多180分钟）
+2. 将任务拆分为2-8个具体的子步骤，每个步骤分配合理的时间
+3. 所有子步骤时间之和必须等于你估算的总时长
+
+【语言规则】
+- 如果任务标题是中文，输出中文
+- 如果任务标题是英文，输出English
+
+【输出格式 - 严格遵守】
+只输出一个 JSON 对象，格式如下:
+{
+  "total_minutes": 数字,
+  "steps": [
+    {"title": "步骤名称", "duration_minutes": 数字},
+    ...
+  ]
+}
+
+【示例】
+任务: "写一篇博客文章"
+{
+  "total_minutes": 60,
+  "steps": [
+    {"title": "确定主题和大纲", "duration_minutes": 10},
+    {"title": "收集素材和资料", "duration_minutes": 15},
+    {"title": "撰写正文内容", "duration_minutes": 25},
+    {"title": "校对和排版", "duration_minutes": 10}
+  ]
+}
+
+现在为任务 "$title" 生成估时和步骤。只输出JSON:
+''';
+  }
+  
+  AIEstimateResult? _parseEstimateResult(String content) {
+    try {
+      String jsonStr = content.trim();
+      
+      // Remove markdown code blocks if present
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '');
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replaceAll('```', '');
+      }
+      jsonStr = jsonStr.trim();
+      
+      // Must be a JSON object
+      if (!jsonStr.startsWith('{') || !jsonStr.endsWith('}')) {
+        print('Estimate parse failed: Not a JSON object');
+        return null;
+      }
+      
+      final Map<String, dynamic> jsonData = jsonDecode(jsonStr);
+      
+      // Extract total_minutes
+      final totalMinutes = jsonData['total_minutes'];
+      if (totalMinutes == null || totalMinutes is! num || totalMinutes < 15) {
+        print('Estimate parse failed: Invalid total_minutes');
+        return null;
+      }
+      
+      // Extract steps
+      final stepsData = jsonData['steps'];
+      if (stepsData == null || stepsData is! List || stepsData.isEmpty) {
+        print('Estimate parse failed: Invalid steps');
+        return null;
+      }
+      
+      int calculatedTotal = 0;
+      List<SubTask> subtasks = [];
+      
+      for (var item in stepsData) {
+        if (item is! Map) continue;
+        
+        final stepTitle = item['title'] as String?;
+        final stepDuration = item['duration_minutes'];
+        
+        if (stepTitle == null || stepTitle.isEmpty) continue;
+        
+        int durationInt = 0;
+        if (stepDuration is int) {
+          durationInt = stepDuration;
+        } else if (stepDuration is num) {
+          durationInt = stepDuration.toInt();
+        } else {
+          continue;
+        }
+        
+        if (durationInt < 1) continue;
+        
+        calculatedTotal += durationInt;
+        subtasks.add(SubTask(
+          id: _uuid.v4(),
+          title: stepTitle,
+          estimatedDuration: Duration(minutes: durationInt),
+        ));
+      }
+      
+      // Validate sum matches
+      if (calculatedTotal != totalMinutes.toInt()) {
+        print('Estimate parse failed: Sum mismatch. Expected $totalMinutes, got $calculatedTotal');
+        return null;
+      }
+      
+      if (subtasks.length < 2) {
+        print('Estimate parse failed: Less than 2 valid steps');
+        return null;
+      }
+      
+      return AIEstimateResult(
+        estimatedDuration: Duration(minutes: totalMinutes.toInt()),
+        subTasks: subtasks,
+      );
+      
+    } catch (e) {
+      print('Estimate parse error: $e. Content was: $content');
       return null;
     }
   }
