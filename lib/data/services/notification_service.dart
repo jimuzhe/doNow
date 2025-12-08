@@ -68,6 +68,14 @@ class NotificationService {
 
     await _localNotifications.initialize(initializationSettings);
 
+    // Request Android 13+ Notification Permission
+    if (_isAndroid()) {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    }
+
     // 2. Check iOS Live Activity support
     await _checkLiveActivitySupport();
     
