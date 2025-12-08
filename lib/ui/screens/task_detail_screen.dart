@@ -227,6 +227,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                      0.0, // starts at 0 progress (or 1.0 depending on view, new step)
                      startTime: DateTime.now(),
                      endTime: _stepEndTime,
+                     currentStepIndex: _forceActiveStepIndex,
                    );
                 }
              }
@@ -247,6 +248,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                progress,
                startTime: _stepEndTime?.subtract(widget.task.subTasks[_forceActiveStepIndex].estimatedDuration),
                endTime: _stepEndTime,
+               currentStepIndex: _forceActiveStepIndex,
              );
            }
         }

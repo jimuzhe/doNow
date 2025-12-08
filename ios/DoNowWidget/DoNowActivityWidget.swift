@@ -2,6 +2,71 @@ import WidgetKit
 import SwiftUI
 import ActivityKit
 
+// Helper to get current step info based on time
+@available(iOS 16.1, *)
+struct DynamicStepInfo {
+    let title: String
+    let startTime: Date
+    let endTime: Date
+    let index: Int
+    let totalSteps: Int
+    
+    var progress: Double {
+        let now = Date()
+        if now >= endTime { return 1.0 }
+        if now <= startTime { return 0.0 }
+        let total = endTime.timeIntervalSince(startTime)
+        let elapsed = now.timeIntervalSince(startTime)
+        return elapsed / total
+    }
+    
+    static func from(state: DoNowActivityAttributes.ContentState) -> DynamicStepInfo? {
+        guard let steps = state.steps, !steps.isEmpty else {
+            // Fallback to current step if no schedule
+            if let start = state.startTime, let end = state.endTime {
+                return DynamicStepInfo(
+                    title: state.currentStep,
+                    startTime: start,
+                    endTime: end,
+                    index: state.currentStepIndex,
+                    totalSteps: 1
+                )
+            }
+            return nil
+        }
+        
+        let now = Date()
+        
+        // Find current step based on time
+        for (index, step) in steps.enumerated() {
+            let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+            if now < step.endTime {
+                return DynamicStepInfo(
+                    title: step.title,
+                    startTime: stepStart,
+                    endTime: step.endTime,
+                    index: index,
+                    totalSteps: steps.count
+                )
+            }
+        }
+        
+        // All done, show last step
+        if let last = steps.last {
+            let stepStart = last.endTime.addingTimeInterval(-Double(last.durationSeconds))
+            return DynamicStepInfo(
+                title: last.title,
+                startTime: stepStart,
+                endTime: last.endTime,
+                index: steps.count - 1,
+                totalSteps: steps.count
+            )
+        }
+        
+        return nil
+    }
+}
+
 @available(iOS 16.1, *)
 struct DoNowActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -12,30 +77,7 @@ struct DoNowActivityWidget: Widget {
             DynamicIsland {
                 // Expanded UI - Shows when user long-presses
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 4) {
-                        if let start = context.state.startTime, let end = context.state.endTime {
-                           ProgressView(timerInterval: start...end, countsDown: false)
-                                .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                                .frame(width: 24, height: 24)
-                        } else {
-                           ProgressView(value: context.state.progress)
-                                .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                                .frame(width: 24, height: 24)
-                        }
-                        
-                        if let end = context.state.endTime, end > Date() {
-                            Text(timerInterval: Date()...end, countsDown: true)
-                                .multilineTextAlignment(.center)
-                                .monospacedDigit()
-                                .font(.caption.bold())
-                                .foregroundColor(.green)
-                                .frame(width: 50)
-                        } else {
-                            Text("\(Int(context.state.progress * 100))%")
-                                .font(.caption.bold())
-                                .foregroundColor(.green)
-                        }
-                    }
+                    DynamicLeadingView(state: context.state)
                 }
                 
                 DynamicIslandExpandedRegion(.trailing) {
@@ -43,10 +85,7 @@ struct DoNowActivityWidget: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.currentStep)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .lineLimit(1)
+                    DynamicCenterView(state: context.state, taskTitle: context.attributes.taskTitle)
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
@@ -85,57 +124,19 @@ struct DoNowActivityWidget: Widget {
                         .padding(.bottom, 8)
                     } else {
                         // iOS 16 Compatibility
-                         VStack(spacing: 8) {
-                            if let start = context.state.startTime, let end = context.state.endTime {
-                                ProgressView(timerInterval: start...end, countsDown: false)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                            } else {
-                                ProgressView(value: context.state.progress)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                            }
-                            
-                            Text("点击打开应用操作")
-                                .font(.caption2)
-                                .foregroundColor(.gray)
-                        }
+                        DynamicBottomFallbackView(state: context.state)
                     }
                 }
                 
             } compactLeading: {
                 // Compact Leading - Progress indicator
-                if let start = context.state.startTime, let end = context.state.endTime {
-                   ProgressView(timerInterval: start...end, countsDown: false)
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(width: 16, height: 16)
-                } else {
-                   ProgressView(value: context.state.progress)
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(width: 16, height: 16)
-                }
+                DynamicCompactLeadingView(state: context.state)
             } compactTrailing: {
-                // Compact Trailing - Timer or Percentage
-                if let end = context.state.endTime, end > Date() {
-                    Text(timerInterval: Date()...end, countsDown: true)
-                        .monospacedDigit()
-                        .font(.caption2.bold())
-                        .foregroundColor(.white)
-                        .frame(maxWidth: 40)
-                } else {
-                    Text("\(Int(context.state.progress * 100))%")
-                        .font(.caption2.bold())
-                        .foregroundColor(.white)
-                }
+                // Compact Trailing - Timer
+                DynamicCompactTrailingView(state: context.state)
             } minimal: {
-                // Minimal - Just icon
-                if let start = context.state.startTime, let end = context.state.endTime {
-                     ProgressView(timerInterval: start...end, countsDown: false)
-                        .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                        .frame(width: 20, height: 20)
-                } else {
-                    Image(systemName: "timer")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                }
+                // Minimal - Just progress
+                DynamicMinimalView(state: context.state)
             }
             .contentMargins(.horizontal, 4, for: .compactLeading)
             .contentMargins(.horizontal, 4, for: .compactTrailing)
@@ -143,12 +144,159 @@ struct DoNowActivityWidget: Widget {
     }
 }
 
-// MARK: - Lock Screen View (No buttons for iOS 16 compatibility)
+// MARK: - Subviews for Dynamic Island
+
+@available(iOS 16.1, *)
+struct DynamicLeadingView: View {
+    let state: DoNowActivityAttributes.ContentState
+    
+    var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: state)
+        
+        HStack(spacing: 4) {
+            if let info = stepInfo {
+                ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                    .frame(width: 24, height: 24)
+                
+                if info.endTime > Date() {
+                    Text(timerInterval: Date()...info.endTime, countsDown: true)
+                        .multilineTextAlignment(.center)
+                        .monospacedDigit()
+                        .font(.caption.bold())
+                        .foregroundColor(.green)
+                        .frame(width: 50)
+                } else {
+                    Text("Done")
+                        .font(.caption.bold())
+                        .foregroundColor(.green)
+                }
+            } else {
+                ProgressView(value: state.progress)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                    .frame(width: 24, height: 24)
+                
+                Text("\(Int(state.progress * 100))%")
+                    .font(.caption.bold())
+                    .foregroundColor(.green)
+            }
+        }
+    }
+}
+
+@available(iOS 16.1, *)
+struct DynamicCenterView: View {
+    let state: DoNowActivityAttributes.ContentState
+    let taskTitle: String
+    
+    var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: state)
+        
+        VStack(spacing: 2) {
+            Text(stepInfo?.title ?? state.currentStep)
+                .font(.headline)
+                .foregroundColor(.white)
+                .lineLimit(1)
+            
+            if let info = stepInfo, info.totalSteps > 1 {
+                Text("Step \(info.index + 1)/\(info.totalSteps)")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+            }
+        }
+    }
+}
+
+@available(iOS 16.1, *)
+struct DynamicBottomFallbackView: View {
+    let state: DoNowActivityAttributes.ContentState
+    
+    var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: state)
+        
+        VStack(spacing: 8) {
+            if let info = stepInfo {
+                ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+            } else {
+                ProgressView(value: state.progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+            }
+            
+            Text("点击打开应用操作")
+                .font(.caption2)
+                .foregroundColor(.gray)
+        }
+    }
+}
+
+@available(iOS 16.1, *)
+struct DynamicCompactLeadingView: View {
+    let state: DoNowActivityAttributes.ContentState
+    
+    var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: state)
+        
+        if let info = stepInfo {
+            ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                .frame(width: 16, height: 16)
+        } else {
+            ProgressView(value: state.progress)
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                .frame(width: 16, height: 16)
+        }
+    }
+}
+
+@available(iOS 16.1, *)
+struct DynamicCompactTrailingView: View {
+    let state: DoNowActivityAttributes.ContentState
+    
+    var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: state)
+        
+        if let info = stepInfo, info.endTime > Date() {
+            Text(timerInterval: Date()...info.endTime, countsDown: true)
+                .monospacedDigit()
+                .font(.caption2.bold())
+                .foregroundColor(.white)
+                .frame(maxWidth: 40)
+        } else {
+            Text("\(Int(state.progress * 100))%")
+                .font(.caption2.bold())
+                .foregroundColor(.white)
+        }
+    }
+}
+
+@available(iOS 16.1, *)
+struct DynamicMinimalView: View {
+    let state: DoNowActivityAttributes.ContentState
+    
+    var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: state)
+        
+        if let info = stepInfo {
+            ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
+                .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                .frame(width: 20, height: 20)
+        } else {
+            Image(systemName: "timer")
+                .foregroundColor(.white)
+                .font(.caption)
+        }
+    }
+}
+
+// MARK: - Lock Screen View
 @available(iOS 16.1, *)
 struct LockScreenView: View {
     let context: ActivityViewContext<DoNowActivityAttributes>
     
     var body: some View {
+        let stepInfo = DynamicStepInfo.from(state: context.state)
+        
         VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack {
@@ -163,8 +311,8 @@ struct LockScreenView: View {
                 
                 Spacer()
                 
-                if let end = context.state.endTime, end > Date() {
-                    Text(timerInterval: Date()...end, countsDown: true)
+                if let info = stepInfo, info.endTime > Date() {
+                    Text(timerInterval: Date()...info.endTime, countsDown: true)
                         .monospacedDigit()
                         .font(.caption.bold())
                         .foregroundColor(.green)
@@ -175,22 +323,35 @@ struct LockScreenView: View {
                 }
             }
             
-            // Current Step
-            Text(context.state.currentStep)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.9))
-                .lineLimit(2)
+            // Current Step with step number
+            HStack {
+                Text(stepInfo?.title ?? context.state.currentStep)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.9))
+                    .lineLimit(2)
+                
+                if let info = stepInfo, info.totalSteps > 1 {
+                    Spacer()
+                    Text("\(info.index + 1)/\(info.totalSteps)")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.gray.opacity(0.3))
+                        .cornerRadius(8)
+                }
+            }
             
             // Progress Bar
-            if let start = context.state.startTime, let end = context.state.endTime {
-                 ProgressView(timerInterval: start...end, countsDown: false)
+            if let info = stepInfo {
+                ProgressView(timerInterval: info.startTime...info.endTime, countsDown: false)
                     .progressViewStyle(LinearProgressViewStyle(tint: .green))
             } else {
                 ProgressView(value: context.state.progress)
                     .progressViewStyle(LinearProgressViewStyle(tint: .green))
             }
             
-            // Hint text (no buttons)
+            // Hint text
             HStack {
                 Spacer()
                 Text("点击打开应用")
@@ -216,7 +377,13 @@ struct DoNowActivityWidget_Previews: PreviewProvider {
         currentStep: "整理资料和数据",
         progress: 0.35,
         startTime: Date(),
-        endTime: Date().addingTimeInterval(1200)
+        endTime: Date().addingTimeInterval(1200),
+        steps: [
+            StepInfo(title: "整理资料", durationSeconds: 600, endTime: Date().addingTimeInterval(600)),
+            StepInfo(title: "撰写初稿", durationSeconds: 900, endTime: Date().addingTimeInterval(1500)),
+            StepInfo(title: "校对修改", durationSeconds: 300, endTime: Date().addingTimeInterval(1800))
+        ],
+        currentStepIndex: 0
     )
     
     static var previews: some View {

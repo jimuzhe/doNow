@@ -182,9 +182,10 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       builder: (context, child) {
-        // Only show simulated Dynamic Island on non-iOS platforms (e.g. Android, Windows, Web)
-        // On iOS, we use the native Live Activity.
-        if (Theme.of(context).platform != TargetPlatform.iOS) {
+        // Only show simulated Dynamic Island on desktop/web platforms
+        // iOS uses native Live Activity, Android uses Foreground Service Notification
+        final platform = Theme.of(context).platform;
+        if (platform != TargetPlatform.iOS && platform != TargetPlatform.android) {
           return DynamicIslandSimulation(child: child!);
         }
         return child!;

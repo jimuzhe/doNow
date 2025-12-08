@@ -82,8 +82,37 @@ import ActivityKit
         let currentStep = args["currentStep"] as? String ?? "Starting..."
         let progress = args["progress"] as? Double ?? 0.0
         let totalDuration = args["totalDuration"] as? Int ?? 60
+        let currentStepIndex = args["currentStepIndex"] as? Int ?? 0
         
-        logToDocuments(message: "Starting Live Activity: \(taskTitle)")
+        // Parse timestamps
+        var startTime: Date? = nil
+        if let startTimestamp = args["startTime"] as? Double {
+            startTime = Date(timeIntervalSince1970: startTimestamp)
+        }
+        
+        var endTime: Date? = nil
+        if let endTimestamp = args["endTime"] as? Double {
+            endTime = Date(timeIntervalSince1970: endTimestamp)
+        }
+        
+        // Parse steps array for auto-advance
+        var steps: [StepInfo]? = nil
+        if let stepsArray = args["steps"] as? [[String: Any]] {
+            steps = stepsArray.compactMap { stepDict -> StepInfo? in
+                guard let title = stepDict["title"] as? String,
+                      let durationSeconds = stepDict["durationSeconds"] as? Int,
+                      let endTimeStamp = stepDict["endTime"] as? Double else {
+                    return nil
+                }
+                return StepInfo(
+                    title: title,
+                    durationSeconds: durationSeconds,
+                    endTime: Date(timeIntervalSince1970: endTimeStamp)
+                )
+            }
+        }
+        
+        logToDocuments(message: "Starting Live Activity: \(taskTitle), steps: \(steps?.count ?? 0)")
         
         let attributes = DoNowActivityAttributes(
             taskTitle: taskTitle,
@@ -92,7 +121,11 @@ import ActivityKit
         
         let initialState = DoNowActivityAttributes.ContentState(
             currentStep: currentStep,
-            progress: progress
+            progress: progress,
+            startTime: startTime,
+            endTime: endTime,
+            steps: steps,
+            currentStepIndex: currentStepIndex
         )
         
         do {
@@ -127,6 +160,7 @@ import ActivityKit
         
         let currentStep = args["currentStep"] as? String ?? ""
         let progress = args["progress"] as? Double ?? 0.0
+        let currentStepIndex = args["currentStepIndex"] as? Int ?? 0
         
         // Parse timestamps from Flutter
         var startTime: Date? = nil
@@ -139,13 +173,32 @@ import ActivityKit
             endTime = Date(timeIntervalSince1970: endTimestamp)
         }
         
-        logToDocuments(message: "Updating Live Activity: \(currentStep) - \(Int(progress * 100))%, endTime: \(String(describing: endTime))")
+        // Parse steps array for auto-advance
+        var steps: [StepInfo]? = nil
+        if let stepsArray = args["steps"] as? [[String: Any]] {
+            steps = stepsArray.compactMap { stepDict -> StepInfo? in
+                guard let title = stepDict["title"] as? String,
+                      let durationSeconds = stepDict["durationSeconds"] as? Int,
+                      let endTimeStamp = stepDict["endTime"] as? Double else {
+                    return nil
+                }
+                return StepInfo(
+                    title: title,
+                    durationSeconds: durationSeconds,
+                    endTime: Date(timeIntervalSince1970: endTimeStamp)
+                )
+            }
+        }
+        
+        logToDocuments(message: "Updating Live Activity: \(currentStep) - \(Int(progress * 100))%")
         
         let updatedState = DoNowActivityAttributes.ContentState(
             currentStep: currentStep,
             progress: progress,
             startTime: startTime,
-            endTime: endTime
+            endTime: endTime,
+            steps: steps,
+            currentStepIndex: currentStepIndex
         )
         
         Task {

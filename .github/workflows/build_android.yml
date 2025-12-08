@@ -1,0 +1,74 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main", "ios17-interactive" ]
+  workflow_dispatch:
+
+jobs:
+  build_android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter Version
+        run: flutter --version
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Generate App Icons
+        run: |
+          sed -i 's/android: false/android: true/' pubspec.yaml || true
+          dart run flutter_launcher_icons || true
+
+      - name: Build APK (Release)
+        run: flutter build apk --release
+
+      - name: Build APK (Split by ABI)
+        run: flutter build apk --split-per-abi --release
+
+      - name: List Build Output
+        run: |
+          echo "📦 APK files created:"
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Upload Universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoNow_Universal_APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload ARM64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoNow_ARM64_APK
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+
+      - name: Upload ARMv7 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoNow_ARMv7_APK
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoNow_x86_64_APK
+          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
+          if-no-files-found: ignore
