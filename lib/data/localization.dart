@@ -117,6 +117,15 @@ class AppStrings {
       'vibration_light': 'Light',
       'vibration_medium': 'Medium',
       'vibration_strong': 'Strong',
+      'time_saved': 'Time Saved',
+      'time_extra': 'Extra Time',
+      'total_time': 'Total Time',
+      'feedback_early': 'Speedy Warrior!',
+      'feedback_early_desc': 'You finished ahead of schedule.',
+      'feedback_late': 'Persistence pays off!',
+      'feedback_late_desc': 'Better late than never.',
+      'actual_time': 'Actual Time',
+      'planned_time': 'Planned Time',
     },
     'zh': {
       'home': '首页',
@@ -202,6 +211,15 @@ class AppStrings {
       'vibration_light': '轻微',
       'vibration_medium': '中等',
       'vibration_strong': '强烈',
+      'time_saved': '节省时间',
+      'time_extra': '超出时间',
+      'total_time': '总耗时',
+      'feedback_early': '唯快不破！',
+      'feedback_early_desc': '你提前完成了任务，太棒了！',
+      'feedback_late': '坚持就是胜利！',
+      'feedback_late_desc': '虽然超时了，但你做到了。',
+      'actual_time': '实际耗时',
+      'planned_time': '预定时间',
     }
   };
 

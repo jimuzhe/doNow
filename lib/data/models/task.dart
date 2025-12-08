@@ -8,9 +8,11 @@ class Task {
   final List<SubTask> subTasks;
   final bool isGenerating;
   final bool isCompleted;
-  final bool isAbandoned; // New: Track abandoned tasks
-  final List<int> repeatDays; // 1 = Monday, 7 = Sunday. Empty = No repeat.
-  final DateTime createdAt;
+  final bool isAbandoned; // Restored
+  final List<int> repeatDays; // Restored
+  final DateTime createdAt; // Restored
+  final DateTime? completedAt; 
+  final Duration? actualDuration; 
 
   Task({
     required this.id,
@@ -23,6 +25,8 @@ class Task {
     this.isAbandoned = false,
     this.repeatDays = const [],
     DateTime? createdAt,
+    this.completedAt,
+    this.actualDuration,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Task copyWith({
@@ -35,6 +39,8 @@ class Task {
     bool? isCompleted,
     bool? isAbandoned,
     List<int>? repeatDays,
+    DateTime? completedAt,
+    Duration? actualDuration,
   }) {
     return Task(
       id: id ?? this.id,
@@ -47,6 +53,8 @@ class Task {
       isAbandoned: isAbandoned ?? this.isAbandoned,
       repeatDays: repeatDays ?? this.repeatDays,
       createdAt: this.createdAt,
+      completedAt: completedAt ?? this.completedAt,
+      actualDuration: actualDuration ?? this.actualDuration,
     );
   }
 
@@ -63,6 +71,8 @@ class Task {
       'isAbandoned': isAbandoned,
       'repeatDays': repeatDays,
       'createdAt': createdAt.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
+      'actualDurationSeconds': actualDuration?.inSeconds,
     };
   }
 
@@ -83,6 +93,12 @@ class Task {
           .toList() ?? [],
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt'] as String)
+          : null,
+      completedAt: json['completedAt'] != null
+          ? DateTime.parse(json['completedAt'] as String)
+          : null,
+      actualDuration: json['actualDurationSeconds'] != null
+          ? Duration(seconds: json['actualDurationSeconds'] as int)
           : null,
     );
   }

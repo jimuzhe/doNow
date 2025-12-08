@@ -10,6 +10,7 @@ import '../../data/providers.dart';
 import '../../utils/haptic_helper.dart';
 import 'task_detail_screen.dart';
 import 'create_task_modal.dart';
+import '../widgets/responsive_center.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -52,10 +53,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            // 1. Header with Slogan (No Clock)
-            Padding(
+        child: ResponsiveCenter(
+          child: Column(
+            children: [
+              // 1. Header with Slogan (No Clock)
+              Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -106,6 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
             ),
           ],
+        ),
         ),
       ),
     );

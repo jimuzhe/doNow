@@ -11,6 +11,7 @@ import '../../data/services/task_scheduler_service.dart';
 import '../../data/localization.dart';
 import '../../utils/haptic_helper.dart';
 import '../../data/services/focus_audio_service.dart';
+import '../widgets/responsive_center.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final Task task;
@@ -24,6 +25,8 @@ class TaskDetailScreen extends ConsumerStatefulWidget {
 class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with WidgetsBindingObserver {
   late Timer _timer;
   late Duration _remainingTime;
+  late DateTime _taskStartTime;
+  bool _hasShownTimeout = false;
   StreamSubscription<IslandAction>? _actionSubscription;
   
   // Local state for checkboxes
@@ -56,9 +59,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
        ref.read(focusAudioServiceProvider).startFocusSound();
     });
     
+    _taskStartTime = DateTime.now();
     // Calculate target end time based on initial duration
     _remainingTime = widget.task.totalDuration;
-    _endTime = DateTime.now().add(_remainingTime);
+    _endTime = _taskStartTime.add(_remainingTime);
     
     _completedSteps = List.generate(widget.task.subTasks.length, (_) => false);
     
@@ -73,11 +77,19 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     _startNotifications(); 
     _startTimer();
     _listenToIslandActions();
+    
+    // Check if we were opened via Dynamic Island action
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       ref.read(notificationServiceProvider).checkPendingAction();
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      // Check for pending actions from Dynamic Island
+      ref.read(notificationServiceProvider).checkPendingAction();
+      
       // Refresh timer immediately when app comes to foreground
       if (mounted) {
         setState(() {
@@ -184,14 +196,12 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
 
         // 1. Global Timer calculation
         final remaining = _endTime.difference(now);
+        _remainingTime = remaining;
         
-        if (remaining.inSeconds > 0) {
-           _remainingTime = remaining;
-        } else {
-           _remainingTime = Duration.zero;
-           _timer.cancel();
+        if (remaining.inSeconds <= 0 && !_hasShownTimeout) {
+           _hasShownTimeout = true;
            _showTimeoutDialog();
-           return;
+           // Do not cancel timer, allow overtime
         }
 
         // 2. Step Timer
@@ -269,9 +279,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     await Future.delayed(const Duration(milliseconds: 100));
     HapticHelper(ref).heavyImpact();
     
+    // Calculate actual duration
+    final actualDuration = DateTime.now().difference(_taskStartTime);
+    final diff = actualDuration - widget.task.totalDuration;
+
     // 1. Mark as completed in repo
     final repo = ref.read(taskRepositoryProvider);
-    final completedTask = widget.task.copyWith(isCompleted: true);
+    final completedTask = widget.task.copyWith(
+      isCompleted: true,
+      completedAt: DateTime.now(),
+      actualDuration: actualDuration, 
+    );
     repo.updateTask(completedTask);
     
     // 2. Stop timer & Activity
@@ -286,7 +304,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _SuccessOverlay(),
+      useSafeArea: false, // Full screen immersive
+      builder: (_) => _SuccessOverlay(
+        actualDuration: actualDuration,
+        diff: diff,
+      ),
     );
 
     if (mounted) {
@@ -305,6 +327,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
         title: Text(t('times_up')),
         content: Text(t('times_up_content')),
         actions: [
+          // Continue option (Overtime)
+          TextButton(
+            onPressed: () {
+               Navigator.pop(context); // Close Dialog and keep running
+            },
+            child: Text(t('ok_cool'), style: const TextStyle(color: Colors.grey)), 
+          ),
           TextButton(
             onPressed: () {
                ref.read(notificationServiceProvider).endActivity(); 
@@ -372,9 +401,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
   @override
   Widget build(BuildContext context) {
     // Format timer
-    final minutes = _remainingTime.inMinutes.toString().padLeft(2, '0');
-    final seconds = (_remainingTime.inSeconds % 60).toString().padLeft(2, '0');
-    final formattedTime = "$minutes:$seconds";
+    final bool isOvertime = _remainingTime.isNegative;
+    final absDuration = _remainingTime.abs();
+    final minutes = absDuration.inMinutes.toString().padLeft(2, '0');
+    final seconds = (absDuration.inSeconds % 60).toString().padLeft(2, '0');
+    final formattedTime = isOvertime ? "+ $minutes:$seconds" : "$minutes:$seconds";
 
     final allChecked = !_completedSteps.contains(false);
 
@@ -390,210 +421,212 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
         title: Text(
           formattedTime,
           style: TextStyle(
-            color: _remainingTime.inMinutes < 5 ? Colors.red : (isDark ? Colors.white : Colors.black),
+            color: isOvertime ? Colors.red : (_remainingTime.inMinutes < 5 ? Colors.orange : (isDark ? Colors.white : Colors.black)),
             fontWeight: FontWeight.bold,
             fontFamily: 'Courier', // Monospaced for timer
             fontSize: 24,
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Text(
-              widget.task.title.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
-                color: Colors.grey,
+      body: ResponsiveCenter(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Text(
+                widget.task.title.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
           
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: widget.task.subTasks.length,
-              itemBuilder: (context, index) {
-                final subTask = widget.task.subTasks[index];
-                final isChecked = _completedSteps[index];
-                final isActive = index == _forceActiveStepIndex && !_completedSteps.every((c) => c);
-                final stepDuration = subTask.estimatedDuration;
-                
-                // Calculate progress for this specific step
-                double stepProgress = 0.0;
-                // If checked, it's done (full progress? or just greyed out). Usually done = 1.0.
-                if (isChecked) {
-                  stepProgress = 1.0;
-                } else if (isActive) {
-                   final totalSec = stepDuration.inSeconds;
-                   if (totalSec > 0) {
-                     stepProgress = 1.0 - (_currentStepRemaining.inSeconds / totalSec);
-                   }
-                }
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: widget.task.subTasks.length,
+                itemBuilder: (context, index) {
+                  final subTask = widget.task.subTasks[index];
+                  final isChecked = _completedSteps[index];
+                  final isActive = index == _forceActiveStepIndex && !_completedSteps.every((c) => c);
+                  final stepDuration = subTask.estimatedDuration;
+                  
+                  // Calculate progress for this specific step
+                  double stepProgress = 0.0;
+                  // If checked, it's done (full progress? or just greyed out). Usually done = 1.0.
+                  if (isChecked) {
+                    stepProgress = 1.0;
+                  } else if (isActive) {
+                     final totalSec = stepDuration.inSeconds;
+                     if (totalSec > 0) {
+                       stepProgress = 1.0 - (_currentStepRemaining.inSeconds / totalSec);
+                     }
+                  }
 
-                return InkWell(
-                    onTap: () {
-                    // Haptic feedback for step toggle
-                    HapticHelper(ref).selectionClick();
-                    
-                    setState(() {
-                      final oldActiveIndex = _forceActiveStepIndex;
-                      bool wasChecked = _completedSteps[index];
-                      _completedSteps[index] = !wasChecked;
+                  return InkWell(
+                      onTap: () {
+                      // Haptic feedback for step toggle
+                      HapticHelper(ref).selectionClick();
                       
-                      // Extra haptic for completing a step
-                      if (!wasChecked) {
-                        HapticHelper(ref).mediumImpact();
+                      setState(() {
+                        final oldActiveIndex = _forceActiveStepIndex;
+                        bool wasChecked = _completedSteps[index];
+                        _completedSteps[index] = !wasChecked;
                         
-                        // If user manually checked a step, move force index to next unchecked
-                        // ONLY if we are checking the currently active step or a future one.
-                        // If we check a past step, we probably just forgot to check it, so don't move focus.
-                        if (index >= _forceActiveStepIndex) {
-                          // Find next unchecked step
-                          int nextUnchecked = -1;
-                          for (int i = 0; i < _completedSteps.length; i++) {
-                            if (!_completedSteps[i]) {
-                              nextUnchecked = i;
-                              break;
+                        // Extra haptic for completing a step
+                        if (!wasChecked) {
+                          HapticHelper(ref).mediumImpact();
+                          
+                          // If user manually checked a step, move force index to next unchecked
+                          // ONLY if we are checking the currently active step or a future one.
+                          // If we check a past step, we probably just forgot to check it, so don't move focus.
+                          if (index >= _forceActiveStepIndex) {
+                            // Find next unchecked step
+                            int nextUnchecked = -1;
+                            for (int i = 0; i < _completedSteps.length; i++) {
+                              if (!_completedSteps[i]) {
+                                nextUnchecked = i;
+                                break;
+                              }
+                            }
+                            if (nextUnchecked != -1) {
+                              _forceActiveStepIndex = nextUnchecked;
                             }
                           }
-                          if (nextUnchecked != -1) {
-                            _forceActiveStepIndex = nextUnchecked;
+                        }
+                        
+                        // Update timer ONLY if the active step index effectively changed
+                        if (oldActiveIndex != _forceActiveStepIndex) {
+                          _initCurrentStepTimer();
+                          
+                          // Also update live activity since step changed
+                          if (_forceActiveStepIndex < widget.task.subTasks.length) {
+                             ref.read(notificationServiceProvider).updateTaskProgress(
+                               widget.task.subTasks[_forceActiveStepIndex].title, 
+                               0.0,
+                               startTime: DateTime.now(),
+                               endTime: _stepEndTime,
+                             );
                           }
                         }
-                      }
-                      
-                      // Update timer ONLY if the active step index effectively changed
-                      if (oldActiveIndex != _forceActiveStepIndex) {
-                        _initCurrentStepTimer();
-                        
-                        // Also update live activity since step changed
-                        if (_forceActiveStepIndex < widget.task.subTasks.length) {
-                           ref.read(notificationServiceProvider).updateTaskProgress(
-                             widget.task.subTasks[_forceActiveStepIndex].title, 
-                             0.0,
-                             startTime: DateTime.now(),
-                             endTime: _stepEndTime,
-                           );
-                        }
-                      }
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isChecked ? Colors.grey[50] : (isActive ? Colors.white : Colors.white.withOpacity(0.6)),
-                      border: Border.all(
-                        color: isActive ? Colors.black : (isChecked ? Colors.transparent : Colors.black12),
-                        width: isActive ? 2 : 1,
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isChecked ? Colors.grey[50] : (isActive ? Colors.white : Colors.white.withOpacity(0.6)),
+                        border: Border.all(
+                          color: isActive ? Colors.black : (isChecked ? Colors.transparent : Colors.black12),
+                          width: isActive ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: isActive ? [
+                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))
+                        ] : null,
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: isActive ? [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))
-                      ] : null,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                             Container(
-                               width: 24,
-                               height: 24,
-                               decoration: BoxDecoration(
-                                 color: isChecked ? Colors.black : Colors.transparent,
-                                 border: Border.all(color: Colors.black, width: 2),
-                                 shape: BoxShape.circle,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                               Container(
+                                 width: 24,
+                                 height: 24,
+                                 decoration: BoxDecoration(
+                                   color: isChecked ? Colors.black : Colors.transparent,
+                                   border: Border.all(color: Colors.black, width: 2),
+                                   shape: BoxShape.circle,
+                                 ),
+                                 child: isChecked 
+                                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                                    : null,
                                ),
-                               child: isChecked 
-                                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                                  : null,
-                             ),
-                             const SizedBox(width: 16),
-                             Expanded(
-                               child: Text(
-                                 subTask.title,
-                                 style: TextStyle(
-                                   fontSize: 16,
-                                   fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                                   decoration: isChecked ? TextDecoration.lineThrough : null,
-                                   color: isChecked ? Colors.grey : Colors.black,
+                               const SizedBox(width: 16),
+                               Expanded(
+                                 child: Text(
+                                   subTask.title,
+                                   style: TextStyle(
+                                     fontSize: 16,
+                                     fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                                     decoration: isChecked ? TextDecoration.lineThrough : null,
+                                     color: isChecked ? Colors.grey : Colors.black,
+                                   ),
                                  ),
                                ),
-                             ),
-                             // Show Timer if Active
-                             if (isActive)
-                               Text(
-                                 "${_currentStepRemaining.inMinutes}:${(_currentStepRemaining.inSeconds % 60).toString().padLeft(2, '0')}",
-                                 style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Courier'),
-                               ),
-                          ],
-                        ),
-                        if (isActive) ...[
-                          const SizedBox(height: 12),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: stepProgress,
-                              backgroundColor: Colors.grey[100],
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
-                              minHeight: 6,
-                            ),
+                               // Show Timer if Active
+                               if (isActive)
+                                 Text(
+                                   "${_currentStepRemaining.inMinutes}:${(_currentStepRemaining.inSeconds % 60).toString().padLeft(2, '0')}",
+                                   style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Courier'),
+                                 ),
+                            ],
                           ),
-                        ]
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Bottom Actions
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  // Finish Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 64,
-                    child: ElevatedButton(
-                      onPressed: allChecked ? _completeMission : null, 
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? Colors.white : Colors.black,
-                        foregroundColor: isDark ? Colors.black : Colors.white,
-                        disabledBackgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+                          if (isActive) ...[
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: stepProgress,
+                                backgroundColor: Colors.grey[100],
+                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
+                                minHeight: 6,
+                              ),
+                            ),
+                          ]
+                        ],
                       ),
-                      child: Text(AppStrings.get('complete_mission', ref.watch(localeProvider)), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Small Cancel
-                  TextButton(
-                    onPressed: _handleCancel,
-                    child: Text(
-                      AppStrings.get('abort_mission', ref.watch(localeProvider)),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
-          ),
-        ],
+
+            // Bottom Actions
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  children: [
+                    // Finish Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 64,
+                      child: ElevatedButton(
+                        onPressed: allChecked ? _completeMission : null, 
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isDark ? Colors.white : Colors.black,
+                          foregroundColor: isDark ? Colors.black : Colors.white,
+                          disabledBackgroundColor: Colors.grey[300],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: Text(AppStrings.get('complete_mission', ref.watch(localeProvider)), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Small Cancel
+                    TextButton(
+                      onPressed: _handleCancel,
+                      child: Text(
+                        AppStrings.get('abort_mission', ref.watch(localeProvider)),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -633,6 +666,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                      dateTimePickerTextStyle: TextStyle(
                        color: isDark ? Colors.white : Colors.black,
                        fontSize: 20,
+                       
                      ),
                    ),
                  ),
@@ -684,6 +718,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     await showDialog(
       context: context,
       barrierDismissible: false,
+      useSafeArea: false, // Full screen immersive
       builder: (_) => const _EncouragementOverlay(),
     );
      // After overlay closes, we stay on screen? Or popping?
@@ -696,7 +731,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
 }
 
 class _SuccessOverlay extends ConsumerStatefulWidget {
-  const _SuccessOverlay();
+  final Duration actualDuration;
+  final Duration diff;
+
+  const _SuccessOverlay({
+    required this.actualDuration,
+    required this.diff,
+  });
 
   @override
   ConsumerState<_SuccessOverlay> createState() => _SuccessOverlayState();
@@ -711,16 +752,16 @@ class _SuccessOverlayState extends ConsumerState<_SuccessOverlay> with SingleTic
   void initState() {
     super.initState();
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
+        vsync: this, duration: const Duration(milliseconds: 600));
         
-    _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
+    _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5)));
+        CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeOut)));
 
     _controller.forward();
     
-    // Auto close after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
+    // Auto close slightly faster for minimalism
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) Navigator.of(context).pop();
     });
   }
@@ -736,46 +777,130 @@ class _SuccessOverlayState extends ConsumerState<_SuccessOverlay> with SingleTic
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
     
-    // Get full screen size including status bar and navigation bar
+    // Theme context
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? Colors.black : Colors.white;
+    final txtColor = isDark ? Colors.white : Colors.black;
+    
     final screenSize = MediaQuery.of(context).size;
+    final isEarly = widget.diff.isNegative;
+    final absDiff = widget.diff.abs();
+    
+    final formattedActual = "${widget.actualDuration.inMinutes}m ${widget.actualDuration.inSeconds % 60}s";
+    final formattedDiff = "${absDiff.inMinutes}m ${absDiff.inSeconds % 60}s";
 
-    // Full-screen overlay covering status bar and navigation bar
     return Material(
       color: Colors.transparent,
       child: Container(
         width: screenSize.width,
         height: screenSize.height,
-        color: Colors.black.withOpacity(0.95),
+        color: bgColor.withOpacity(0.95), // Minimalist high opacity background
         child: Center(
-          child: FadeTransition(
-            opacity: _opacityAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.verified, color: Colors.white, size: 80),
-                  const SizedBox(height: 24),
-                  Text(
-                    t('mission_accomplished'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2.0,
-                      height: 1.2
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: FadeTransition(
+              opacity: _opacityAnimation,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Minimal Icon Circle
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: txtColor, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        isEarly ? Icons.bolt_outlined : Icons.hourglass_empty,
+                        color: txtColor,
+                        size: 40,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    t('great_work'),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 18,
+                    const SizedBox(height: 40),
+                    
+                    // Main Status
+                    Text(
+                      (isEarly ? t('feedback_early') : t('feedback_late')).toUpperCase(),
+                      style: TextStyle(
+                        color: txtColor,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4.0, // Airy letter spacing
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                       isEarly ? t('feedback_early_desc') : t('feedback_late_desc'),
+                       style: TextStyle(
+                         color: txtColor.withOpacity(0.6),
+                         fontSize: 14,
+                       ),
+                       textAlign: TextAlign.center,
+                    ),
+                    
+                    const SizedBox(height: 60),
+
+                    // Clean Stat Display
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          formattedDiff,
+                          style: TextStyle(
+                            color: txtColor,
+                            fontSize: 48,
+                            fontWeight: FontWeight.w300, // Light weight for elegance
+                            fontFamily: 'Courier',
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10, left: 8),
+                          child: Text(
+                             isEarly ? "SAVED" : "EXTRA", // Ideally localized
+                             style: TextStyle(
+                               color: txtColor.withOpacity(0.5),
+                               fontSize: 12,
+                               fontWeight: FontWeight.bold,
+                               letterSpacing: 1.0,
+                             ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 40),
+                    
+                    // Detailed Small Stats
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: txtColor.withOpacity(0.1)),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.timer_outlined, size: 14, color: txtColor.withOpacity(0.5)),
+                          const SizedBox(width: 8),
+                          Text(
+                            "${t('total_time')}: $formattedActual",
+                            style: TextStyle(
+                               color: txtColor.withOpacity(0.7),
+                               fontSize: 14,
+                               fontFamily: 'Courier',
+                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -784,6 +909,7 @@ class _SuccessOverlayState extends ConsumerState<_SuccessOverlay> with SingleTic
     );
   }
 }
+
 
 class _EncouragementOverlay extends ConsumerStatefulWidget {
   const _EncouragementOverlay();

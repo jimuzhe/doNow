@@ -1,37 +1,34 @@
 import AppIntents
-import ActivityKit
+import WidgetKit
 import Foundation
 
-// MARK: - Complete Step Intent
-@available(iOS 16.1, *)
+@available(iOS 16.0, *)
 struct CompleteStepIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Complete Step"
-    static var description = IntentDescription("Mark current step as complete")
-    
+    static var description = IntentDescription("Completes the current step of the active task.")
+
     func perform() async throws -> some IntentResult {
-        // Store action in UserDefaults for Flutter to read
+        // 1. Write pending action to App Group defaults
         if let defaults = UserDefaults(suiteName: "group.com.donow.app") {
-            defaults.set("complete", forKey: "lastAction")
-            defaults.set(Date().timeIntervalSince1970, forKey: "actionTimestamp")
-            defaults.synchronize()
+            defaults.set("complete", forKey: "pendingAction")
+            defaults.synchronize() // Force write
         }
-        return .result()
+        
+        // 2. Open App to process it
+        return .result(opensIntent: OpenURLIntent(URL(string: "donow://action")!))
     }
 }
 
-// MARK: - Cancel Task Intent
-@available(iOS 16.1, *)
+@available(iOS 16.0, *)
 struct CancelTaskIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Cancel Task"
-    static var description = IntentDescription("Cancel the current task")
-    
+    static var description = IntentDescription("Cancels the active task.")
+
     func perform() async throws -> some IntentResult {
-        // Store action in UserDefaults for Flutter to read
         if let defaults = UserDefaults(suiteName: "group.com.donow.app") {
-            defaults.set("cancel", forKey: "lastAction")
-            defaults.set(Date().timeIntervalSince1970, forKey: "actionTimestamp")
+            defaults.set("cancel", forKey: "pendingAction")
             defaults.synchronize()
         }
-        return .result()
+        return .result(opensIntent: OpenURLIntent(URL(string: "donow://action")!))
     }
 }

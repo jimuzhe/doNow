@@ -23,7 +23,7 @@ struct DoNowActivityWidget: Widget {
                                 .frame(width: 24, height: 24)
                         }
                         
-                        if let end = context.state.endTime {
+                        if let end = context.state.endTime, end > Date() {
                             Text(timerInterval: Date()...end, countsDown: true)
                                 .multilineTextAlignment(.center)
                                 .monospacedDigit()
@@ -50,53 +50,51 @@ struct DoNowActivityWidget: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 8) {
-                        // 1. Progress Bar (Always show)
-                        if let start = context.state.startTime, let end = context.state.endTime {
-                            ProgressView(timerInterval: start...end, countsDown: false)
-                                .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                        } else {
-                            ProgressView(value: context.state.progress)
-                                .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                        }
-                        
-                        // 2. Interactive Buttons (iOS 17+)
-                        if #available(iOS 17.0, *) {
-                            HStack(spacing: 16) {
-                                // Cancel Button
-                                Button(intent: CancelTaskIntent()) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "xmark")
-                                            .font(.caption.bold())
-                                        Text("取消")
-                                            .font(.caption.bold())
-                                    }
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.red.opacity(0.2))
-                                    .cornerRadius(12)
+                    if #available(iOS 17.0, *) {
+                        HStack {
+                            // Cancel Button
+                            Button(intent: CancelTaskIntent()) {
+                                HStack {
+                                    Image(systemName: "xmark")
+                                    Text("Abort")
                                 }
-                                .buttonStyle(.plain)
-                                
-                                // Complete Button
-                                Button(intent: CompleteStepIntent()) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "checkmark")
-                                            .font(.caption.bold())
-                                        Text("完成")
-                                            .font(.caption.bold())
-                                    }
-                                    .foregroundColor(.green)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.green.opacity(0.2))
-                                    .cornerRadius(12)
-                                }
-                                .buttonStyle(.plain)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.red.opacity(0.2))
+                                .cornerRadius(8)
                             }
-                        } else {
-                             Text("点击打开应用操作")
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Spacer()
+                            
+                            // Complete Button - Prominent
+                            Button(intent: CompleteStepIntent()) {
+                                HStack {
+                                    Image(systemName: "checkmark")
+                                    Text("Done")
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 6)
+                                .background(Color.green)
+                                .foregroundColor(.black)
+                                .cornerRadius(16)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                    } else {
+                        // iOS 16 Compatibility
+                         VStack(spacing: 8) {
+                            if let start = context.state.startTime, let end = context.state.endTime {
+                                ProgressView(timerInterval: start...end, countsDown: false)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                            } else {
+                                ProgressView(value: context.state.progress)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                            }
+                            
+                            Text("点击打开应用操作")
                                 .font(.caption2)
                                 .foregroundColor(.gray)
                         }
@@ -116,7 +114,7 @@ struct DoNowActivityWidget: Widget {
                 }
             } compactTrailing: {
                 // Compact Trailing - Timer or Percentage
-                if let end = context.state.endTime {
+                if let end = context.state.endTime, end > Date() {
                     Text(timerInterval: Date()...end, countsDown: true)
                         .monospacedDigit()
                         .font(.caption2.bold())
@@ -145,7 +143,7 @@ struct DoNowActivityWidget: Widget {
     }
 }
 
-// MARK: - Lock Screen View with Interactive Buttons
+// MARK: - Lock Screen View (No buttons for iOS 16 compatibility)
 @available(iOS 16.1, *)
 struct LockScreenView: View {
     let context: ActivityViewContext<DoNowActivityAttributes>
@@ -165,7 +163,7 @@ struct LockScreenView: View {
                 
                 Spacer()
                 
-                if let end = context.state.endTime {
+                if let end = context.state.endTime, end > Date() {
                     Text(timerInterval: Date()...end, countsDown: true)
                         .monospacedDigit()
                         .font(.caption.bold())
@@ -192,50 +190,13 @@ struct LockScreenView: View {
                     .progressViewStyle(LinearProgressViewStyle(tint: .green))
             }
             
-            // Action Buttons (iOS 17+)
-            if #available(iOS 17.0, *) {
-                HStack(spacing: 12) {
-                    // Cancel Button
-                    Button(intent: CancelTaskIntent()) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark")
-                                .font(.caption.bold())
-                            Text("取消")
-                                .font(.caption.bold())
-                        }
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.red.opacity(0.2))
-                        .cornerRadius(10)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    // Complete Button
-                    Button(intent: CompleteStepIntent()) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark")
-                                .font(.caption.bold())
-                            Text("完成此步骤")
-                                .font(.caption.bold())
-                        }
-                        .foregroundColor(.green)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.green.opacity(0.2))
-                        .cornerRadius(10)
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                // Hint text for older versions
-                HStack {
-                    Spacer()
-                    Text("点击打开应用操作")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
+            // Hint text (no buttons)
+            HStack {
+                Spacer()
+                Text("点击打开应用")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+                Spacer()
             }
         }
         .padding()

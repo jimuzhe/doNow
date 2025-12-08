@@ -6,6 +6,7 @@ import '../../data/localization.dart';
 import '../../data/providers.dart';
 import '../../data/models/task.dart';
 import '../../utils/haptic_helper.dart';
+import '../widgets/responsive_center.dart';
 
 class AnalysisScreen extends ConsumerWidget {
   const AnalysisScreen({super.key});
@@ -26,7 +27,7 @@ class AnalysisScreen extends ConsumerWidget {
     
     final completedCount = completedTasks.length;
     final abandonedCount = abandonedTasks.length;
-    final totalMinutes = completedTasks.fold(0, (sum, t) => sum + t.totalDuration.inMinutes);
+    final totalMinutes = completedTasks.fold(0, (sum, t) => sum + (t.actualDuration?.inMinutes ?? t.totalDuration.inMinutes));
     
     // Calculate additional statistics
     final totalTasks = completedCount + abandonedCount;
@@ -42,11 +43,12 @@ class AnalysisScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: ResponsiveCenter(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Text(
                 t('analysis_title'),
                 style: TextStyle(
@@ -267,6 +269,7 @@ class AnalysisScreen extends ConsumerWidget {
               const SizedBox(height: 100),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -601,7 +604,13 @@ class _TaskHistoryItem extends ConsumerWidget {
     };
     
     final dateStr = _formatDate(task.createdAt, locale);
-    final durationStr = "${task.totalDuration.inMinutes} min";
+    
+    String durationStr;
+    if (task.actualDuration != null) {
+      durationStr = "${task.actualDuration!.inMinutes}m (${AppStrings.get('planned_time', locale)}: ${task.totalDuration.inMinutes}m)";
+    } else {
+      durationStr = "${task.totalDuration.inMinutes} min";
+    }
 
     return GestureDetector(
       onLongPress: () => _showSubtasksSheet(context, ref),
@@ -725,7 +734,7 @@ class _TaskHistoryItem extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${task.totalDuration.inMinutes} ${locale == 'zh' ? '分钟' : 'min'} • ${task.subTasks.length} ${locale == 'zh' ? '个步骤' : 'steps'}',
+                    '${task.actualDuration?.inMinutes ?? task.totalDuration.inMinutes} ${locale == 'zh' ? '分钟' : 'min'} • ${task.subTasks.length} ${locale == 'zh' ? '个步骤' : 'steps'}',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[500],

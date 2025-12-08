@@ -55,6 +55,9 @@ import ActivityKit
         case "isSupported":
             checkLiveActivitySupport(result: result)
             
+        case "checkPendingAction":
+            checkPendingAction(result: result)
+            
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -125,11 +128,24 @@ import ActivityKit
         let currentStep = args["currentStep"] as? String ?? ""
         let progress = args["progress"] as? Double ?? 0.0
         
-        logToDocuments(message: "Updating Live Activity: \(currentStep) - \(Int(progress * 100))%")
+        // Parse timestamps from Flutter
+        var startTime: Date? = nil
+        if let startTimestamp = args["startTime"] as? Double {
+            startTime = Date(timeIntervalSince1970: startTimestamp)
+        }
+        
+        var endTime: Date? = nil
+        if let endTimestamp = args["endTime"] as? Double {
+            endTime = Date(timeIntervalSince1970: endTimestamp)
+        }
+        
+        logToDocuments(message: "Updating Live Activity: \(currentStep) - \(Int(progress * 100))%, endTime: \(String(describing: endTime))")
         
         let updatedState = DoNowActivityAttributes.ContentState(
             currentStep: currentStep,
-            progress: progress
+            progress: progress,
+            startTime: startTime,
+            endTime: endTime
         )
         
         Task {
@@ -172,6 +188,22 @@ import ActivityKit
         } else {
             logToDocuments(message: "Live Activities not supported (iOS < 16.1)")
             result(false)
+        }
+    }
+    
+    private func checkPendingAction(result: @escaping FlutterResult) {
+        if let defaults = UserDefaults(suiteName: "group.com.donow.app") {
+            let action = defaults.string(forKey: "pendingAction")
+            if let action = action {
+                // Clear it
+                defaults.removeObject(forKey: "pendingAction")
+                defaults.synchronize()
+                result(action)
+            } else {
+                result(nil)
+            }
+        } else {
+            result(nil)
         }
     }
     
