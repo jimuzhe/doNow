@@ -1,11 +1,12 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:do_now/utils/haptic_helper.dart'; // Ensure correct import path
+import 'package:do_now/utils/haptic_helper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -23,6 +24,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   int _selectedCameraIdx = 0;
   FlashMode _flashMode = FlashMode.off;
   
+  // Zoom & Focus
+  double _minAvailableZoom = 1.0;
+  double _maxAvailableZoom = 1.0;
+  double _currentZoomLevel = 1.0;
+  double _baseScale = 1.0;
+  
+  Offset? _focusPoint;
+  bool _showFocusRect = false;
+  Timer? _focusTimer;
+
   // For file result
   String? _capturedPath;
   bool _isVideo = false;
@@ -34,7 +45,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   // Timer for video duration
   Timer? _videoTimer;
   int _recordSeconds = 0;
-  final int _maxRecordSeconds = 15; // WeChat style limit
+  final int _maxRecordSeconds = 15;
 
   @override
   void initState() {
@@ -72,7 +83,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   Future<void> _startCamera(CameraDescription cameraDescription) async {
     final controller = CameraController(
       cameraDescription,
-      ResolutionPreset.high,
+      ResolutionPreset.high, // High is usually good balance
       enableAudio: true,
       imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.jpeg : ImageFormatGroup.bgra8888,
     );
@@ -81,7 +92,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
     try {
       await controller.initialize();
+      
+      // Get zoom capabilities
+      _maxAvailableZoom = await controller.getMaxZoomLevel();
+      _minAvailableZoom = await controller.getMinZoomLevel();
+      
       await controller.setFlashMode(_flashMode);
+      
       if (mounted) {
         setState(() => _isInit = true);
       }
@@ -92,17 +109,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = _controller;
-
-    // App state changed before we got the chance to initialize.
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
+    // Basic lifecycle handling
+    if (_controller == null || !_controller!.value.isInitialized) return;
 
     if (state == AppLifecycleState.inactive) {
-      cameraController.dispose();
+      _controller?.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      _startCamera(cameraController.description);
+      _startCamera(_controller!.description);
     }
   }
 
@@ -112,13 +125,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     _controller?.dispose();
     _recordBtnController.dispose();
     _videoTimer?.cancel();
+    _focusTimer?.cancel();
     super.dispose();
   }
 
   // Actions
   Future<void> _switchCamera() async {
     if (_cameras.length < 2) return;
-    HapticFeedback.lightImpact();
+    HapticHelper(ref).lightImpact();
     
     _selectedCameraIdx = (_selectedCameraIdx + 1) % _cameras.length;
     
@@ -129,11 +143,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   Future<void> _toggleFlash() async {
     if (_controller == null) return;
-    HapticFeedback.lightImpact();
+    HapticHelper(ref).lightImpact();
 
     FlashMode newMode;
     if (_flashMode == FlashMode.off) {
-      newMode = FlashMode.torch; // For video/preview
+      newMode = FlashMode.torch; 
     } else {
       newMode = FlashMode.off;
     }
@@ -143,10 +157,57 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       setState(() => _flashMode = newMode);
     } catch (_) {}
   }
+  
+  // Focus logic
+  void _onTapToFocus(TapUpDetails details, BoxConstraints constraints) {
+    if (_controller == null || !_isInit) return;
+    
+    final offset = Offset(
+      details.localPosition.dx / constraints.maxWidth,
+      details.localPosition.dy / constraints.maxHeight,
+    );
+    
+    setState(() {
+      _focusPoint = details.localPosition;
+      _showFocusRect = true;
+    });
+    
+    try {
+      _controller!.setFocusPoint(offset);
+      _controller!.setExposurePoint(offset);
+    } catch (e) {
+      debugPrint('Focus error: $e');
+    }
+    
+    _focusTimer?.cancel();
+    _focusTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _showFocusRect = false);
+    });
+  }
+  
+  // Zoom logic
+  void _onScaleStart(ScaleStartDetails details) {
+    _baseScale = _currentZoomLevel;
+  }
+
+  Future<void> _onScaleUpdate(ScaleUpdateDetails details) async {
+    if (_controller == null || !_isInit) return;
+    
+    double scale = _baseScale * details.scale;
+    if (scale < _minAvailableZoom) scale = _minAvailableZoom;
+    if (scale > _maxAvailableZoom) scale = _maxAvailableZoom;
+    
+    if (scale != _currentZoomLevel) {
+      setState(() => _currentZoomLevel = scale);
+      try {
+        await _controller!.setZoomLevel(scale);
+      } catch (_) {}
+    }
+  }
 
   Future<void> _takePicture() async {
     if (_controller == null || !_controller!.value.isInitialized || _isRecording) return;
-    HapticFeedback.mediumImpact();
+    HapticHelper(ref).mediumImpact();
 
     try {
       final XFile image = await _controller!.takePicture();
@@ -161,7 +222,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   Future<void> _startRecording() async {
     if (_controller == null || !_controller!.value.isInitialized || _isRecording) return;
-    HapticFeedback.mediumImpact();
+    HapticHelper(ref).mediumImpact();
 
     try {
       await _controller!.startVideoRecording();
@@ -203,12 +264,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   }
 
   void _retake() {
-    // Delete temp file maybe?
     setState(() {
       _capturedPath = null;
       _isVideo = false;
     });
-    // Restart camera preview if needed (it usually stays running)
   }
 
   void _confirm() {
@@ -229,18 +288,58 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     if (_capturedPath != null) {
       return _buildPreviewUI();
     }
+    
+    // Fix Aspect Ratio for Full Screen
+    final size = MediaQuery.of(context).size;
+    final deviceRatio = size.width / size.height;
+    
+    // Camera aspect ratio is typically width/height (e.g. 4/3 or 16/9)
+    // But since it's rotated 90deg on phones, we might need to invert logic or use the controller.value.aspectRatio.
+    // Flutter's CameraPreview handles rotation. 
+    // Usually controller.value.aspectRatio is ~0.75 (3/4) in portrait or ~1.33 (4/3) in landscape.
+    // To cover the screen, we scale.
+    
+    // Use the standard "Cover" logic
+    var scale = size.aspectRatio * _controller!.value.aspectRatio;
+    // ensure scale is correct to cover
+    if (scale < 1) scale = 1 / scale;
 
-    // Camera Preview UI
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Camera Preview (Full Screen)
-          SizedBox.expand(
-             child: CameraPreview(_controller!),
+          // 1. Camera Preview (Zoomable, Focusable, Full Screen)
+          GestureDetector(
+            onScaleStart: _onScaleStart,
+            onScaleUpdate: _onScaleUpdate,
+            onTapUp: (details) => _onTapToFocus(details, BoxConstraints(maxWidth: size.width, maxHeight: size.height)),
+            child: SizedBox.expand(
+               child: Transform.scale(
+                 scale: scale,
+                 child: Center(
+                   child: CameraPreview(_controller!),
+                 ),
+               ),
+            ),
           ),
+          
+          // 2. Focus Indicator
+          if (_showFocusRect && _focusPoint != null)
+             Positioned(
+               left: _focusPoint!.dx - 30,
+               top: _focusPoint!.dy - 30,
+               child: IgnorePointer(
+                 child: Container(
+                   width: 60,
+                   height: 60,
+                   decoration: BoxDecoration(
+                     border: Border.all(color: Colors.yellow, width: 2),
+                   ),
+                 ),
+               ),
+             ),
 
-          // 2. Controls Overlay
+          // 3. Controls Overlay
           SafeArea(
             child: Column(
               children: [
@@ -283,7 +382,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Spacer / Gallery (Future)
                       const SizedBox(width: 40), 
 
                       // Shutter Button
@@ -379,8 +477,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         children: [
           if (_capturedPath != null)
              _isVideo 
-               ? Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)) // Simple placeholder for video preview
-               : Image.file(File(_capturedPath!), fit: BoxFit.contain),
+               ? Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)) 
+               : Image.file(File(_capturedPath!), fit: BoxFit.cover), // Changed to cover for immersion
 
           // Actions
           SafeArea(

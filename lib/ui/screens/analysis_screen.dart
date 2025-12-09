@@ -14,6 +14,8 @@ import '../widgets/subtask_display_sheet.dart';
 import 'daily_summary_screen.dart'; // Keep for legacy or remove if unused
 import '../widgets/daily_summary_view.dart';
 import '../widgets/video_player_dialog.dart';
+import '../widgets/custom_dialog.dart';
+import '../widgets/task_detail_dialog.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key});
@@ -383,35 +385,14 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   }
 
   Widget _buildSelectedDayTimeline(List<Task> tasks, String Function(String) t, bool isDark) {
-    if (_showDailySummary && _selectedDay != null) {
-      return DailySummaryView(
-        date: _selectedDay!,
-        onClose: () {
-            HapticHelper(ref).lightImpact();
-            setState(() => _showDailySummary = false);
-        },
-      );
-    }
+    // Removed conditional _showDailySummary display here as per instruction
+    // The DailySummary is now accessed only via the AppBar icon.
 
     final dateStr = DateFormat('MMM d, yyyy').format(_selectedDay!);
     final isToday = DateUtils.isSameDay(_selectedDay, DateTime.now());
     final locale = ref.watch(localeProvider);
     
-    // Helper for navigation
-    void goToSummary() {
-      HapticHelper(ref).selectionClick();
-      setState(() => _showDailySummary = true);
-    }
-
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        // Swipe left to open daily summary
-        if (details.velocity.pixelsPerSecond.dx < -200) {
-          goToSummary();
-        }
-      },
-      onTap: goToSummary, // Also allow tap
-      child: Container(
+    return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -453,25 +434,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     ),
                   ),
                 const Spacer(),
-                // Swipe hint -> Clickable hint
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      t('daily_summary'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? Colors.blue.withOpacity(0.7) : Colors.blue, // Highlight clickable
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 16,
-                      color: isDark ? Colors.blue.withOpacity(0.7) : Colors.blue,
-                    ),
-                  ],
+                // Magic Wand for Daily Summary
+                IconButton(
+                  icon: Icon(Icons.auto_awesome, size: 20, color: isDark ? Colors.purple[200] : Colors.purple),
+                  tooltip: t('daily_summary'),
+                  onPressed: () => _openDailySummary(_selectedDay!),
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
                 ),
               ],
             ),
@@ -512,12 +481,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   isDark: isDark,
                   isLast: isLast,
                   onLongPress: () => _showSubTasks(task, isDark),
+                  onTap: () => _showTaskDetailCard(task, isDark),
                 );
               }),
           ],
         ),
-      ),
-    );
+      );
   }
 
   void _showTaskList(String title, List<Task> tasks, bool isDark) {
@@ -598,6 +567,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                             task: task,
                             isDark: isDark,
                             onLongPress: () => _showSubTasks(task, isDark),
+                            onTap: () => _showTaskDetailCard(task, isDark),
                           );
                         },
                       ),
@@ -605,6 +575,19 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showTaskDetailCard(Task task, bool isDark) {
+    HapticHelper(ref).mediumImpact();
+    
+    showDialog(
+      context: context,
+      builder: (context) => TaskDetailDialog(
+        task: task,
+        isDark: isDark,
+        locale: ref.read(localeProvider),
       ),
     );
   }
@@ -624,6 +607,25 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
   void _openDailySummary(DateTime date) {
     HapticHelper(ref).mediumImpact();
+
+    // Check availability logic: Summary for 'date' is generated on 'date + 1' at 8:00 AM.
+    final now = DateTime.now();
+    final generationThreshold = DateTime(date.year, date.month, date.day + 1, 8, 0);
+
+    // If attempting to view summary before it's ready
+    if (now.isBefore(generationThreshold)) {
+      final locale = ref.read(localeProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.get('daily_summary_too_early', locale)),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.black87,
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -744,11 +746,13 @@ class _TaskListItem extends StatelessWidget {
   final Task task;
   final bool isDark;
   final VoidCallback onLongPress;
+  final VoidCallback onTap;
 
   const _TaskListItem({
     required this.task,
     required this.isDark,
     required this.onLongPress,
+    required this.onTap,
   });
 
   @override
@@ -759,6 +763,7 @@ class _TaskListItem extends StatelessWidget {
         : DateFormat('MMM d, HH:mm').format(task.scheduledStart);
 
     return GestureDetector(
+      onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -1100,12 +1105,14 @@ class _TimelineItemWithLine extends StatelessWidget {
   final bool isDark;
   final bool isLast;
   final VoidCallback onLongPress;
+  final VoidCallback onTap;
 
   const _TimelineItemWithLine({
     required this.task,
     required this.isDark,
     required this.isLast,
     required this.onLongPress,
+    required this.onTap,
   });
 
   void _showMediaViewer(BuildContext context, Task task) {
@@ -1160,6 +1167,7 @@ class _TimelineItemWithLine extends StatelessWidget {
     }
 
     return GestureDetector(
+      onTap: onTap,
       onLongPress: onLongPress,
       child: IntrinsicHeight(
         child: Row(
@@ -1359,6 +1367,53 @@ class _TimelineItemWithLine extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Helper for Detail Card
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final bool isDark;
+
+  const _DetailRow({required this.icon, required this.text, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: isDark ? Colors.white54 : Colors.black54),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DetailStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isDark;
+
+  const _DetailStat({required this.label, required this.value, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.grey[600])),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+      ],
     );
   }
 }

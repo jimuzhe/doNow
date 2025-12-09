@@ -161,12 +161,13 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
             ],
           ),
           SizedBox(
-            height: 100,
+            height: 150,
             child: CupertinoTimerPicker(
               key: ValueKey(_selectedDuration), // Force rebuild when duration changes programmatically
               mode: CupertinoTimerPickerMode.hm,
               initialTimerDuration: _selectedDuration,
               onTimerDurationChanged: (val) {
+                 HapticHelper(ref).selectionClick();
                  if (val.inMinutes >= 1) {
                    setState(() => _selectedDuration = val);
                    // Invalidate cache if duration changed
@@ -282,12 +283,13 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           Text(t('when_to_start'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
           
           SizedBox(
-            height: 120,
+            height: 150,
             child: CupertinoDatePicker(
               mode: CupertinoDatePickerMode.time,
               initialDateTime: _selectedTime,
               use24hFormat: true,
               onDateTimeChanged: (val) {
+                HapticHelper(ref).selectionClick();
                 setState(() => _selectedTime = val);
               },
             ),

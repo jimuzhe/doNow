@@ -423,12 +423,13 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     final timeDiff = _getTimeDiffInfo();
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Drag Handle
@@ -576,8 +577,8 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                       if (_imagePath != null)
                         Positioned.fill(
                           child: kIsWeb
-                              ? Image.network(_imagePath!, fit: BoxFit.contain)
-                              : Image.file(File(_imagePath!), fit: BoxFit.contain),
+                              ? Image.network(_imagePath!, fit: BoxFit.cover)
+                              : Image.file(File(_imagePath!), fit: BoxFit.cover),
                         ),
                       if (_videoPath != null)
                         Container(
@@ -763,6 +764,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
           const SizedBox(height: 16),
         ],
+        ),
       ),
     );
   }
