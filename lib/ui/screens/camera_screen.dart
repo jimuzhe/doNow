@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,7 @@ import 'package:do_now/data/localization.dart';
 import 'package:do_now/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
+import '../widgets/video_player_dialog.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -43,6 +45,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   String? _capturedPath;
   bool _isVideo = false;
   String? _videoThumbnailPath; // Video thumbnail for preview
+  bool _isVideoMirrored = false; // Track if video was recorded with front camera
 
   // Animation for record button
   late AnimationController _recordBtnController;
@@ -258,9 +261,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
     try {
       final XFile image = await _controller!.takePicture();
+      
       setState(() {
         _capturedPath = image.path;
         _isVideo = false;
+        _isVideoMirrored = _isFrontCamera; // Reuse this flag for photos too
       });
     } catch (e) {
       debugPrint('Error taking picture: $e');
@@ -307,8 +312,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           video: video.path,
           thumbnailPath: (await getTemporaryDirectory()).path,
           imageFormat: vt.ImageFormat.JPEG,
-          maxHeight: 600,
-          quality: 80,
+          maxWidth: 1080,  // Ensure width is large enough
+          maxHeight: 1920, // Full HD height
+          quality: 85,
         );
       } catch (e) {
         debugPrint('Thumbnail generation error: $e');
@@ -319,6 +325,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         _capturedPath = video.path;
         _isVideo = true;
         _videoThumbnailPath = thumbnailPath;
+        _isVideoMirrored = _isFrontCamera; // Track if video needs mirroring on playback
       });
     } catch (e) {
       debugPrint('Error stopping video: $e');
@@ -331,12 +338,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       _capturedPath = null;
       _isVideo = false;
       _videoThumbnailPath = null;
+      _isVideoMirrored = false;
     });
   }
 
   void _confirm() {
     if (_capturedPath != null) {
-      Navigator.pop(context, {'path': _capturedPath, 'type': _isVideo ? 'video' : 'photo'});
+      Navigator.pop(context, {
+        'path': _capturedPath, 
+        'type': _isVideo ? 'video' : 'photo',
+        'mirrored': _isVideoMirrored,
+        'thumbnail': _videoThumbnailPath, // Pass thumbnail for videos
+      });
     }
   }
 
@@ -544,22 +557,33 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         fit: StackFit.expand,
         children: [
           if (_capturedPath != null)
-             _isVideo 
-               ? (_videoThumbnailPath != null
-                   ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
-                   : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
-               : Image.file(File(_capturedPath!), fit: BoxFit.cover),
+            Transform.flip(
+              flipX: _isVideoMirrored, // Mirror for front camera content
+              child: _isVideo 
+                ? (_videoThumbnailPath != null
+                    ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
+                    : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
+                : Image.file(File(_capturedPath!), fit: BoxFit.cover),
+            ),
           
-          // Video indicator overlay
-          if (_isVideo)
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
+          // Video indicator overlay - tap to play
+          if (_isVideo && _capturedPath != null)
+            GestureDetector(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => VideoPlayerDialog(videoPath: _capturedPath!),
+                );
+              },
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.play_arrow, size: 48, color: Colors.white),
                 ),
-                child: const Icon(Icons.play_arrow, size: 48, color: Colors.white),
               ),
             ),
 

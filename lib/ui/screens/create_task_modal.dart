@@ -163,19 +163,18 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           SizedBox(
             height: 150,
             child: CupertinoTimerPicker(
-              key: ValueKey(_selectedDuration), // Force rebuild when duration changes programmatically
+              // Removed ValueKey - it was causing unnecessary rebuilds
               mode: CupertinoTimerPickerMode.hm,
               initialTimerDuration: _selectedDuration,
               onTimerDurationChanged: (val) {
-                 // Note: Don't call haptic feedback here - it interrupts smooth scrolling
+                 // Don't call setState during scroll - let native picker handle momentum
+                 // Just update the value directly
                  if (val.inMinutes >= 1) {
                    _selectedDuration = val;
-                   // Invalidate cache if duration changed
+                   // Invalidate cache if duration changed significantly
                    if (_cachedAIResult != null && _lastAIDuration != val) {
                      _cachedAIResult = null;
                    }
-                   // Only setState at the end to avoid jank
-                   setState(() {});
                  }
               },
             ),
@@ -289,9 +288,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               initialDateTime: _selectedTime,
               use24hFormat: true,
               onDateTimeChanged: (val) {
-                // Note: Don't call haptic feedback here - it interrupts smooth scrolling
+                // Don't call setState during scroll - let native picker handle momentum
                 _selectedTime = val;
-                setState(() {});
               },
             ),
           ),
