@@ -4,13 +4,51 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
 import '../../data/models/ai_persona.dart';
+import '../../data/services/auth_service.dart';
 import '../../utils/haptic_helper.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  // Hidden developer options
+  int _versionTapCount = 0;
+  bool _showAIConfig = false;
+  DateTime? _lastTapTime;
+
+  void _handleVersionTap() {
+    final now = DateTime.now();
+    
+    // Reset count if more than 1 second between taps
+    if (_lastTapTime != null && now.difference(_lastTapTime!) > const Duration(seconds: 1)) {
+      _versionTapCount = 0;
+    }
+    
+    _lastTapTime = now;
+    _versionTapCount++;
+    
+    if (_versionTapCount >= 3) {
+      setState(() {
+        _showAIConfig = !_showAIConfig;
+        _versionTapCount = 0;
+      });
+      HapticHelper(ref).mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_showAIConfig ? 'Developer options enabled' : 'Developer options disabled'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final locale = ref.watch(localeProvider);
     final isChinese = locale == 'zh';
     final themeMode = ref.watch(themeModeProvider);
@@ -40,6 +78,11 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 32),
+                
+                // Account Management (Top of settings)
+                _AccountTile(isDark: isDark),
+                
+                const Divider(height: 32),
                 
                 // Language
                 _SettingsTile(
@@ -79,9 +122,11 @@ class SettingsScreen extends ConsumerWidget {
                 
                 const Divider(height: 32),
 
-                // Theme Mode Toggle
+                // Theme Mode Toggle (now with System option)
                 _SettingsTile(
-                  icon: isDark ? Icons.dark_mode : Icons.light_mode,
+                  icon: themeMode == ThemeMode.system 
+                      ? Icons.brightness_auto 
+                      : (isDark ? Icons.dark_mode : Icons.light_mode),
                   title: t('theme'),
                   trailing: Container(
                     padding: const EdgeInsets.all(4),
@@ -97,6 +142,15 @@ class SettingsScreen extends ConsumerWidget {
                           isSelected: themeMode == ThemeMode.light,
                           onTap: () {
                             ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light);
+                            HapticHelper(ref).selectionClick();
+                          },
+                          isDark: isDark,
+                        ),
+                        _ThemeOption(
+                          icon: Icons.brightness_auto,
+                          isSelected: themeMode == ThemeMode.system,
+                          onTap: () {
+                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system);
                             HapticHelper(ref).selectionClick();
                           },
                           isDark: isDark,
@@ -143,12 +197,14 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _showFeedbackModal(context, ref),
                 ),
                 
-                _SettingsTile(
-                  icon: Icons.psychology_outlined,
-                  title: "AI Configuration", // Not localized for now or add to localization
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                  onTap: () => _showAiConfigModal(context, ref),
-                ),
+                // AI Configuration - only show if developer mode enabled
+                if (_showAIConfig)
+                  _SettingsTile(
+                    icon: Icons.psychology_outlined,
+                    title: "AI Configuration",
+                    trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                    onTap: () => _showAiConfigModal(context, ref),
+                  ),
 
                 _SettingsTile(
                   icon: Icons.info_outline,
@@ -159,9 +215,12 @@ class SettingsScreen extends ConsumerWidget {
                  
                  const SizedBox(height: 48),
                  Center(
-                   child: Text(
-                     "${t('version')} 1.1.1", 
-                     style: TextStyle(color: Colors.grey[400], fontSize: 12)
+                   child: GestureDetector(
+                     onTap: _handleVersionTap,
+                     child: Text(
+                       "${t('version')} 1.1.1", 
+                       style: TextStyle(color: Colors.grey[400], fontSize: 12)
+                     ),
                    ),
                  ),
               ],
@@ -871,6 +930,134 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                         ),
                       );
                     }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountTile extends ConsumerWidget {
+  final bool isDark;
+
+  const _AccountTile({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+    final isZh = locale == 'zh';
+    final authService = ref.watch(authServiceProvider);
+    final user = authService.currentUser;
+
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isAnonymous = user.isAnonymous;
+    final email = user.email ?? (isZh ? '匿名用户' : 'Anonymous User');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[800] : Colors.grey[200],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isAnonymous ? Icons.person_outline : Icons.person,
+              color: isDark ? Colors.white70 : Colors.black54,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          
+          // User info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  email,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  isZh ? '数据仅存储在本地设备' : 'Data stored locally on device',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Logout button (compact, on the right)
+          TextButton(
+            onPressed: () async {
+              HapticHelper(ref).lightImpact();
+              
+              // Show confirmation dialog
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+                  title: Text(
+                    isZh ? '确认登出？' : 'Sign Out?',
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                  ),
+                  content: Text(
+                    isZh ? '您确定要退出当前账号吗？' : 'Are you sure you want to sign out?',
+                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: Text(isZh ? '取消' : 'Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: Text(
+                        isZh ? '登出' : 'Sign Out',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              
+              if (shouldLogout == true) {
+                await authService.signOut();
+                HapticHelper(ref).mediumImpact();
+              }
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey[600],
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.logout, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text(
+                  isZh ? '登出' : 'Sign Out',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
                   ),
                 ),
               ],

@@ -1,8 +1,9 @@
+import 'dart:ui' as ui;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'services/storage_service.dart';
 import 'providers.dart';
 
-// 1. Provider for current Locale 'en' or 'zh' - Now with persistence
+// 1. Provider for current Locale 'en' or 'zh' - Now with persistence and system detection
 final localeProvider = StateNotifierProvider<LocaleNotifier, String>((ref) {
   final storage = ref.watch(storageServiceProvider);
   return LocaleNotifier(storage);
@@ -11,16 +12,31 @@ final localeProvider = StateNotifierProvider<LocaleNotifier, String>((ref) {
 class LocaleNotifier extends StateNotifier<String> {
   final StorageService _storage;
 
-  LocaleNotifier(this._storage) : super('en') {
+  LocaleNotifier(this._storage) : super(_detectSystemLocale()) {
     // Auto-load from storage on init
     _loadFromStorage();
   }
 
+  /// Detect system language and return 'zh' if Chinese, otherwise 'en'
+  static String _detectSystemLocale() {
+    final systemLocale = ui.PlatformDispatcher.instance.locale;
+    // Check if system language is Chinese (zh, zh_CN, zh_TW, zh_HK, etc.)
+    if (systemLocale.languageCode == 'zh') {
+      return 'zh';
+    }
+    return 'en';
+  }
+
   void _loadFromStorage() {
     try {
-      state = _storage.loadLocale();
+      final savedLocale = _storage.loadLocale();
+      if (savedLocale != null) {
+        // User has previously selected a language, use it
+        state = savedLocale;
+      }
+      // If null, keep the system-detected locale (already set in super())
     } catch (_) {
-      // Storage not initialized yet, use defaults
+      // Storage not initialized yet, use system-detected defaults
     }
   }
 

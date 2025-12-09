@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "521426592348",
+    "project_id": "donow-27b39",
+    "storage_bucket": "donow-27b39.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:521426592348:android:e0809ef2b8a525f3edbc99",
+        "android_client_info": {
+          "package_name": "com.atomictask.do_now"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXePsMJqarJaqp4F22ZWZqh3Qtoy8gUMw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
