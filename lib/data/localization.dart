@@ -193,6 +193,7 @@ class AppStrings {
       'generating_summary': 'Generating AI summary...',
       'no_tasks_to_summarize': 'No tasks to summarize for this day',
       'ai_insight': 'AI Insight',
+      'daily_summary_too_early': 'Daily summary will be generated tomorrow at 8:00 AM.',
     },
     'zh': {
       'home': '首页',
@@ -338,6 +339,7 @@ class AppStrings {
       'generating_summary': '正在生成AI总结...',
       'no_tasks_to_summarize': '当天没有可总结的任务',
       'ai_insight': 'AI 洞见',
+      'daily_summary_too_early': '每日总结将于次日早 8 点生成。',
     }
   };
 

@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 
 class CustomDialog extends StatelessWidget {
   final String title;
-  final String content;
+  final String? content;
+  final Widget? contentWidget;
   final List<Widget> actions;
 
   const CustomDialog({
     super.key, 
     required this.title, 
-    required this.content, 
+    this.content, 
+    this.contentWidget,
     required this.actions,
   });
 
@@ -49,11 +51,11 @@ class CustomDialog extends StatelessWidget {
                
                const SizedBox(height: 12),
                
-               Text(content, style: TextStyle(
+                contentWidget ?? Text(content ?? '', style: TextStyle(
                   fontSize: 15,
                   height: 1.4,
                   color: isDark ? Colors.white70 : Colors.grey[800]
-               ), textAlign: TextAlign.center),
+                ), textAlign: TextAlign.center),
                
                const SizedBox(height: 24),
                

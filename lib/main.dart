@@ -154,6 +154,13 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
           foregroundColor: Colors.black,
           surfaceTintColor: Colors.transparent, 
         ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: Colors.black87,
+          contentTextStyle: const TextStyle(color: Colors.white),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
@@ -195,6 +202,13 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
           surfaceTintColor: Colors.transparent,
         ),
         iconTheme: const IconThemeData(color: Colors.white),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: const Color(0xFF333333),
+          contentTextStyle: const TextStyle(color: Colors.white),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
       ),
       builder: (context, child) {
         // Only show simulated Dynamic Island on desktop/web platforms
