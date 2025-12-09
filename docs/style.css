@@ -153,8 +153,8 @@ header {
 
 .features-grid-text {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 60px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 40px;
 }
 
 .feature-col h2 {
