@@ -167,15 +167,15 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               mode: CupertinoTimerPickerMode.hm,
               initialTimerDuration: _selectedDuration,
               onTimerDurationChanged: (val) {
-                 HapticHelper(ref).selectionClick();
+                 // Note: Don't call haptic feedback here - it interrupts smooth scrolling
                  if (val.inMinutes >= 1) {
-                   setState(() => _selectedDuration = val);
+                   _selectedDuration = val;
                    // Invalidate cache if duration changed
                    if (_cachedAIResult != null && _lastAIDuration != val) {
-                     setState(() {
-                       _cachedAIResult = null;
-                     });
+                     _cachedAIResult = null;
                    }
+                   // Only setState at the end to avoid jank
+                   setState(() {});
                  }
               },
             ),
@@ -289,8 +289,9 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               initialDateTime: _selectedTime,
               use24hFormat: true,
               onDateTimeChanged: (val) {
-                HapticHelper(ref).selectionClick();
-                setState(() => _selectedTime = val);
+                // Note: Don't call haptic feedback here - it interrupts smooth scrolling
+                _selectedTime = val;
+                setState(() {});
               },
             ),
           ),
