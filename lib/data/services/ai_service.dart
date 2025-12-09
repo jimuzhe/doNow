@@ -2,6 +2,7 @@
 import 'package:uuid/uuid.dart';
 import '../models/task.dart';
 import '../models/subtask.dart';
+import '../models/daily_summary.dart';
 
 /// Result from AI estimation (time + subtasks in one call)
 class AIEstimateResult {
@@ -16,6 +17,9 @@ abstract class AIService {
   
   /// Estimate task duration and decompose into subtasks in one AI call
   Future<AIEstimateResult> estimateAndDecompose(String taskTitle);
+
+  /// Generate a daily summary, encouragement, and improvement suggestions specifically for the previous day
+  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date);
 }
 
 class MockAIService implements AIService {
@@ -69,6 +73,18 @@ class MockAIService implements AIService {
         SubTask(id: _uuid.v4(), title: 'Execute "$taskTitle"', estimatedDuration: stepDuration),
         SubTask(id: _uuid.v4(), title: 'Finalize "$taskTitle"', estimatedDuration: stepDuration),
       ],
+    );
+  }
+
+
+  @override
+  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date) async {
+    await Future.delayed(const Duration(seconds: 2));
+    return DailySummary(
+      date: date,
+      summary: "Yesterday was a productive day! You completed 3 tasks.",
+      encouragement: "Great job maintaining focus. Keep it up!",
+      improvement: "Try to start your first task earlier in the day.",
     );
   }
 }

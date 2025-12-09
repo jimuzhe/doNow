@@ -4,8 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../models/subtask.dart';
 import '../models/ai_persona.dart';
+import '../models/daily_summary.dart';
+import '../models/task.dart';
 import 'ai_service.dart';
 import '../models/api_settings.dart';
+import 'package:flutter/material.dart'; // For DateUtils
 
 class ZhipuAIService implements AIService {
   final Uuid _uuid = const Uuid();
@@ -457,5 +460,161 @@ $personaPrompt
       return null;
     }
   }
+
+  @override
+  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date) async {
+     if (settings.apiKey == 'YOUR_API_KEY_HERE') {
+      throw Exception('Please set your API Key');
+    }
+
+    // Filter tasks for the specific date (completed on that day)
+    final dayTasks = tasks.where((t) {
+      if (t.completedAt != null && t.isCompleted) {
+        return DateUtils.isSameDay(t.completedAt!, date);
+      }
+      return false;
+    }).toList();
+
+    if (dayTasks.isEmpty) {
+      return DailySummary(
+        date: date,
+        summary: "No completed tasks recorded for this day.",
+        encouragement: "Every day is a fresh start!",
+        improvement: "Pick one small task to complete tomorrow.",
+      );
+    }
+    
+    // Build detailed task information
+    final StringBuffer taskDetails = StringBuffer();
+    int totalPlannedMinutes = 0;
+    int totalActualMinutes = 0;
+    int tasksOnTime = 0;
+    int tasksFaster = 0;
+    int tasksSlower = 0;
+    
+    for (final task in dayTasks) {
+      final plannedMinutes = task.totalDuration.inMinutes;
+      final actualMinutes = task.actualDuration?.inMinutes ?? plannedMinutes;
+      final diff = actualMinutes - plannedMinutes;
+      final startTime = task.scheduledStart;
+      final completedTime = task.completedAt;
+      
+      totalPlannedMinutes += plannedMinutes;
+      totalActualMinutes += actualMinutes;
+      
+      String diffStr;
+      if (diff > 0) {
+        diffStr = '慢了${diff}分钟';
+        tasksSlower++;
+      } else if (diff < 0) {
+        diffStr = '快了${diff.abs()}分钟';
+        tasksFaster++;
+      } else {
+        diffStr = '准时完成';
+        tasksOnTime++;
+      }
+      
+      taskDetails.writeln('任务: ${task.title}');
+      taskDetails.writeln('  - 开始时间: ${_formatTime(startTime)}');
+      taskDetails.writeln('  - 计划时长: ${plannedMinutes}分钟');
+      taskDetails.writeln('  - 完成时间: ${completedTime != null ? _formatTime(completedTime) : "未知"}');
+      taskDetails.writeln('  - 实际用时: ${actualMinutes}分钟');
+      taskDetails.writeln('  - 差异: $diffStr');
+      taskDetails.writeln();
+    }
+    
+    // Build summary stats
+    final totalDiff = totalActualMinutes - totalPlannedMinutes;
+    final overallPerformance = totalDiff > 0 
+        ? '整体慢了${totalDiff}分钟' 
+        : (totalDiff < 0 ? '整体快了${totalDiff.abs()}分钟' : '整体准时完成');
+    
+    final prompt = '''
+你是一个温暖、富有洞察力的个人成长助手。
+
+【用户 ${date.toString().substring(0, 10)} 的详细表现数据】
+
+完成任务数: ${dayTasks.length}
+总计划时间: ${totalPlannedMinutes}分钟
+总实际用时: ${totalActualMinutes}分钟
+$overallPerformance
+
+快于计划的任务: $tasksFaster个
+准时完成的任务: $tasksOnTime个
+慢于计划的任务: $tasksSlower个
+
+【详细任务数据】
+$taskDetails
+
+【你的任务】
+根据以上详细数据，生成一段富有洞察力的每日总结。
+
+1. 分析用户的时间管理模式（哪些任务预估准确，哪些需要调整）
+2. 给出具体、可操作的改进建议
+3. 用温暖且富有激励性的语气
+
+【输出格式 - JSON Object，使用中文】
+{
+  "summary": "回顾今天的成就和表现，包含具体数据分析（100-150字）",
+  "encouragement": "一句富有感染力的鼓励语（20-40字）",
+  "improvement": "基于数据给出一个具体的改进建议（50-80字）"
 }
 
+只输出JSON，不要有额外文字。
+''';
+
+    // Call AI
+    final response = await http.post(
+      Uri.parse(settings.baseUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${settings.apiKey}',
+      },
+      body: jsonEncode({
+        "model": settings.model,
+        "messages": [
+          {"role": "user", "content": prompt}
+        ]
+      }),
+    ).timeout(const Duration(seconds: 40));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      final content = data['choices'][0]['message']['content'];
+      
+      // Parse JSON
+      try {
+        String jsonStr = content.trim();
+        if (jsonStr.startsWith('```json')) {
+          jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '');
+        } else if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replaceAll('```', '');
+        }
+        jsonStr = jsonStr.trim();
+        
+        final Map<String, dynamic> res = jsonDecode(jsonStr);
+        return DailySummary(
+          date: date,
+          summary: res['summary'] ?? "Good job!",
+          encouragement: res['encouragement'] ?? "Keep it up!",
+          improvement: res['improvement'] ?? "Stay focused.",
+        );
+      } catch (e) {
+        // Fallback
+        return DailySummary(
+          date: date,
+          summary: "你今天完成了${dayTasks.length}个任务，计划用时${totalPlannedMinutes}分钟，实际用时${totalActualMinutes}分钟。$overallPerformance",
+          encouragement: "坚持就是胜利，继续保持这样的势头！",
+          improvement: "尝试在开始任务前花1分钟做一个简单的时间预估回顾。",
+        );
+      }
+    } else {
+       throw Exception("AI failed to generate summary");
+    }
+  }
+  
+  // Helper to format time
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+}

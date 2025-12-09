@@ -295,31 +295,29 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           
           const SizedBox(height: 24),
           
-          // Repeat Chips (Multi-select 1-7)
+          // Repeat Chips (Multi-select 1-7 with swipe support)
           Text(t('repeat'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(7, (index) {
-               // 0 -> Mon(1), 6 -> Sun(7)
-               final dayNum = index + 1;
-               final isSelected = _selectedDays.contains(dayNum);
-               return _DayChip(
-                 label: t('day_$dayNum'), 
-                 selected: isSelected,
-                 isDark: isDark,
-                 onTap: () {
-                   setState(() {
-                     if (isSelected) {
-                       _selectedDays.remove(dayNum);
-                     } else {
-                       _selectedDays.add(dayNum);
-                     }
-                   });
-                 }
-               );
-            }),
+          _SwipeableDaySelector(
+            selectedDays: _selectedDays,
+            isDark: isDark,
+            t: t,
+            onDayToggle: (dayNum) {
+              setState(() {
+                if (_selectedDays.contains(dayNum)) {
+                  _selectedDays.remove(dayNum);
+                } else {
+                  _selectedDays.add(dayNum);
+                }
+              });
+            },
+            onDaySwipe: (dayNum) {
+              setState(() {
+                if (!_selectedDays.contains(dayNum)) {
+                  _selectedDays.add(dayNum);
+                }
+              });
+            },
           ),
           
           if (_selectedDays.isNotEmpty)
@@ -333,36 +331,26 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
 
           const SizedBox(height: 32),
           
-          // Action Buttons: "Now" and "Save (Later)"
-          Row(
-            children: [
-               Expanded(
-                 child: OutlinedButton(
-                   onPressed: () => _finish(now: true),
-                   style: OutlinedButton.styleFrom(
-                     foregroundColor: isDark ? Colors.white : Colors.black,
-                     side: BorderSide(color: isDark ? Colors.white : Colors.black),
-                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                     minimumSize: const Size(0, 50),
-                   ),
-                   child: Text(t('now'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                 ),
-               ),
-               const SizedBox(width: 12),
-               Expanded(
-                 flex: 2,
-                 child: ElevatedButton(
-                   onPressed: () => _finish(now: false),
-                   style: ElevatedButton.styleFrom(
-                     backgroundColor: isDark ? Colors.white : Colors.black,
-                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                     minimumSize: const Size(0, 50),
-                   ),
-                   child: Text(t('save'), style: TextStyle(color: isDark ? Colors.black : Colors.white, fontWeight: FontWeight.bold)),
-                 ),
-               ),
-            ],
+          // Single Save Button - smart detection for "now" vs "later"
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _handleSave,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? Colors.white : Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                minimumSize: const Size(0, 50),
+              ),
+              child: Text(
+                t('save'), 
+                style: TextStyle(
+                  color: isDark ? Colors.black : Colors.white, 
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
+          const SizedBox(height: 8),
           Center(
             child: TextButton(
                onPressed: () => setState(() => _currentStep = 0),
@@ -414,6 +402,26 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     });
   }
 
+  // Smart save handler - determines if task should start immediately
+  void _handleSave() {
+    final now = DateTime.now();
+    final scheduledDateTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+    
+    // Calculate time difference in minutes
+    final diffInMinutes = scheduledDateTime.difference(now).inMinutes;
+    
+    // If scheduled time is within 2 minutes of now (or in the past), treat as "start now"
+    final isImmediate = diffInMinutes <= 2 && diffInMinutes >= -2;
+    
+    _finish(now: isImmediate);
+  }
+
   Future<void> _finish({required bool now}) async {
     HapticHelper(ref).mediumImpact();
     final title = _titleController.text.trim();
@@ -460,13 +468,14 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
            throw Exception("Empty result");
         }
 
-        // Show confirmation/edit sheet before starting
+        // Return to HomeScreen to show confirmation sheet
         if (mounted) {
-          _showSubTaskConfirmation(
-            taskId: taskId,
-            title: title,
-            subTasks: subTasks,
-          );
+          Navigator.pop(context, {
+            'action': 'confirm_subtasks',
+            'taskId': taskId,
+            'title': title,
+            'subTasks': subTasks,
+          });
         }
       } catch (e) {
         if (mounted) {
@@ -604,38 +613,105 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
   }
 }
 
-class _DayChip extends StatelessWidget {
-  final String label;
-  final bool selected;
+// Swipeable Day Selector with multi-select support
+class _SwipeableDaySelector extends StatefulWidget {
+  final Set<int> selectedDays;
   final bool isDark;
-  final VoidCallback onTap;
+  final String Function(String) t;
+  final Function(int) onDayToggle;
+  final Function(int) onDaySwipe;
 
-  const _DayChip({required this.label, required this.selected, required this.isDark, required this.onTap});
+  const _SwipeableDaySelector({
+    required this.selectedDays,
+    required this.isDark,
+    required this.t,
+    required this.onDayToggle,
+    required this.onDaySwipe,
+  });
+
+  @override
+  State<_SwipeableDaySelector> createState() => _SwipeableDaySelectorState();
+}
+
+class _SwipeableDaySelectorState extends State<_SwipeableDaySelector> {
+  final List<GlobalKey> _chipKeys = List.generate(7, (_) => GlobalKey());
+  int? _lastSwipedDay;
+  bool _isSwiping = false;
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    _isSwiping = true;
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    
+    final localPosition = details.localPosition;
+    
+    for (int i = 0; i < 7; i++) {
+      final key = _chipKeys[i];
+      final RenderBox? chipBox = key.currentContext?.findRenderObject() as RenderBox?;
+      if (chipBox == null) continue;
+      
+      final chipPosition = chipBox.localToGlobal(Offset.zero, ancestor: box);
+      final chipSize = chipBox.size;
+      
+      final rect = Rect.fromLTWH(
+        chipPosition.dx,
+        chipPosition.dy,
+        chipSize.width,
+        chipSize.height,
+      );
+      
+      if (rect.contains(localPosition)) {
+        final dayNum = i + 1;
+        if (_lastSwipedDay != dayNum) {
+          _lastSwipedDay = dayNum;
+          widget.onDaySwipe(dayNum);
+        }
+        break;
+      }
+    }
+  }
+
+  void _handlePanEnd(DragEndDetails details) {
+    _isSwiping = false;
+    _lastSwipedDay = null;
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40, 
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected 
-              ? (isDark ? Colors.white : Colors.black) 
-              : (isDark ? Colors.grey[800] : Colors.grey[100]),
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected 
-                ? (isDark ? Colors.black : Colors.white) 
-                : (isDark ? Colors.white : Colors.black),
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+      onPanUpdate: _handlePanUpdate,
+      onPanEnd: _handlePanEnd,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(7, (index) {
+          final dayNum = index + 1;
+          final isSelected = widget.selectedDays.contains(dayNum);
+          return GestureDetector(
+            key: _chipKeys[index],
+            onTap: () => widget.onDayToggle(dayNum),
+            child: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (widget.isDark ? Colors.white : Colors.black)
+                    : (widget.isDark ? Colors.grey[800] : Colors.grey[100]),
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                widget.t('day_$dayNum'),
+                style: TextStyle(
+                  color: isSelected
+                      ? (widget.isDark ? Colors.black : Colors.white)
+                      : (widget.isDark ? Colors.white : Colors.black),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
