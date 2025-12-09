@@ -16,10 +16,6 @@ configs:
   Debug: debug
   Release: release
 
-configFiles:
-  Debug: Flutter/Debug.xcconfig
-  Release: Flutter/Release.xcconfig
-
 settings:
   base:
     CODE_SIGN_IDENTITY: "-"
@@ -35,6 +31,9 @@ targets:
       - Flutter
       - path: DoNowWidget/DoNowActivityAttributes.swift
         group: Shared
+    configFiles:
+      Debug: Flutter/Debug.xcconfig
+      Release: Flutter/Release.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.donow.app
@@ -69,6 +68,9 @@ targets:
     platform: iOS
     sources:
       - RunnerTests
+    configFiles:
+      Debug: Flutter/Debug.xcconfig
+      Release: Flutter/Release.xcconfig
     settings:
       base:
         BUNDLE_LOADER: "$(TEST_HOST)"
@@ -80,6 +82,7 @@ targets:
     type: app-extension
     platform: iOS
     sources: DoNowWidget
+    # NO configFiles here - this is a pure Swift extension, NOT a Flutter target
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.donow.app.widget
@@ -89,6 +92,8 @@ targets:
         SKIP_INSTALL: NO
         CODE_SIGN_ENTITLEMENTS: DoNowWidget/DoNowWidget.entitlements
         SWIFT_VERSION: 5.0
+        # Ensure widget doesn't try to link Flutter
+        OTHER_LDFLAGS: ""
     entitlements:
       path: DoNowWidget/DoNowWidget.entitlements
       properties:
