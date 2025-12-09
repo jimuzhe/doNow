@@ -55,6 +55,8 @@ targets:
           - group.com.donow.app
     dependencies:
       - target: DoNowWidget
+        embed: true
+        link: false
     preBuildScripts:
       - script: /bin/sh "$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh" build
         name: Run Flutter Build Script
