@@ -38,14 +38,19 @@ target 'Runner' do
   end
 end
 
+# Widget extension - MUST NOT have any Flutter pods
+# Keep this target empty or with only pure Swift packages
 target 'DoNowWidget' do
   use_frameworks!
-  use_modular_headers!
+  # Do NOT add any pods here - widget extension uses pure Swift/SwiftUI
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
+    # Only apply Flutter settings to Runner-related targets, NOT to widget extension
+    if target.name != 'DoNowWidget'
+      flutter_additional_ios_build_settings(target)
+    end
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.2'
     end
