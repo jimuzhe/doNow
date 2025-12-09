@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
+import '../../data/models/ai_persona.dart';
 import '../../utils/haptic_helper.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -77,9 +78,52 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 
                 const Divider(height: 32),
+
+                // Theme Mode Toggle
+                _SettingsTile(
+                  icon: isDark ? Icons.dark_mode : Icons.light_mode,
+                  title: t('theme'),
+                  trailing: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ThemeOption(
+                          icon: Icons.light_mode,
+                          isSelected: themeMode == ThemeMode.light,
+                          onTap: () {
+                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light);
+                            HapticHelper(ref).selectionClick();
+                          },
+                          isDark: isDark,
+                        ),
+                        _ThemeOption(
+                          icon: Icons.dark_mode,
+                          isSelected: themeMode == ThemeMode.dark,
+                          onTap: () {
+                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark);
+                            HapticHelper(ref).selectionClick();
+                          },
+                          isDark: isDark,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                const Divider(height: 32),
                 
                 // Vibration Intensity Slider
                 _VibrationIntensityTile(isDark: isDark),
+
+                const Divider(height: 32),
+
+                // AI Persona Selector (Collapsible)
+                _CollapsibleAIPersonaTile(isDark: isDark),
 
                 const Divider(height: 32),
 
@@ -116,7 +160,7 @@ class SettingsScreen extends ConsumerWidget {
                  const SizedBox(height: 48),
                  Center(
                    child: Text(
-                     "${t('version')} 1.1.0", 
+                     "${t('version')} 1.1.1", 
                      style: TextStyle(color: Colors.grey[400], fontSize: 12)
                    ),
                  ),
@@ -224,7 +268,7 @@ class SettingsScreen extends ConsumerWidget {
                ),
              ),
              const SizedBox(height: 16),
-             Text("Version 1.1.0", style: TextStyle(color: Colors.grey[600])),
+             Text("Version 1.1.1", style: TextStyle(color: Colors.grey[600])),
              const SizedBox(height: 32),
              Padding(
                padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -542,6 +586,294 @@ class _VibrationIntensityTile extends ConsumerWidget {
                    HapticHelper(ref).mediumImpact();
                 }
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeOption extends StatelessWidget {
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _ThemeOption({
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: isSelected ? (isDark ? Colors.black : Colors.white) : Colors.grey[500],
+        ),
+      ),
+    );
+  }
+}
+
+class _CollapsibleAIPersonaTile extends ConsumerStatefulWidget {
+  final bool isDark;
+
+  const _CollapsibleAIPersonaTile({required this.isDark});
+
+  @override
+  ConsumerState<_CollapsibleAIPersonaTile> createState() => _CollapsibleAIPersonaTileState();
+}
+
+class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersonaTile> 
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpand() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+      if (_isExpanded) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+    HapticHelper(ref).lightImpact();
+  }
+
+  IconData _getPersonaIcon(AIPersona persona) {
+    switch (persona) {
+      case AIPersona.rushed:
+        return Icons.speed;
+      case AIPersona.balanced:
+        return Icons.balance;
+      case AIPersona.relaxed:
+        return Icons.self_improvement;
+    }
+  }
+
+  String _getPersonaName(AIPersona persona, String locale) {
+    switch (persona) {
+      case AIPersona.rushed:
+        return AppStrings.get('persona_rushed', locale);
+      case AIPersona.balanced:
+        return AppStrings.get('persona_balanced', locale);
+      case AIPersona.relaxed:
+        return AppStrings.get('persona_relaxed', locale);
+    }
+  }
+
+  String _getPersonaDesc(AIPersona persona, String locale) {
+    switch (persona) {
+      case AIPersona.rushed:
+        return AppStrings.get('persona_rushed_desc', locale);
+      case AIPersona.balanced:
+        return AppStrings.get('persona_balanced_desc', locale);
+      case AIPersona.relaxed:
+        return AppStrings.get('persona_relaxed_desc', locale);
+    }
+  }
+
+  Color _getPersonaColor(AIPersona persona) {
+    switch (persona) {
+      case AIPersona.rushed:
+        return Colors.orange;
+      case AIPersona.balanced:
+        return Colors.blue;
+      case AIPersona.relaxed:
+        return Colors.green;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = ref.watch(localeProvider);
+    final currentPersona = ref.watch(aiPersonaProvider);
+    final isDark = widget.isDark;
+    final personaColor = _getPersonaColor(currentPersona);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row (Clickable to expand/collapse)
+          InkWell(
+            onTap: _toggleExpand,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.psychology, size: 22, color: isDark ? Colors.white70 : Colors.black87),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppStrings.get('ai_persona', locale),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        // Show current selection when collapsed
+                        Row(
+                          children: [
+                            Icon(
+                              _getPersonaIcon(currentPersona),
+                              size: 14,
+                              color: personaColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _getPersonaName(currentPersona, locale),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: personaColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 250),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Expandable Content
+          SizeTransition(
+            sizeFactor: CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[900] : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: AIPersona.values.map((persona) {
+                      final isSelected = persona == currentPersona;
+                      final pColor = _getPersonaColor(persona);
+                      
+                      return InkWell(
+                        onTap: () {
+                          ref.read(aiPersonaProvider.notifier).setPersona(persona);
+                          HapticHelper(ref).selectionClick();
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: isSelected 
+                                ? (isDark ? pColor.withOpacity(0.2) : pColor.withOpacity(0.1))
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: isSelected 
+                                ? Border.all(color: pColor.withOpacity(0.5), width: 1.5)
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? pColor.withOpacity(0.2)
+                                      : (isDark ? Colors.grey[800] : Colors.grey[200]),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  _getPersonaIcon(persona),
+                                  color: isSelected ? pColor : Colors.grey[500],
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _getPersonaName(persona, locale),
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                        color: isSelected 
+                                            ? pColor 
+                                            : (isDark ? Colors.white : Colors.black87),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _getPersonaDesc(persona, locale),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(
+                                  Icons.check_circle,
+                                  color: pColor,
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

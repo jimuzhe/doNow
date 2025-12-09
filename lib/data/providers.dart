@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'models/task.dart';
 import 'models/api_settings.dart';
+import 'models/ai_persona.dart';
 import 'services/ai_service.dart';
 import 'services/zhipu_ai_service.dart';
 import 'services/storage_service.dart';
@@ -45,10 +46,11 @@ class ApiSettingsNotifier extends StateNotifier<ApiSettings> {
   }
 }
 
-// Service Provider - Refreshes when settings change
+// Service Provider - Refreshes when settings or persona change
 final aiServiceProvider = Provider<AIService>((ref) {
   final settings = ref.watch(apiSettingsProvider);
-  return ZhipuAIService(settings);
+  final persona = ref.watch(aiPersonaProvider);
+  return ZhipuAIService(settings, persona: persona);
 });
 
 // Task List Provider - Now with persistence
@@ -164,3 +166,33 @@ class VibrationIntensityNotifier extends StateNotifier<double> {
     _storage.saveVibrationIntensity(intensity);
   }
 }
+
+// AI Persona Provider - Now with persistence
+final aiPersonaProvider = StateNotifierProvider<AIPersonaNotifier, AIPersona>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return AIPersonaNotifier(storage);
+});
+
+class AIPersonaNotifier extends StateNotifier<AIPersona> {
+  final StorageService _storage;
+
+  AIPersonaNotifier(this._storage) : super(AIPersona.balanced) {
+    // Auto-load from storage on init
+    _loadFromStorage();
+  }
+
+  void _loadFromStorage() {
+    try {
+      final personaName = _storage.loadAIPersona();
+      state = AIPersonaExtension.fromStorageString(personaName);
+    } catch (_) {
+      // Storage not initialized yet, use defaults
+    }
+  }
+
+  void setPersona(AIPersona persona) {
+    state = persona;
+    _storage.saveAIPersona(persona.toStorageString());
+  }
+}
+

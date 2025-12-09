@@ -36,9 +36,10 @@ class _CustomLoadingOverlayState extends ConsumerState<CustomLoadingOverlay> wit
   Widget build(BuildContext context) {
     final locale = ref.read(localeProvider);
     final quoteText = AppStrings.get(_quote, locale);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Material(
-      color: Colors.white,
+      color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
       child: SizedBox.expand(
         child: Center(
           child: Column(
@@ -56,24 +57,24 @@ class _CustomLoadingOverlayState extends ConsumerState<CustomLoadingOverlay> wit
                    width: 120,
                    height: 120,
                    decoration: BoxDecoration(
-                     color: Colors.black,
+                     color: isDark ? Colors.white : Colors.black,
                      shape: BoxShape.circle,
                      boxShadow: [
                        BoxShadow(
-                         color: Colors.black.withOpacity(0.2),
+                         color: (isDark ? Colors.white : Colors.black).withOpacity(0.2),
                          blurRadius: 20,
                          spreadRadius: 10 * _controller.value,
                        )
                      ],
                    ),
-                   child: const Icon(Icons.auto_awesome, color: Colors.white, size: 48),
+                   child: Icon(Icons.auto_awesome, color: isDark ? Colors.black : Colors.white, size: 48),
                  ),
                ),
                const SizedBox(height: 48),
                Text(
                  widget.message ?? "Loading...",
-                 style: const TextStyle(
-                   color: Colors.black,
+                 style: TextStyle(
+                   color: isDark ? Colors.white : Colors.black,
                    fontSize: 18, 
                    fontWeight: FontWeight.bold,
                    letterSpacing: 1.2
