@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'ui/screens/main_screen.dart';
+import 'ui/screens/login_screen.dart';
+import 'ui/screens/email_verification_screen.dart';
 import 'ui/screens/task_detail_screen.dart';
 import 'data/providers.dart';
 import 'data/localization.dart';
@@ -11,6 +15,8 @@ import 'data/models/task.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/task_scheduler_service.dart';
 import 'data/services/storage_service.dart';
+import 'data/services/sound_effect_service.dart';
+import 'data/services/auth_service.dart';
 import 'ui/widgets/dynamic_island_simulation.dart';
 
 // Global navigator key for navigation from services
@@ -18,6 +24,11 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   
   // Initialize Storage Service before running app
   final storageService = StorageService();
@@ -50,6 +61,9 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     
     // Initialize Notifications
     ref.read(notificationServiceProvider).init();
+    
+    // Initialize Sound Effects
+    ref.read(soundEffectServiceProvider).init();
     
     // Initialize Task Scheduler
     final scheduler = ref.read(taskSchedulerServiceProvider);
@@ -92,6 +106,7 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
+    final authState = ref.watch(authStateProvider);
 
     return MaterialApp(
       navigatorKey: navigatorKey,
@@ -142,16 +157,16 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF1C1C1E), // iOS Dark System Background
-        cardColor: const Color(0xFF2C2C2E), // iOS Dark System Secondary
-        canvasColor: const Color(0xFF1C1C1E),
-        dialogBackgroundColor: const Color(0xFF2C2C2E),
+        scaffoldBackgroundColor: Colors.black, // Pure black background
+        cardColor: const Color(0xFF1C1C1E), // Slightly lighter for cards
+        canvasColor: Colors.black,
+        dialogBackgroundColor: const Color(0xFF1C1C1E),
         colorScheme: const ColorScheme.dark(
           primary: Colors.white,
           onPrimary: Colors.black,
           secondary: Colors.white,
           onSecondary: Colors.black,
-          surface: Color(0xFF2C2C2E),
+          surface: Color(0xFF1C1C1E),
           onSurface: Colors.white,
           outline: Colors.white54,
         ),
@@ -169,13 +184,13 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
           trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFF1C1C1E),
+          backgroundColor: Colors.black, // Pure black
           selectedItemColor: Colors.white,
           unselectedItemColor: Colors.grey,
           type: BottomNavigationBarType.fixed,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1C1C1E),
+          backgroundColor: Colors.black, // Pure black
           foregroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
         ),
@@ -190,7 +205,83 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
         }
         return child!;
       },
-      home: const MainScreen(),
+      // Show appropriate screen based on auth state and email verification
+      home: authState.when(
+        data: (user) {
+          if (user == null) {
+            return const LoginScreen();
+          }
+          
+          // Update storage service with current user ID
+          final storage = ref.read(storageServiceProvider);
+          final previousUserId = storage.userId;
+          storage.setUserId(user.uid);
+          
+          // Refresh task data when user changes
+          if (previousUserId != user.uid) {
+            // Invalidate both task providers to reload user-specific data
+            ref.invalidate(taskListProvider);
+            ref.invalidate(taskRepositoryProvider);
+            ref.invalidate(apiSettingsProvider);
+            ref.invalidate(aiPersonaProvider);
+          }
+          
+          // Check if email needs verification (skip for anonymous users)
+          if (!user.isAnonymous) {
+            // Watch the verification provider for realtime updates
+            final isEmailVerified = ref.watch(emailVerifiedProvider);
+            if (!isEmailVerified && !user.emailVerified) {
+              return const EmailVerificationScreen();
+            }
+          }
+          
+          return const MainScreen();
+        },
+        loading: () => const _SplashScreen(),
+        error: (_, __) => const LoginScreen(),
+      ),
     );
   }
 }
+
+/// Simple splash screen shown while checking auth state
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Scaffold(
+      backgroundColor: isDark ? Colors.black : Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

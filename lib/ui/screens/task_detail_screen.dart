@@ -8,6 +8,7 @@ import '../../data/models/subtask.dart';
 import '../../data/providers.dart';
 import '../../data/services/notification_service.dart';
 import '../../data/services/task_scheduler_service.dart';
+import '../../data/services/sound_effect_service.dart';
 import '../../data/localization.dart';
 import '../../utils/haptic_helper.dart';
 import '../../data/services/focus_audio_service.dart';
@@ -147,8 +148,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
         // Move to next step
         if (_forceActiveStepIndex < widget.task.subTasks.length - 1) {
           _forceActiveStepIndex++;
+          _initCurrentStepTimer();
+          
+          // Update Live Activity with new step info
+          ref.read(notificationServiceProvider).updateTaskProgress(
+            widget.task.subTasks[_forceActiveStepIndex].title, 
+            0.0,
+            startTime: DateTime.now(),
+            endTime: _stepEndTime,
+            currentStepIndex: _forceActiveStepIndex,
+          );
         }
-        _initCurrentStepTimer();
         
         // Check if all steps are done
         if (!_completedSteps.contains(false)) {
@@ -280,6 +290,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     HapticHelper(ref).heavyImpact();
     await Future.delayed(const Duration(milliseconds: 100));
     HapticHelper(ref).heavyImpact();
+    
+    // Play success sound effect
+    ref.read(soundEffectServiceProvider).playSuccess();
     
     // Calculate actual duration
     final actualDuration = DateTime.now().difference(_taskStartTime);
@@ -502,19 +515,21 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                           }
                         }
                         
-                        // Update timer ONLY if the active step index effectively changed
+                        // Update timer and Live Activity when step changes
                         if (oldActiveIndex != _forceActiveStepIndex) {
                           _initCurrentStepTimer();
-                          
-                          // Also update live activity since step changed
-                          if (_forceActiveStepIndex < widget.task.subTasks.length) {
-                             ref.read(notificationServiceProvider).updateTaskProgress(
-                               widget.task.subTasks[_forceActiveStepIndex].title, 
-                               0.0,
-                               startTime: DateTime.now(),
-                               endTime: _stepEndTime,
-                             );
-                          }
+                        }
+                        
+                        // Always update Live Activity when a step is completed
+                        // to ensure Dynamic Island shows the latest state
+                        if (!wasChecked && _forceActiveStepIndex < widget.task.subTasks.length) {
+                           ref.read(notificationServiceProvider).updateTaskProgress(
+                             widget.task.subTasks[_forceActiveStepIndex].title, 
+                             0.0,
+                             startTime: DateTime.now(),
+                             endTime: _stepEndTime,
+                             currentStepIndex: _forceActiveStepIndex,
+                           );
                         }
                       });
                     },
@@ -523,14 +538,25 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isChecked ? Colors.grey[50] : (isActive ? Colors.white : Colors.white.withOpacity(0.6)),
+                        // Dark mode: use dark greys instead of white
+                        color: isDark 
+                            ? (isChecked ? Colors.grey[900] : (isActive ? const Color(0xFF1C1C1E) : Colors.grey[900]!.withOpacity(0.6)))
+                            : (isChecked ? Colors.grey[50] : (isActive ? Colors.white : Colors.white.withOpacity(0.6))),
                         border: Border.all(
-                          color: isActive ? Colors.black : (isChecked ? Colors.transparent : Colors.black12),
+                          color: isDark 
+                              ? (isActive ? Colors.white : (isChecked ? Colors.transparent : Colors.white24))
+                              : (isActive ? Colors.black : (isChecked ? Colors.transparent : Colors.black12)),
                           width: isActive ? 2 : 1,
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: isActive ? [
-                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))
+                          BoxShadow(
+                            color: isDark 
+                                ? Colors.white.withOpacity(0.05) 
+                                : Colors.black.withOpacity(0.1), 
+                            blurRadius: 8, 
+                            offset: const Offset(0, 4)
+                          )
                         ] : null,
                       ),
                       child: Column(
@@ -542,12 +568,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                                  width: 24,
                                  height: 24,
                                  decoration: BoxDecoration(
-                                   color: isChecked ? Colors.black : Colors.transparent,
-                                   border: Border.all(color: Colors.black, width: 2),
+                                   color: isChecked 
+                                       ? (isDark ? Colors.white : Colors.black) 
+                                       : Colors.transparent,
+                                   border: Border.all(
+                                     color: isDark ? Colors.white : Colors.black, 
+                                     width: 2
+                                   ),
                                    shape: BoxShape.circle,
                                  ),
                                  child: isChecked 
-                                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                                    ? Icon(Icons.check, size: 16, color: isDark ? Colors.black : Colors.white)
                                     : null,
                                ),
                                const SizedBox(width: 16),
@@ -558,7 +589,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                                      fontSize: 16,
                                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
                                      decoration: isChecked ? TextDecoration.lineThrough : null,
-                                     color: isChecked ? Colors.grey : Colors.black,
+                                     color: isChecked 
+                                         ? Colors.grey 
+                                         : (isDark ? Colors.white : Colors.black),
                                    ),
                                  ),
                                ),
@@ -566,7 +599,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                                if (isActive)
                                  Text(
                                    "${_currentStepRemaining.inMinutes}:${(_currentStepRemaining.inSeconds % 60).toString().padLeft(2, '0')}",
-                                   style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Courier'),
+                                   style: TextStyle(
+                                     fontWeight: FontWeight.bold, 
+                                     fontFamily: 'Courier',
+                                     color: isDark ? Colors.white : Colors.black,
+                                   ),
                                  ),
                             ],
                           ),
@@ -576,8 +613,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                               borderRadius: BorderRadius.circular(4),
                               child: LinearProgressIndicator(
                                 value: stepProgress,
-                                backgroundColor: Colors.grey[100],
-                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
+                                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[100],
+                                valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
                                 minHeight: 6,
                               ),
                             ),

@@ -47,7 +47,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: _onTabTapped,
-          backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          backgroundColor: isDark ? Colors.black : Colors.white,
           elevation: 0, // Flat
           type: BottomNavigationBarType.fixed,
           showSelectedLabels: false,

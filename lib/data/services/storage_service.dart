@@ -6,19 +6,49 @@ import '../models/api_settings.dart';
 import '../api_config.dart';
 
 /// Service for persisting app data to local storage
+/// Data is stored per-user using userId as a prefix for keys
 class StorageService {
+  // Base keys (will be prefixed with userId for user-specific data)
   static const String _tasksKey = 'tasks';
   static const String _apiSettingsKey = 'api_settings';
+  static const String _aiPersonaKey = 'ai_persona';
+  
+  // Global keys (shared across all users on this device)
   static const String _localeKey = 'locale';
   static const String _themeModeKey = 'theme_mode';
   static const String _vibrationIntensityKey = 'vibration_intensity';
-  static const String _aiPersonaKey = 'ai_persona';
+  static const String _currentUserIdKey = 'current_user_id';
 
   SharedPreferences? _prefs;
+  String? _userId;
 
   /// Initialize SharedPreferences
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    // Load previously stored userId if any
+    _userId = prefs.getString(_currentUserIdKey);
+  }
+
+  /// Set the current user ID (call this after login)
+  Future<void> setUserId(String? userId) async {
+    _userId = userId;
+    if (userId != null) {
+      await prefs.setString(_currentUserIdKey, userId);
+    } else {
+      await prefs.remove(_currentUserIdKey);
+    }
+  }
+
+  /// Get current user ID
+  String? get userId => _userId;
+
+  /// Get the user-specific key
+  String _userKey(String baseKey) {
+    if (_userId == null || _userId!.isEmpty) {
+      // Fallback for anonymous/logged out users
+      return 'anonymous_$baseKey';
+    }
+    return '${_userId}_$baseKey';
   }
 
   /// Ensure prefs is initialized
@@ -29,18 +59,18 @@ class StorageService {
     return _prefs!;
   }
 
-  // ============== TASKS ==============
+  // ============== TASKS (per-user) ==============
 
-  /// Save tasks list to storage
+  /// Save tasks list to storage (per-user)
   Future<void> saveTasks(List<Task> tasks) async {
     final jsonList = tasks.map((t) => t.toJson()).toList();
     final jsonString = jsonEncode(jsonList);
-    await prefs.setString(_tasksKey, jsonString);
+    await prefs.setString(_userKey(_tasksKey), jsonString);
   }
 
-  /// Load tasks list from storage
+  /// Load tasks list from storage (per-user)
   List<Task> loadTasks() {
-    final jsonString = prefs.getString(_tasksKey);
+    final jsonString = prefs.getString(_userKey(_tasksKey));
     if (jsonString == null || jsonString.isEmpty) {
       return [];
     }
@@ -56,17 +86,17 @@ class StorageService {
     }
   }
 
-  // ============== API SETTINGS ==============
+  // ============== API SETTINGS (per-user) ==============
 
-  /// Save API settings to storage
+  /// Save API settings to storage (per-user)
   Future<void> saveApiSettings(ApiSettings settings) async {
     final jsonString = jsonEncode(settings.toJson());
-    await prefs.setString(_apiSettingsKey, jsonString);
+    await prefs.setString(_userKey(_apiSettingsKey), jsonString);
   }
 
-  /// Load API settings from storage
+  /// Load API settings from storage (per-user)
   ApiSettings loadApiSettings() {
-    final jsonString = prefs.getString(_apiSettingsKey);
+    final jsonString = prefs.getString(_userKey(_apiSettingsKey));
     if (jsonString == null || jsonString.isEmpty) {
       // Return default settings
       return const ApiSettings(
@@ -89,21 +119,21 @@ class StorageService {
     }
   }
 
-  // ============== LOCALE ==============
+  // ============== LOCALE (global) ==============
 
-  /// Save locale to storage
+  /// Save locale to storage (global - shared across users)
   Future<void> saveLocale(String locale) async {
     await prefs.setString(_localeKey, locale);
   }
 
-  /// Load locale from storage (default: 'en')
-  String loadLocale() {
-    return prefs.getString(_localeKey) ?? 'en';
+  /// Load locale from storage (returns null if not set)
+  String? loadLocale() {
+    return prefs.getString(_localeKey);
   }
 
-  // ============== THEME MODE ==============
+  // ============== THEME MODE (global) ==============
 
-  /// Save theme mode to storage
+  /// Save theme mode to storage (global - shared across users)
   Future<void> saveThemeMode(ThemeMode themeMode) async {
     await prefs.setInt(_themeModeKey, themeMode.index);
   }
@@ -117,9 +147,9 @@ class StorageService {
     return ThemeMode.values[index];
   }
 
-  // ============== VIBRATION INTENSITY ==============
+  // ============== VIBRATION INTENSITY (global) ==============
 
-  /// Save vibration intensity to storage
+  /// Save vibration intensity to storage (global)
   Future<void> saveVibrationIntensity(double intensity) async {
     await prefs.setDouble(_vibrationIntensityKey, intensity);
   }
@@ -129,21 +159,33 @@ class StorageService {
     return prefs.getDouble(_vibrationIntensityKey) ?? 1.0;
   }
 
-  // ============== AI PERSONA ==============
+  // ============== AI PERSONA (per-user) ==============
 
-  /// Save AI persona to storage
+  /// Save AI persona to storage (per-user)
   Future<void> saveAIPersona(String personaName) async {
-    await prefs.setString(_aiPersonaKey, personaName);
+    await prefs.setString(_userKey(_aiPersonaKey), personaName);
   }
 
   /// Load AI persona from storage (default: 'balanced')
   String loadAIPersona() {
-    return prefs.getString(_aiPersonaKey) ?? 'balanced';
+    return prefs.getString(_userKey(_aiPersonaKey)) ?? 'balanced';
   }
 
   // ============== CLEAR ALL ==============
 
-  /// Clear all stored data
+  /// Clear all stored data for current user only
+  Future<void> clearUserData() async {
+    final keysToRemove = [
+      _userKey(_tasksKey),
+      _userKey(_apiSettingsKey),
+      _userKey(_aiPersonaKey),
+    ];
+    for (final key in keysToRemove) {
+      await prefs.remove(key);
+    }
+  }
+
+  /// Clear all stored data (use with caution)
   Future<void> clearAll() async {
     await prefs.clear();
   }
