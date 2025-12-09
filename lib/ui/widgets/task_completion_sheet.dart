@@ -41,6 +41,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
   bool _showRecordOptions = false;
   bool _isRecordingVideo = false;
   bool _showNoteInput = false;
+  bool _isGeneratingThumbnail = false; // Track thumbnail generation
   
   late AnimationController _checkAnimController;
   late Animation<double> _checkAnimation;
@@ -145,22 +146,36 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
   }
 
   Future<void> _generateThumbnail(String videoPath) async {
-    if (kIsWeb) return;
+    // Web platform: VideoThumbnail doesn't work, just mark as not generating
+    // The UI will show a video icon placeholder instead
+    if (kIsWeb) {
+      // On web, we can't generate thumbnails, so leave _imagePath as null
+      // The UI will handle this by showing a video icon
+      return;
+    }
+    
+    setState(() => _isGeneratingThumbnail = true);
+    
     try {
       final fileName = await VideoThumbnail.thumbnailFile(
         video: videoPath,
         thumbnailPath: (await getTemporaryDirectory()).path,
         imageFormat: ImageFormat.PNG,
-        maxHeight: 600,
-        quality: 80,
+        maxWidth: 1080,
+        maxHeight: 1920,
+        quality: 85,
       );
       if (fileName != null && mounted) {
         setState(() {
           _imagePath = fileName;
+          _isGeneratingThumbnail = false;
         });
+      } else {
+        if (mounted) setState(() => _isGeneratingThumbnail = false);
       }
     } catch (e) {
       debugPrint('Error generating thumbnail: $e');
+      if (mounted) setState(() => _isGeneratingThumbnail = false);
     }
   }
 
@@ -203,18 +218,22 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     if (result != null && result is Map) {
       final path = result['path'];
       final type = result['type'];
+      final thumbnail = result['thumbnail']; // Pre-generated thumbnail from camera
       
       if (path != null) {
         setState(() {
           if (type == 'video') {
             _videoPath = path;
-            _imagePath = null;
+            // Use pre-generated thumbnail if available
+            _imagePath = thumbnail;
           } else {
             _imagePath = path;
             _videoPath = null;
           }
         });
-        if (type == 'video') {
+        
+        // Only generate thumbnail if not provided (fallback)
+        if (type == 'video' && thumbnail == null) {
           _generateThumbnail(path as String);
         }
       }
@@ -584,13 +603,35 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
+                      // Thumbnail or loading indicator or web placeholder
                       if (_imagePath != null)
                         Positioned.fill(
                           child: kIsWeb
                               ? Image.network(_imagePath!, fit: BoxFit.cover)
                               : Image.file(File(_imagePath!), fit: BoxFit.cover),
+                        )
+                      else if (_isGeneratingThumbnail)
+                        const Center(
+                          child: CircularProgressIndicator(color: Colors.white54),
+                        )
+                      else if (_videoPath != null)
+                        // Web fallback: show video icon when no thumbnail available
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.videocam, size: 48, color: Colors.white.withOpacity(0.5)),
+                              const SizedBox(height: 8),
+                              Text(
+                                kIsWeb ? 'Video selected' : 'Loading...',
+                                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                              ),
+                            ],
+                          ),
                         ),
-                      if (_videoPath != null)
+                      
+                      // Video play button
+                      if (_videoPath != null && !_isGeneratingThumbnail && _imagePath != null)
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),

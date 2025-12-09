@@ -1343,7 +1343,10 @@ class _TimelineItemWithLine extends StatelessWidget {
                             border: Border.all(
                               color: isDark ? Colors.white12 : Colors.black12,
                             ),
-                            color: Colors.black12,
+                            // Use darker background for video without thumbnail
+                            color: task.journalImagePath == null && task.journalVideoPath != null
+                                ? (isDark ? Colors.grey[800] : Colors.grey[600])
+                                : Colors.black12,
                             image: task.journalImagePath != null
                                 ? DecorationImage(
                                     image: kIsWeb
@@ -1354,8 +1357,12 @@ class _TimelineItemWithLine extends StatelessWidget {
                                 : null,
                           ),
                           child: task.journalVideoPath != null
-                              ? const Center(
-                                  child: Icon(Icons.play_circle_fill, color: Colors.white, size: 24),
+                              ? Center(
+                                  child: Icon(
+                                    Icons.play_circle_fill, 
+                                    color: Colors.white.withOpacity(0.9), 
+                                    size: 24,
+                                  ),
                                 )
                               : null,
                         ),
