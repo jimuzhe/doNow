@@ -6,6 +6,7 @@ import '../../data/providers.dart';
 import '../../data/models/ai_persona.dart';
 import '../../data/services/auth_service.dart';
 import '../../utils/haptic_helper.dart';
+import '../widgets/custom_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -218,7 +219,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                    child: GestureDetector(
                      onTap: _handleVersionTap,
                      child: Text(
-                       "${t('version')} 1.1.1", 
+                       "${t('version')} 2.0.0", 
                        style: TextStyle(color: Colors.grey[400], fontSize: 12)
                      ),
                    ),
@@ -231,6 +232,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+
   void _showClearDataConfirmation(BuildContext context, WidgetRef ref) {
     HapticHelper(ref).lightImpact();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -238,28 +240,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                t('clear_data_title'),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          t('clear_data_confirm'),
-          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-        ),
+      builder: (context) => CustomDialog(
+        title: t('clear_data_title'),
+        content: t('clear_data_confirm'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -327,7 +310,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                ),
              ),
              const SizedBox(height: 16),
-             Text("Version 1.1.1", style: TextStyle(color: Colors.grey[600])),
+             Text("Version 2.0.0", style: TextStyle(color: Colors.grey[600])),
              const SizedBox(height: 32),
              Padding(
                padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1013,20 +996,13 @@ class _AccountTile extends ConsumerWidget {
               // Show confirmation dialog
               final shouldLogout = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
-                  backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-                  title: Text(
-                    isZh ? '确认登出？' : 'Sign Out?',
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                  ),
-                  content: Text(
-                    isZh ? '您确定要退出当前账号吗？' : 'Are you sure you want to sign out?',
-                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-                  ),
+                builder: (context) => CustomDialog(
+                  title: isZh ? '确认登出？' : 'Sign Out?',
+                  content: isZh ? '您确定要退出当前账号吗？' : 'Are you sure you want to sign out?',
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
-                      child: Text(isZh ? '取消' : 'Cancel'),
+                      child: Text(isZh ? '取消' : 'Cancel', style: TextStyle(color: Colors.grey[600])),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context, true),

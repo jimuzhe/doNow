@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/task.dart';
+import '../../data/models/subtask.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
 import '../../utils/haptic_helper.dart';
@@ -134,13 +135,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _showTaskModal(BuildContext context, {Task? task}) {
-    showModalBottomSheet(
+  Future<void> _showTaskModal(BuildContext context, {Task? task}) async {
+    final result = await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => CreateTaskModal(taskToEdit: task),
     );
+
+    if (result != null && result is Map && result['action'] == 'confirm_subtasks') {
+      if (!context.mounted) return;
+      
+      final taskId = result['taskId'];
+      final title = result['title'];
+      final subTasks = result['subTasks'] as List<SubTask>;
+      
+      // Calculate total duration from subtasks or selected duration? 
+      // SubTasks have their own durations.
+      final totalDuration = Duration(minutes: subTasks.fold(0, (sum, st) => sum + st.estimatedDuration.inMinutes));
+      
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => SubTaskEditorSheet(
+          initialSubTasks: subTasks,
+          totalDuration: totalDuration,
+          showStartButton: true, // Allow starting directly
+          onSave: (editedSubTasks) {
+             // Create and start task
+             final newTask = Task(
+               id: taskId,
+               title: title,
+               totalDuration: totalDuration, // Or update based on edited
+               scheduledStart: DateTime.now(),
+               subTasks: editedSubTasks,
+               isGenerating: false,
+               repeatDays: [],
+             );
+             
+             // Save to repo
+             ref.read(taskRepositoryProvider).addTask(newTask);
+             
+             // Navigate to detail
+             Navigator.of(context).push(
+                MaterialPageRoute(builder: (c) => TaskDetailScreen(task: newTask)),
+             );
+          },
+          onStart: () {
+             // onSave handles everything including start, but maybe we need clear separation?
+             // SubTaskEditorSheet calls onSave then onStart. 
+             // We can just handle logic in onSave.
+          },
+        ),
+      );
+    }
   }
 }
 

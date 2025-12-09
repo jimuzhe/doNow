@@ -172,6 +172,43 @@ class NotificationService {
     
     return steps;
   }
+  
+  /// Rebuild step schedule from a specific step index
+  /// Used when user manually completes a step early
+  void rebuildStepScheduleFromStep(int fromStepIndex, DateTime newStepStartTime, {List<bool>? completedSteps}) {
+    if (_currentTask == null || _cachedStepSchedule == null) return;
+    
+    final task = _currentTask!;
+    if (fromStepIndex >= task.subTasks.length) return;
+    
+    // Keep steps before fromStepIndex as-is (they're already completed)
+    // Rebuild from fromStepIndex onwards with new timing
+    DateTime currentEndTime = newStepStartTime;
+    
+    for (int i = fromStepIndex; i < task.subTasks.length; i++) {
+      final subTask = task.subTasks[i];
+      
+      // If this step is already marked as completed (and it's not the current active one we are starting),
+      // we should skip its duration in the schedule.
+      // Note: The fromStepIndex is usually the CURRENT active step, which is by definition NOT completed yet (or we are restarting it).
+      // So checking completedSteps[i] is valid for i > fromStepIndex. 
+      // For i == fromStepIndex, it shouldn't be completed.
+      final isCompleted = i != fromStepIndex && completedSteps != null && i < completedSteps.length && completedSteps[i];
+      
+      final durationToAdd = isCompleted ? Duration.zero : subTask.estimatedDuration;
+      currentEndTime = currentEndTime.add(durationToAdd);
+      
+      if (i < _cachedStepSchedule!.length) {
+        _cachedStepSchedule![i] = {
+          'title': subTask.title,
+          'durationSeconds': isCompleted ? 0 : subTask.estimatedDuration.inSeconds,
+          'endTime': currentEndTime.millisecondsSinceEpoch / 1000.0,
+        };
+      }
+    }
+    
+    debugPrint('🔄 Rebuilt step schedule from step $fromStepIndex with skips');
+  }
 
   // Start a new Activity (In-App Simulation + Native iOS/Android if available)
   Future<void> startTaskActivity(Task task, {DateTime? startTime, DateTime? endTime}) async {

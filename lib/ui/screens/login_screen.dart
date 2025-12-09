@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/localization.dart';
+import 'dart:ui';
 import '../../utils/haptic_helper.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -114,49 +115,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _showForgotPasswordDialog(BuildContext context, bool isZh, bool isDark) {
     final emailController = TextEditingController(text: _emailController.text);
     
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-        title: Text(
-          isZh ? '重置密码' : 'Reset Password',
-          style: TextStyle(color: isDark ? Colors.white : Colors.black),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isZh ? '输入您的邮箱，我们将发送密码重置链接' : 'Enter your email and we will send a reset link',
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black87,
-                fontSize: 14,
-              ),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.all(24),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E).withOpacity(0.95) : Colors.white.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+              boxShadow: [
+                 BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 24, offset: const Offset(0, 12))
+              ]
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black),
-              decoration: InputDecoration(
-                hintText: isZh ? '邮箱地址' : 'Email address',
-                hintStyle: TextStyle(color: Colors.grey[500]),
-                filled: true,
-                fillColor: isDark ? Colors.grey[800] : Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  isZh ? '重置密码' : 'Reset Password',
+                  style: TextStyle(
+                    fontSize: 20, 
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: -0.5,
+                  ), 
+                  textAlign: TextAlign.center
                 ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(isZh ? '取消' : 'Cancel'),
-          ),
-          TextButton(
+                const SizedBox(height: 12),
+                Text(
+                  isZh ? '输入您的邮箱，我们将发送密码重置链接' : 'Enter your email and we will send a reset link',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black87,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                  decoration: InputDecoration(
+                    hintText: isZh ? '邮箱地址' : 'Email address',
+                    hintStyle: TextStyle(color: Colors.grey[500]),
+                    filled: true,
+                    fillColor: isDark ? Colors.black38 : Colors.grey[100],
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(isZh ? '取消' : 'Cancel', style: TextStyle(color: Colors.grey[600])),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
             onPressed: () async {
               final email = emailController.text.trim();
               if (email.isEmpty || !email.contains('@')) {
@@ -186,10 +213,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             },
             child: Text(
               isZh ? '发送' : 'Send',
-              style: TextStyle(color: isDark ? Colors.white : Colors.black),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
-        ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

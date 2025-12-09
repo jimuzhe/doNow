@@ -145,6 +145,7 @@ class _SubTaskEditorSheetState extends ConsumerState<SubTaskEditorSheet> {
           // Subtask list + Add Button
           Flexible(
             child: ListView.builder(
+              shrinkWrap: true, // Adapt height to content
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               itemCount: _subTasks.length + 1, // +1 for Add Button
@@ -160,7 +161,7 @@ class _SubTaskEditorSheetState extends ConsumerState<SubTaskEditorSheet> {
           // Bottom Action Buttons
           if (bottomInset == 0) // Hide buttons when keyboard is open to save space
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Row(
                 children: [
                   Expanded(
@@ -180,14 +181,15 @@ class _SubTaskEditorSheetState extends ConsumerState<SubTaskEditorSheet> {
                     child: ElevatedButton(
                       onPressed: isValid ? _onSave : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: widget.showStartButton ? Colors.green : (isDark ? Colors.white : Colors.black),
+                        backgroundColor: isDark ? Colors.white : Colors.black,
+                        disabledBackgroundColor: isDark ? Colors.grey[700] : Colors.grey[300],
                         minimumSize: const Size(0, 50),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: Text(
                         widget.showStartButton ? t('start_now') : t('save'),
                         style: TextStyle(
-                          color: widget.showStartButton ? Colors.white : (isDark ? Colors.black : Colors.white), 
+                          color: isDark ? Colors.black : Colors.white, 
                           fontWeight: FontWeight.bold,
                         ),
                       ),

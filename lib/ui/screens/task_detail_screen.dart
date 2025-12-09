@@ -12,7 +12,10 @@ import '../../data/services/sound_effect_service.dart';
 import '../../data/localization.dart';
 import '../../utils/haptic_helper.dart';
 import '../../data/services/focus_audio_service.dart';
+import 'camera_screen.dart'; // From same directory
+import '../widgets/custom_dialog.dart';
 import '../widgets/responsive_center.dart';
+import '../widgets/task_completion_sheet.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final Task task;
@@ -150,11 +153,19 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
           _forceActiveStepIndex++;
           _initCurrentStepTimer();
           
+          // Rebuild step schedule from current step to update timestamps
+          final now = DateTime.now();
+          ref.read(notificationServiceProvider).rebuildStepScheduleFromStep(
+            _forceActiveStepIndex, 
+            now,
+            completedSteps: _completedSteps,
+          );
+          
           // Update Live Activity with new step info
           ref.read(notificationServiceProvider).updateTaskProgress(
             widget.task.subTasks[_forceActiveStepIndex].title, 
             0.0,
-            startTime: DateTime.now(),
+            startTime: now,
             endTime: _stepEndTime,
             currentStepIndex: _forceActiveStepIndex,
           );
@@ -226,19 +237,32 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
              
              // AUTO-ADVANCE logic
              if (_forceActiveStepIndex < widget.task.subTasks.length - 1) {
-                // Move to next step
-                _forceActiveStepIndex++;
-                _initCurrentStepTimer(); // Initialize timer (sets new _stepEndTime)
-                
-                // Update Live Activity immediately for new step
-                if (_forceActiveStepIndex < widget.task.subTasks.length) {
-                   ref.read(notificationServiceProvider).updateTaskProgress(
-                     widget.task.subTasks[_forceActiveStepIndex].title, 
-                     0.0, // starts at 0 progress (or 1.0 depending on view, new step)
-                     startTime: DateTime.now(),
-                     endTime: _stepEndTime,
-                     currentStepIndex: _forceActiveStepIndex,
-                   );
+                // Find next uncompleted step
+                int nextIndex = _forceActiveStepIndex + 1;
+                while (nextIndex < widget.task.subTasks.length && _completedSteps[nextIndex]) {
+                  nextIndex++;
+                }
+
+                if (nextIndex < widget.task.subTasks.length) {
+                  // Move to next step
+                  _forceActiveStepIndex = nextIndex;
+                  _initCurrentStepTimer(); // Initialize timer (sets new _stepEndTime)
+                  
+                  // Rebuild schedule with skips
+                  ref.read(notificationServiceProvider).rebuildStepScheduleFromStep(
+                    _forceActiveStepIndex, 
+                    DateTime.now(),
+                    completedSteps: _completedSteps,
+                  );
+                  
+                  // Update Live Activity immediately for new step
+                  ref.read(notificationServiceProvider).updateTaskProgress(
+                    widget.task.subTasks[_forceActiveStepIndex].title, 
+                    0.0, // starts at 0 progress
+                    startTime: DateTime.now(),
+                    endTime: _stepEndTime,
+                    currentStepIndex: _forceActiveStepIndex,
+                  );
                 }
              }
              // else: Last step ended
@@ -286,48 +310,35 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
   }
 
   Future<void> _completeMission() async {
-    // Strong haptic feedback for mission completion!
-    HapticHelper(ref).heavyImpact();
-    await Future.delayed(const Duration(milliseconds: 100));
-    HapticHelper(ref).heavyImpact();
-    
-    // Play success sound effect
-    ref.read(soundEffectServiceProvider).playSuccess();
-    
-    // Calculate actual duration
+    // 1. Calculate stats
     final actualDuration = DateTime.now().difference(_taskStartTime);
-    final diff = actualDuration - widget.task.totalDuration;
 
-    // 1. Mark as completed in repo
-    final repo = ref.read(taskRepositoryProvider);
-    final completedTask = widget.task.copyWith(
-      isCompleted: true,
-      completedAt: DateTime.now(),
-      actualDuration: actualDuration, 
-    );
-    repo.updateTask(completedTask);
-    
-    // 2. Stop timer & Activity
+    // 2. Stop timer & Activity (but don't save to repo yet, let sheet do it)
     _timer.cancel();
     ref.read(notificationServiceProvider).endActivity();
     
-    // 3. Clear active task ID
+    // 3. Clear active task ID before sheet
     ref.read(activeTaskIdProvider.notifier).state = null;
 
-    // 4. Show Success Overlay
+    // 4. Show Completion Sheet (includes animation, sound, and journaling)
     if (!mounted) return;
-    await showDialog(
+    
+    await showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      useSafeArea: false, // Full screen immersive
-      builder: (_) => _SuccessOverlay(
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => TaskCompletionSheet(
+        task: widget.task,
         actualDuration: actualDuration,
-        diff: diff,
       ),
     );
 
     if (mounted) {
-      Navigator.of(context).pop(); // Back to Home
+      // Use popUntil to ensure we go all the way back to the main screen, 
+      // avoiding issues if multiple screens were pushed or pop failed.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 
@@ -338,9 +349,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(t('times_up')),
-        content: Text(t('times_up_content')),
+      builder: (context) => CustomDialog(
+        title: t('times_up'),
+        content: t('times_up_content'),
         actions: [
           // Continue option (Overtime)
           TextButton(
@@ -375,9 +386,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(t('abort_title')),
-        content: Text(t('abort_content')),
+      builder: (context) => CustomDialog(
+        title: t('abort_title'),
+        content: t('abort_content'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -523,10 +534,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                         // Always update Live Activity when a step is completed
                         // to ensure Dynamic Island shows the latest state
                         if (!wasChecked && _forceActiveStepIndex < widget.task.subTasks.length) {
+                           // Rebuild step schedule from current step to update timestamps
+                           final now = DateTime.now();
+                           ref.read(notificationServiceProvider).rebuildStepScheduleFromStep(
+                             _forceActiveStepIndex, 
+                             now,
+                             completedSteps: _completedSteps,
+                           );
+                           
                            ref.read(notificationServiceProvider).updateTaskProgress(
                              widget.task.subTasks[_forceActiveStepIndex].title, 
                              0.0,
-                             startTime: DateTime.now(),
+                             startTime: now,
                              endTime: _stepEndTime,
                              currentStepIndex: _forceActiveStepIndex,
                            );
@@ -901,7 +920,7 @@ class _SuccessOverlayState extends ConsumerState<_SuccessOverlay> with SingleTic
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10, left: 8),
                           child: Text(
-                             isEarly ? "SAVED" : "EXTRA", // Ideally localized
+                             isEarly ? t('time_saved').toUpperCase() : t('time_extra').toUpperCase(),
                              style: TextStyle(
                                color: txtColor.withOpacity(0.5),
                                fontSize: 12,

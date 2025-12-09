@@ -13,6 +13,10 @@ class Task {
   final DateTime createdAt; // Restored
   final DateTime? completedAt; 
   final Duration? actualDuration; 
+  final String? journalImagePath;
+  final String? journalVideoPath;
+  final String? journalLocation;
+  final String? journalNote; // Text note 
 
   Task({
     required this.id,
@@ -27,6 +31,10 @@ class Task {
     DateTime? createdAt,
     this.completedAt,
     this.actualDuration,
+    this.journalImagePath,
+    this.journalVideoPath,
+    this.journalLocation,
+    this.journalNote,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Task copyWith({
@@ -41,6 +49,10 @@ class Task {
     List<int>? repeatDays,
     DateTime? completedAt,
     Duration? actualDuration,
+    String? journalImagePath,
+    String? journalVideoPath,
+    String? journalLocation,
+    String? journalNote,
   }) {
     return Task(
       id: id ?? this.id,
@@ -55,6 +67,10 @@ class Task {
       createdAt: this.createdAt,
       completedAt: completedAt ?? this.completedAt,
       actualDuration: actualDuration ?? this.actualDuration,
+      journalImagePath: journalImagePath ?? this.journalImagePath,
+      journalVideoPath: journalVideoPath ?? this.journalVideoPath,
+      journalLocation: journalLocation ?? this.journalLocation,
+      journalNote: journalNote ?? this.journalNote,
     );
   }
 
@@ -73,6 +89,10 @@ class Task {
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'actualDurationSeconds': actualDuration?.inSeconds,
+      'journalImagePath': journalImagePath,
+      'journalVideoPath': journalVideoPath,
+      'journalLocation': journalLocation,
+      'journalNote': journalNote,
     };
   }
 
@@ -100,6 +120,10 @@ class Task {
       actualDuration: json['actualDurationSeconds'] != null
           ? Duration(seconds: json['actualDurationSeconds'] as int)
           : null,
+      journalImagePath: json['journalImagePath'] as String?,
+      journalVideoPath: json['journalVideoPath'] as String?,
+      journalLocation: json['journalLocation'] as String?,
+      journalNote: json['journalNote'] as String?,
     );
   }
 }
