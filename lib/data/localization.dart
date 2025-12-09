@@ -194,6 +194,10 @@ class AppStrings {
       'no_tasks_to_summarize': 'No tasks to summarize for this day',
       'ai_insight': 'AI Insight',
       'daily_summary_too_early': 'Daily summary will be generated tomorrow at 8:00 AM.',
+      // Camera
+      'camera_hint': 'Tap to capture • Hold to record',
+      'pick_photo': 'Photo',
+      'pick_video': 'Video',
     },
     'zh': {
       'home': '首页',
@@ -340,6 +344,10 @@ class AppStrings {
       'no_tasks_to_summarize': '当天没有可总结的任务',
       'ai_insight': 'AI 洞见',
       'daily_summary_too_early': '每日总结将于次日早 8 点生成。',
+      // Camera
+      'camera_hint': '点按拍照 • 长按录像',
+      'pick_photo': '照片',
+      'pick_video': '视频',
     }
   };
 

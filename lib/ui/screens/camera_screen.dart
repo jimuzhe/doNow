@@ -7,7 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:do_now/utils/haptic_helper.dart';
+import 'package:do_now/data/services/camera_service.dart';
+import 'package:do_now/data/localization.dart';
+import 'package:do_now/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -23,6 +27,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   bool _isRecording = false;
   int _selectedCameraIdx = 0;
   FlashMode _flashMode = FlashMode.off;
+  bool _isFrontCamera = false;
+  bool _usedPrewarmedController = false; // Track if we used prewarmed controller
   
   // Zoom & Focus
   double _minAvailableZoom = 1.0;
@@ -34,9 +40,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   bool _showFocusRect = false;
   Timer? _focusTimer;
 
-  // For file result
   String? _capturedPath;
   bool _isVideo = false;
+  String? _videoThumbnailPath; // Video thumbnail for preview
 
   // Animation for record button
   late AnimationController _recordBtnController;
@@ -63,8 +69,39 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   }
 
   Future<void> _initCamera() async {
+    final cameraService = CameraService();
+    
+    // Try to use prewarmed controller first
+    if (cameraService.isPrewarmed) {
+      final prewarmedController = cameraService.takeController();
+      if (prewarmedController != null && prewarmedController.value.isInitialized) {
+        _controller = prewarmedController;
+        _cameras = cameraService.cameras ?? [];
+        
+        // Find the camera index that matches the prewarmed controller
+        _selectedCameraIdx = _cameras.indexWhere(
+          (c) => c.name == prewarmedController.description.name
+        );
+        if (_selectedCameraIdx == -1) _selectedCameraIdx = 0;
+        
+        _isFrontCamera = prewarmedController.description.lensDirection == CameraLensDirection.front;
+        _usedPrewarmedController = true;
+        
+        // Get zoom capabilities
+        _maxAvailableZoom = await prewarmedController.getMaxZoomLevel();
+        _minAvailableZoom = await prewarmedController.getMinZoomLevel();
+        
+        if (mounted) {
+          setState(() => _isInit = true);
+        }
+        debugPrint('Using prewarmed camera controller');
+        return;
+      }
+    }
+    
+    // Fallback: Initialize camera normally
     try {
-      _cameras = await availableCameras();
+      _cameras = cameraService.cameras ?? await availableCameras();
       if (_cameras.isEmpty) {
         if (mounted) Navigator.pop(context);
         return;
@@ -73,6 +110,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       // Default to back camera
       _selectedCameraIdx = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
       if (_selectedCameraIdx == -1) _selectedCameraIdx = 0;
+      
+      _isFrontCamera = _cameras[_selectedCameraIdx].lensDirection == CameraLensDirection.front;
 
       await _startCamera(_cameras[_selectedCameraIdx]);
     } catch (e) {
@@ -83,7 +122,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   Future<void> _startCamera(CameraDescription cameraDescription) async {
     final controller = CameraController(
       cameraDescription,
-      ResolutionPreset.high, // High is usually good balance
+      ResolutionPreset.high, // Use high quality
       enableAudio: true,
       imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.jpeg : ImageFormatGroup.bgra8888,
     );
@@ -98,6 +137,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       _minAvailableZoom = await controller.getMinZoomLevel();
       
       await controller.setFlashMode(_flashMode);
+      
+      // Pre-warm video recording to reduce long-press delay
+      try {
+        await controller.prepareForVideoRecording();
+      } catch (_) {
+        // Some devices may not support this
+      }
       
       if (mounted) {
         setState(() => _isInit = true);
@@ -135,6 +181,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     HapticHelper(ref).lightImpact();
     
     _selectedCameraIdx = (_selectedCameraIdx + 1) % _cameras.length;
+    _isFrontCamera = _cameras[_selectedCameraIdx].lensDirection == CameraLensDirection.front;
     
     await _controller?.dispose();
     setState(() => _isInit = false);
@@ -252,10 +299,26 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
     try {
       final XFile video = await _controller!.stopVideoRecording();
+      
+      // Generate video thumbnail
+      String? thumbnailPath;
+      try {
+        thumbnailPath = await vt.VideoThumbnail.thumbnailFile(
+          video: video.path,
+          thumbnailPath: (await getTemporaryDirectory()).path,
+          imageFormat: vt.ImageFormat.JPEG,
+          maxHeight: 600,
+          quality: 80,
+        );
+      } catch (e) {
+        debugPrint('Thumbnail generation error: $e');
+      }
+      
       setState(() {
         _isRecording = false;
         _capturedPath = video.path;
         _isVideo = true;
+        _videoThumbnailPath = thumbnailPath;
       });
     } catch (e) {
       debugPrint('Error stopping video: $e');
@@ -267,6 +330,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     setState(() {
       _capturedPath = null;
       _isVideo = false;
+      _videoThumbnailPath = null;
     });
   }
 
@@ -317,7 +381,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                child: Transform.scale(
                  scale: scale,
                  child: Center(
-                   child: CameraPreview(_controller!),
+                   // Mirror front camera preview to match final captured image
+                   child: Transform.flip(
+                     flipX: _isFrontCamera,
+                     child: CameraPreview(_controller!),
+                   ),
                  ),
                ),
             ),
@@ -452,11 +520,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                 
                 // Recording Hint
                 if (!_isRecording)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 20),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
-                      "Tap to capture • Hold to record",
-                      style: TextStyle(color: Colors.white54, fontSize: 12, shadows: [
+                      AppStrings.get('camera_hint', ref.watch(localeProvider)),
+                      style: const TextStyle(color: Colors.white54, fontSize: 12, shadows: [
                         Shadow(blurRadius: 2, color: Colors.black, offset: Offset(0, 1))
                       ]),
                     ),
@@ -477,8 +545,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         children: [
           if (_capturedPath != null)
              _isVideo 
-               ? Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)) 
-               : Image.file(File(_capturedPath!), fit: BoxFit.cover), // Changed to cover for immersion
+               ? (_videoThumbnailPath != null
+                   ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
+                   : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
+               : Image.file(File(_capturedPath!), fit: BoxFit.cover),
+          
+          // Video indicator overlay
+          if (_isVideo)
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.play_arrow, size: 48, color: Colors.white),
+              ),
+            ),
 
           // Actions
           SafeArea(

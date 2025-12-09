@@ -10,6 +10,7 @@ import '../../data/localization.dart';
 import '../../data/providers.dart';
 import '../../utils/haptic_helper.dart';
 import '../../data/services/sound_effect_service.dart';
+import '../../data/services/camera_service.dart';
 import '../screens/camera_screen.dart'; // Custom camera UI
 import 'video_player_dialog.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
@@ -63,8 +64,14 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       
       // Auto-fetch location by default
       _fetchLocationOnStart();
+      
+      // Pre-warm camera in background for instant camera open
+      if (!kIsWeb) {
+        CameraService().prewarm();
+      }
     });
   }
+
   
   // Auto-fetch location when sheet opens
   Future<void> _fetchLocationOnStart() async {
@@ -132,6 +139,8 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
   void dispose() {
     _checkAnimController.dispose();
     _noteController.dispose();
+    // Release prewarmed camera if not used
+    CameraService().release();
     super.dispose();
   }
 
@@ -142,8 +151,8 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
         video: videoPath,
         thumbnailPath: (await getTemporaryDirectory()).path,
         imageFormat: ImageFormat.PNG,
-        maxHeight: 300,
-        quality: 75,
+        maxHeight: 600,
+        quality: 80,
       );
       if (fileName != null && mounted) {
         setState(() {
@@ -221,6 +230,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     HapticHelper(ref).selectionClick();
     
     // Show choice dialog
+    final locale = ref.read(localeProvider);
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -237,13 +247,13 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
             children: [
               ListTile(
                 leading: const Icon(Icons.photo),
-                title: const Text('Photo'),
+                title: Text(AppStrings.get('pick_photo', locale)),
                 onTap: () => Navigator.pop(context, 'photo'),
               ),
               Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
               ListTile(
                 leading: const Icon(Icons.videocam),
-                title: const Text('Video'),
+                title: Text(AppStrings.get('pick_video', locale)),
                 onTap: () => Navigator.pop(context, 'video'),
               ),
               const SizedBox(height: 8),

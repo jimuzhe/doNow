@@ -317,23 +317,36 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     _timer.cancel();
     ref.read(notificationServiceProvider).endActivity();
     
-    // 3. Clear active task ID before sheet
-    ref.read(activeTaskIdProvider.notifier).state = null;
+    // NOTE: Do NOT clear activeTaskIdProvider here!
+    // We keep it set during the completion sheet so the scheduler
+    // doesn't navigate to another task while user is recording.
 
-    // 4. Show Completion Sheet (includes animation, sound, and journaling)
+    // 3. Show Completion Sheet (includes animation, sound, and journaling)
     if (!mounted) return;
     
-    await showModalBottomSheet(
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
+      isDismissible: true,  // Allow swipe down to dismiss
+      enableDrag: true,     // Allow drag to dismiss
       backgroundColor: Colors.transparent,
       builder: (ctx) => TaskCompletionSheet(
         task: widget.task,
         actualDuration: actualDuration,
       ),
     );
+
+    // If user swiped down to dismiss without saving, show it again or stay
+    if (saved != true) {
+      // User dismissed without saving - show again
+      if (mounted) {
+        return _completeMission(); // Recursive call to show sheet again
+      }
+      return;
+    }
+
+    // 4. Clear active task ID AFTER user finishes recording
+    ref.read(activeTaskIdProvider.notifier).state = null;
 
     if (mounted) {
       // Use popUntil to ensure we go all the way back to the main screen, 
