@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../models/subtask.dart';
+import '../models/ai_persona.dart';
 import 'ai_service.dart';
 import '../models/api_settings.dart';
 
 class ZhipuAIService implements AIService {
   final Uuid _uuid = const Uuid();
   final ApiSettings settings;
+  final AIPersona persona;
 
-  ZhipuAIService(this.settings);
+  ZhipuAIService(this.settings, {this.persona = AIPersona.balanced});
 
   @override
   Future<List<SubTask>> decomposeTask(String taskTitle, Duration totalDuration) async {
@@ -97,12 +99,22 @@ class ZhipuAIService implements AIService {
       maxSteps = 12;
     }
     
+    // Apply persona adjustments to step count
+    final stepAdjust = persona.stepCountAdjustment;
+    minSteps = (minSteps + stepAdjust.$1).clamp(2, 15);
+    maxSteps = (maxSteps + stepAdjust.$2).clamp(minSteps, 15);
+    
+    // Get persona-specific prompt description
+    final personaPrompt = persona.aiPromptDescription;
+    
     return '''
 你是一个专业的任务规划助手。
 
 【任务信息】
 任务标题: "$title"
 总时长: $minutes 分钟（必须精确分配）
+
+$personaPrompt
 
 【核心规则 - 必须严格遵守】
 
@@ -145,6 +157,7 @@ class ZhipuAIService implements AIService {
 现在请为任务 "$title" 生成子任务计划，总时长必须精确等于 $minutes 分钟。只输出JSON数组:
 ''';
   }
+
 
   /// Parse and validate AI response
   /// Returns null if format is invalid (triggers retry)
@@ -303,15 +316,30 @@ class ZhipuAIService implements AIService {
   }
   
   String _buildEstimatePrompt(String title) {
+    // Apply persona time multiplier to estimate range
+    final timeMultiplier = persona.timeMultiplier;
+    final minMinutes = (15 * timeMultiplier).round();
+    final maxMinutes = (180 * timeMultiplier).round().clamp(minMinutes, 240);
+    
+    // Calculate step count based on persona
+    final stepAdjust = persona.stepCountAdjustment;
+    final minSteps = (2 + stepAdjust.$1).clamp(2, 15);
+    final maxSteps = (8 + stepAdjust.$2).clamp(minSteps, 15);
+    
+    // Get persona-specific prompt description
+    final personaPrompt = persona.aiPromptDescription;
+    
     return '''
 你是一个专业的任务规划助手。
 
 【任务】
 用户想要完成: "$title"
 
+$personaPrompt
+
 【你的任务】
-1. 根据任务标题，估算完成这个任务合理需要多少分钟（必须是5的倍数，最少15分钟，最多180分钟）
-2. 将任务拆分为2-8个具体的子步骤，每个步骤分配合理的时间
+1. 根据任务标题和用户的时间风格偏好，估算完成这个任务合理需要多少分钟（必须是5的倍数，最少${minMinutes}分钟，最多${maxMinutes}分钟）
+2. 将任务拆分为$minSteps-$maxSteps个具体的子步骤，每个步骤分配合理的时间
 3. 所有子步骤时间之和必须等于你估算的总时长
 
 【语言规则】

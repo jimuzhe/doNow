@@ -55,13 +55,16 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     // Dynamic height with keyboard support
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SingleChildScrollView(
           child: Column(
@@ -73,7 +76,10 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                   margin: const EdgeInsets.only(top: 12, bottom: 4),
                   width: 40, 
                   height: 4, 
-                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[600] : Colors.grey[300], 
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                  ),
               ),
       
@@ -87,8 +93,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                   );
                 },
                 child: _currentStep == 0 
-                  ? _buildStep1() 
-                  : _buildStep2(),
+                  ? _buildStep1(isDark) 
+                  : _buildStep2(isDark),
               ),
             ],
           ),
@@ -101,7 +107,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     return AppStrings.get(key, ref.read(localeProvider));
   }
 
-  Widget _buildStep1() {
+  Widget _buildStep1(bool isDark) {
     return Padding(
       key: const ValueKey<int>(0),
       padding: const EdgeInsets.all(24.0),
@@ -109,16 +115,16 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(t('step_1'), style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(t('step_1'), style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          Text(t('what_to_do'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(t('what_to_do'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
           TextField(
             controller: _titleController,
-            style: const TextStyle(fontSize: 20),
-            decoration: const InputDecoration(
+            style: TextStyle(fontSize: 20, color: isDark ? Colors.white : Colors.black),
+            decoration: InputDecoration(
               hintText: "...",
               border: InputBorder.none,
-              hintStyle: TextStyle(color: Colors.black26),
+              hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.black26),
             ),
             autofocus: true,
             onChanged: (_) {
@@ -137,13 +143,13 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           Row(
             children: [
               Expanded(
-                child: Text(t('how_long'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                child: Text(t('how_long'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
               ),
               // AI Estimate Button
               TextButton.icon(
                 onPressed: _isAIEstimating ? null : _onAIEstimate,
                 icon: _isAIEstimating 
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white : null))
                     : const Icon(Icons.auto_awesome, size: 16),
                 label: Text(_isAIEstimating ? t('estimating') : t('ai_estimate')),
                 style: TextButton.styleFrom(
@@ -200,10 +206,10 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
             child: ElevatedButton(
               onPressed: _goToStep2,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
+                backgroundColor: isDark ? Colors.white : Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: Text(t('next'), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+              child: Text(t('next'), style: TextStyle(color: isDark ? Colors.black : Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -263,7 +269,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     }
   }
 
-  Widget _buildStep2() {
+  Widget _buildStep2(bool isDark) {
     return Padding(
       key: const ValueKey<int>(1),
       padding: const EdgeInsets.all(24.0),
@@ -271,9 +277,9 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(t('step_2'), style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(t('step_2'), style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          Text(t('when_to_start'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(t('when_to_start'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
           
           SizedBox(
             height: 120,
@@ -282,7 +288,6 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               initialDateTime: _selectedTime,
               use24hFormat: true,
               onDateTimeChanged: (val) {
-                // HapticFeedback.selectionClick();
                 setState(() => _selectedTime = val);
               },
             ),
@@ -291,7 +296,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           const SizedBox(height: 24),
           
           // Repeat Chips (Multi-select 1-7)
-          Text(t('repeat'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(t('repeat'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -302,7 +307,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                final isSelected = _selectedDays.contains(dayNum);
                return _DayChip(
                  label: t('day_$dayNum'), 
-                 selected: isSelected, 
+                 selected: isSelected,
+                 isDark: isDark,
                  onTap: () {
                    setState(() {
                      if (isSelected) {
@@ -321,7 +327,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                padding: const EdgeInsets.only(top: 8.0),
                child: Text(
                  t('daily'), // Simplify logic
-                 style: const TextStyle(color: Colors.grey, fontSize: 12),
+                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
                ),
              ),
 
@@ -334,8 +340,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                  child: OutlinedButton(
                    onPressed: () => _finish(now: true),
                    style: OutlinedButton.styleFrom(
-                     foregroundColor: Colors.black,
-                     side: const BorderSide(color: Colors.black),
+                     foregroundColor: isDark ? Colors.white : Colors.black,
+                     side: BorderSide(color: isDark ? Colors.white : Colors.black),
                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                      minimumSize: const Size(0, 50),
                    ),
@@ -348,11 +354,11 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                  child: ElevatedButton(
                    onPressed: () => _finish(now: false),
                    style: ElevatedButton.styleFrom(
-                     backgroundColor: Colors.black,
+                     backgroundColor: isDark ? Colors.white : Colors.black,
                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                      minimumSize: const Size(0, 50),
                    ),
-                   child: Text(t('save'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                   child: Text(t('save'), style: TextStyle(color: isDark ? Colors.black : Colors.white, fontWeight: FontWeight.bold)),
                  ),
                ),
             ],
@@ -360,7 +366,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           Center(
             child: TextButton(
                onPressed: () => setState(() => _currentStep = 0),
-               child: Text(t('back'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+               child: Text(t('back'), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
             ),
           ),
         ],
@@ -601,9 +607,10 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
 class _DayChip extends StatelessWidget {
   final String label;
   final bool selected;
+  final bool isDark;
   final VoidCallback onTap;
 
-  const _DayChip({required this.label, required this.selected, required this.onTap});
+  const _DayChip({required this.label, required this.selected, required this.isDark, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -614,13 +621,17 @@ class _DayChip extends StatelessWidget {
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? Colors.black : Colors.grey[100],
+          color: selected 
+              ? (isDark ? Colors.white : Colors.black) 
+              : (isDark ? Colors.grey[800] : Colors.grey[100]),
           shape: BoxShape.circle,
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.black,
+            color: selected 
+                ? (isDark ? Colors.black : Colors.white) 
+                : (isDark ? Colors.white : Colors.black),
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),

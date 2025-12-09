@@ -12,6 +12,7 @@ class StorageService {
   static const String _localeKey = 'locale';
   static const String _themeModeKey = 'theme_mode';
   static const String _vibrationIntensityKey = 'vibration_intensity';
+  static const String _aiPersonaKey = 'ai_persona';
 
   SharedPreferences? _prefs;
 
@@ -126,6 +127,18 @@ class StorageService {
   /// Load vibration intensity from storage (default: 1.0)
   double loadVibrationIntensity() {
     return prefs.getDouble(_vibrationIntensityKey) ?? 1.0;
+  }
+
+  // ============== AI PERSONA ==============
+
+  /// Save AI persona to storage
+  Future<void> saveAIPersona(String personaName) async {
+    await prefs.setString(_aiPersonaKey, personaName);
+  }
+
+  /// Load AI persona from storage (default: 'balanced')
+  String loadAIPersona() {
+    return prefs.getString(_aiPersonaKey) ?? 'balanced';
   }
 
   // ============== CLEAR ALL ==============

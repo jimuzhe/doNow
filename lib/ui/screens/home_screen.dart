@@ -239,8 +239,8 @@ class _SlidableTaskCard extends ConsumerWidget {
                   const SnackBar(content: Text('Task deleted')),
                 );
               },
-              backgroundColor: Colors.red[50]!,
-              foregroundColor: Colors.red,
+              backgroundColor: isDark ? Colors.red.shade900 : Colors.red[50]!,
+              foregroundColor: isDark ? Colors.red.shade300 : Colors.red,
               icon: Icons.delete_outline,
               label: t('slide_drop'),
               borderRadius: const BorderRadius.horizontal(right: Radius.circular(16)),

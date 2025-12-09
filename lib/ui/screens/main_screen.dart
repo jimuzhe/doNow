@@ -31,7 +31,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // We don't really need locale here for icons-only nav
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -45,13 +47,13 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: _onTabTapped,
-          backgroundColor: Colors.white,
+          backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           elevation: 0, // Flat
           type: BottomNavigationBarType.fixed,
           showSelectedLabels: false,
           showUnselectedLabels: false,
-          selectedItemColor: Colors.black,
-          unselectedItemColor: Colors.grey[400],
+          selectedItemColor: isDark ? Colors.white : Colors.black,
+          unselectedItemColor: Colors.grey[500],
           iconSize: 28,
           items: const [
             BottomNavigationBarItem(

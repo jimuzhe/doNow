@@ -145,6 +145,14 @@ class AppStrings {
       'data_cleared': 'All data has been cleared',
       'confirm_clear': 'Clear All',
       'security_error': 'Sorry, your content contains sensitive keywords, please edit and try again.',
+      // AI Persona
+      'ai_persona': 'AI Persona',
+      'persona_rushed': 'Rushed',
+      'persona_rushed_desc': 'Shorter time estimates, faster completion',
+      'persona_balanced': 'Balanced',
+      'persona_balanced_desc': 'Standard time estimates',
+      'persona_relaxed': 'Relaxed',
+      'persona_relaxed_desc': 'More buffer time, detailed steps',
     },
     'zh': {
       'home': '首页',
@@ -258,6 +266,14 @@ class AppStrings {
       'data_cleared': '所有数据已清除',
       'confirm_clear': '确认清除',
       'security_error': '抱歉，您所输入的内容含有违规信息，请重新编辑后再发送',
+      // AI Persona
+      'ai_persona': 'AI 角色',
+      'persona_rushed': '匆忙型',
+      'persona_rushed_desc': '估时更短，更快完成任务',
+      'persona_balanced': '平衡型',
+      'persona_balanced_desc': '标准时间估算',
+      'persona_relaxed': '从容型',
+      'persona_relaxed_desc': '更多缓冲时间，步骤更详细',
     }
   };
 
