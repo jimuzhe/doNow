@@ -373,24 +373,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
            final dir = await getTemporaryDirectory();
            final outputPath = '${dir.path}/mirrored_${DateTime.now().millisecondsSinceEpoch}.mp4';
            
-           // Default encoder with hflip. Removing ultrafast as it requires libx264 which might be missing in LGPL.
+           // Default encoder with hflip
            final command = '-y -i "${video.path}" -vf hflip -c:a copy "$outputPath"';
            
-           await FFmpegKit.execute(command).then((session) async {
-             final returnCode = await session.getReturnCode();
-             if (ReturnCode.isSuccess(returnCode)) {
-               finalPath = outputPath;
-               mirroredFlag = false; // File is now mirrored, no UI flip needed
-             } else {
-               final logs = await session.getLogsAsString();
-               debugPrint('FFmpeg mirroring failed. RC: $returnCode, Logs: $logs');
-               if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Video mirror failed (RC: $returnCode). Using fallback.'), duration: const Duration(seconds: 2))
-                  );
-               }
+           debugPrint('FFmpeg command: $command');
+           
+           final session = await FFmpegKit.execute(command);
+           final returnCode = await session.getReturnCode();
+           
+           if (ReturnCode.isSuccess(returnCode)) {
+             finalPath = outputPath;
+             mirroredFlag = false; // File is now mirrored, no UI flip needed
+             debugPrint('FFmpeg mirroring succeeded: $finalPath');
+           } else {
+             final logs = await session.getLogsAsString();
+             debugPrint('FFmpeg mirroring failed. RC: $returnCode, Logs: $logs');
+             if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Video mirror failed (RC: $returnCode). Using fallback.'), duration: const Duration(seconds: 2))
+                );
              }
-           });
+           }
          } catch (e) {
            debugPrint('Error mirroring video: $e');
          }
