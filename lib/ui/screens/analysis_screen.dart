@@ -1135,12 +1135,14 @@ class _TimelineItemWithLine extends StatelessWidget {
 
   void _showMediaViewer(BuildContext context, Task task) {
     if (task.journalVideoPath != null) {
-      // Show video player dialog - video still needs mirroring (file not processed)
-      showDialog(
-        context: context,
-        builder: (context) => VideoPlayerDialog(
-          videoPath: task.journalVideoPath!,
-          isMirrored: task.journalMediaMirrored,
+      // Show video player as full screen page
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => VideoPlayerDialog(
+            videoPath: task.journalVideoPath!,
+            isMirrored: task.journalMediaMirrored,
+          ),
         ),
       );
     } else if (task.journalImagePath != null) {

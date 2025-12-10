@@ -81,7 +81,7 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
             if (_isInitialized)
               SizedBox.expand(
                 child: FittedBox(
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain, // Maintain aspect ratio, show full video
                   child: SizedBox(
                     width: _controller.value.size.width,
                     height: _controller.value.size.height,

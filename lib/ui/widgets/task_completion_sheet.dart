@@ -19,11 +19,13 @@ import 'package:path_provider/path_provider.dart';
 class TaskCompletionSheet extends ConsumerStatefulWidget {
   final Task task;
   final Duration actualDuration;
+  final bool playSound;
 
   const TaskCompletionSheet({
     super.key,
     required this.task,
     required this.actualDuration,
+    this.playSound = true,
   });
 
   @override
@@ -66,7 +68,9 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
     // Play sound and start animation
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(soundEffectServiceProvider).playSuccess();
+      if (widget.playSound) {
+        ref.read(soundEffectServiceProvider).playSuccess();
+      }
       _checkAnimController.forward();
       
       // Auto-fetch location by default
