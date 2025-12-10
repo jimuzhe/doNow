@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -25,7 +26,16 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🎬 VideoPlayerDialog init - isMirrored: ${widget.isMirrored}');
     _initializeVideo();
+    
+    // Show debug info after frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        // We can't use ref.read here since this is not a ConsumerWidget
+        // So only show debugPrint, not SnackBar
+      }
+    });
   }
 
   Future<void> _initializeVideo() async {
@@ -85,10 +95,12 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
                   child: SizedBox(
                     width: _controller.value.size.width,
                     height: _controller.value.size.height,
-                    child: Transform.flip(
-                      flipX: widget.isMirrored,
-                      child: VideoPlayer(_controller),
-                    ),
+                    // TEMPORARY: Always mirror to test if Transform works
+                    child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()..scale(widget.isMirrored ? -1.0 : 1.0, 1.0, 1.0),
+                        child: VideoPlayer(_controller),
+                      ),
                   ),
                 ),
               )

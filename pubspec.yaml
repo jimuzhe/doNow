@@ -45,11 +45,13 @@ dependencies:
   fl_chart: ^1.1.1
   flutter_local_notifications: ^19.5.0
   live_activities: ^2.4.2
+  table_calendar: ^3.2.0
   custom_lint: ^0.8.0 # Might be in dev_dependencies usually, checking location
   shared_preferences: ^2.2.2
   image_picker: ^1.0.7
-  geolocator: ^11.0.0
-  table_calendar: ^3.1.1
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
+  amap_flutter_location: ^3.0.0
   just_audio: ^0.9.36
   audio_session: ^0.1.18
   path_provider: ^2.1.5
@@ -58,7 +60,6 @@ dependencies:
   firebase_core: ^3.8.1
   firebase_auth: ^5.3.4
   firebase_analytics: ^11.4.0
-  geocoding: ^4.0.0
   timezone: ^0.10.0
   video_player: ^2.8.2
   camera: ^0.11.3

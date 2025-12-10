@@ -17,6 +17,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "1.3.59"
+  amap_flutter_location:
+    dependency: "direct main"
+    description:
+      name: amap_flutter_location
+      sha256: f35ff00e196d579608e0bc28ccbc1f6f53787644702f947de941f775769cc701
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "3.0.0"
   analyzer:
     dependency: transitive
     description:
@@ -585,18 +593,18 @@ packages:
     dependency: "direct main"
     description:
       name: geocoding
-      sha256: "606be036287842d779d7ec4e2f6c9435fc29bbbd3c6da6589710f981d8852895"
+      sha256: d580c801cba9386b4fac5047c4c785a4e19554f46be42f4f5e5b7deacd088a66
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "4.0.0"
+    version: "3.0.0"
   geocoding_android:
     dependency: transitive
     description:
       name: geocoding_android
-      sha256: ba810da90d6633cbb82bbab630e5b4a3b7d23503263c00ae7f1ef0316dcae5b9
+      sha256: "1b13eca79b11c497c434678fed109c2be020b158cec7512c848c102bc7232603"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "4.0.1"
+    version: "3.3.1"
   geocoding_ios:
     dependency: transitive
     description:
@@ -617,10 +625,10 @@ packages:
     dependency: "direct main"
     description:
       name: geolocator
-      sha256: "6cb9fb6e5928b58b9a84bdf85012d757fd07aab8215c5205337021c4999bad27"
+      sha256: "149876cc5207a0f5daf4fdd3bfcf0a0f27258b3fe95108fa084f527ad0568f1b"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "11.1.0"
+    version: "12.0.0"
   geolocator_android:
     dependency: transitive
     description:
@@ -649,10 +657,10 @@ packages:
     dependency: transitive
     description:
       name: geolocator_web
-      sha256: "49d8f846ebeb5e2b6641fe477a7e97e5dd73f03cbfef3fd5c42177b7300fb0ed"
+      sha256: b1ae9bdfd90f861fde8fd4f209c37b953d65e92823cb73c7dee1fa021b06f172
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "3.0.0"
+    version: "4.1.3"
   geolocator_windows:
     dependency: transitive
     description:
