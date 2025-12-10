@@ -52,7 +52,7 @@ jobs:
 
       - name: Generate App Icons
         run: |
-          sed -i '' 's/ios: false/ios: true/' pubspec.yaml || sed -i 's/ios: false/ios: true/' pubspec.yaml
+          sed -i '' 's/ios: false/ios: true/' pubspec.yaml || true
           dart run flutter_launcher_icons || true
 
       - name: Pod Install
@@ -61,49 +61,115 @@ jobs:
           pod install --repo-update
           cd ..
 
-      - name: Build iOS with Flutter
+      - name: Build Flutter Assets
         run: |
           # Set FLUTTER_ROOT environment variable
           export FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
           echo "FLUTTER_ROOT: $FLUTTER_ROOT"
           
-          # Build with ad-hoc signing
-          # We use --release but allow signing issues (it might complain about profiles)
+          # Only build Flutter assets, don't try to build the full iOS app
           flutter build ios --release --no-codesign 2>&1 || true
+
+      - name: Build with Xcodebuild (Ad-hoc Signing)
+        run: |
+          export FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
+          echo "FLUTTER_ROOT: $FLUTTER_ROOT"
           
-          # Manually sign the frameworks if needed (Flutter tool might skip this with --no-codesign)
-          # But xcodebuild with CODE_SIGN_IDENTITY="-" should handle it if project.yml is set right
+          cd ios
           
-          # The app using ad-hoc signing should be in build/ios/Release-iphoneos/Runner.app
-          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
-            echo "✅ App built successfully at build/ios/Release-iphoneos/Runner.app"
-            mkdir -p build/ios/iphoneos
-            cp -r build/ios/Release-iphoneos/Runner.app build/ios/iphoneos/
-            
-            APP_PATH="build/ios/iphoneos/Runner.app"
-            WIDGET_PATH="$APP_PATH/PlugIns/DoNowWidget.appex"
-            
-            # Manually sign the Widget Extension first
-            if [ -d "$WIDGET_PATH" ]; then
-              echo "✍️ Manually signing DoNowWidget..."
-              codesign -f -s - --entitlements ios/DoNowWidget/DoNowWidget.entitlements "$WIDGET_PATH"
-            fi
-            
-            # Manually sign the Main App
-            echo "✍️ Manually signing Runner.app..."
-            codesign -f -s - --entitlements ios/Runner/Runner.entitlements "$APP_PATH"
-            
-            # Verify entitlements
-            echo "Verifying entitlements..."
-            codesign -d --entitlements :- "$APP_PATH" || echo "⚠️ Could not read entitlements"
-            
-          elif [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "✅ App found at build/ios/iphoneos/Runner.app"
+          # Build using xcodebuild with ad-hoc signing
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Runner.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            FLUTTER_ROOT="$FLUTTER_ROOT" \
+            clean archive 2>&1 | tee xcodebuild.log || true
+          
+          cd ..
+
+      - name: Locate and Prepare App Bundle
+        run: |
+          echo "🔍 Searching for built app..."
+          
+          # Check archive first
+          if [ -d "ios/build/Runner.xcarchive/Products/Applications/Runner.app" ]; then
+            echo "✅ Found app in archive"
+            APP_SOURCE="ios/build/Runner.xcarchive/Products/Applications/Runner.app"
+          elif [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
+            echo "✅ Found app in Flutter build directory"
+            APP_SOURCE="build/ios/Release-iphoneos/Runner.app"
+          elif [ -d "ios/build/Release-iphoneos/Runner.app" ]; then
+            echo "✅ Found app in iOS build directory"
+            APP_SOURCE="ios/build/Release-iphoneos/Runner.app"
           else
-            echo "❌ App not found in expected locations"
-            find build -name "*.app" -type d 2>/dev/null || true
+            echo "🔍 Searching all build directories..."
+            find . -name "Runner.app" -type d 2>/dev/null
+            
+            # Try to find any Runner.app
+            APP_SOURCE=$(find . -name "Runner.app" -type d 2>/dev/null | grep -v "Pods" | head -1)
+            
+            if [ -z "$APP_SOURCE" ]; then
+              echo "❌ Could not find Runner.app"
+              echo "📋 Build log:"
+              cat ios/xcodebuild.log || true
+              exit 1
+            fi
+            echo "✅ Found app at: $APP_SOURCE"
+          fi
+          
+          # Prepare output directory
+          mkdir -p build/ios/iphoneos
+          cp -r "$APP_SOURCE" build/ios/iphoneos/Runner.app
+          
+          echo "✅ App copied to build/ios/iphoneos/Runner.app"
+
+      - name: Sign App for TrollStore
+        run: |
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          
+          # Check if app bundle is valid
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "❌ Invalid app bundle - Info.plist not found"
+            ls -la "$APP_PATH" || true
             exit 1
           fi
+          
+          echo "📱 App bundle contents:"
+          ls -la "$APP_PATH"
+          
+          # Sign all frameworks first
+          if [ -d "$APP_PATH/Frameworks" ]; then
+            echo "✍️ Signing frameworks..."
+            find "$APP_PATH/Frameworks" -name "*.framework" -o -name "*.dylib" | while read framework; do
+              codesign -f -s - "$framework" 2>/dev/null || true
+            done
+          fi
+          
+          # Sign Widget Extension
+          WIDGET_PATH="$APP_PATH/PlugIns/DoNowWidget.appex"
+          if [ -d "$WIDGET_PATH" ]; then
+            echo "✍️ Signing DoNowWidget extension..."
+            codesign -f -s - --entitlements ios/DoNowWidget/DoNowWidget.entitlements "$WIDGET_PATH"
+          fi
+          
+          # Sign Main App
+          echo "✍️ Signing Runner.app..."
+          codesign -f -s - --entitlements ios/Runner/Runner.entitlements "$APP_PATH"
+          
+          # Verify signing
+          echo "✅ Verifying signature..."
+          codesign -vv "$APP_PATH" || echo "⚠️ Signature verification had warnings (normal for ad-hoc)"
+          
+          echo "📋 Entitlements:"
+          codesign -d --entitlements :- "$APP_PATH" 2>/dev/null || echo "Could not display entitlements"
 
       - name: Package IPA
         run: |
@@ -113,6 +179,9 @@ jobs:
           zip -r DoNow_TrollStore.ipa Payload
           echo "📦 IPA created:"
           ls -la DoNow_TrollStore.ipa
+          
+          # Calculate checksum
+          shasum -a 256 DoNow_TrollStore.ipa
           cd ../../..
 
       - name: Upload IPA
@@ -120,3 +189,10 @@ jobs:
         with:
           name: DoNow_TrollStore_IPA
           path: build/ios/iphoneos/DoNow_TrollStore.ipa
+          
+      - name: Upload Build Log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios/xcodebuild.log
