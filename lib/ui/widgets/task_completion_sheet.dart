@@ -226,6 +226,9 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       final path = result['path'];
       final type = result['type'];
       final thumbnail = result['thumbnail']; // Pre-generated thumbnail from camera
+      final mirrored = result['mirrored'] ?? false;
+      
+      debugPrint('📸 Received from camera - type: $type, mirrored: $mirrored');
       
       if (path != null) {
         setState(() {
@@ -233,13 +236,15 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
             _videoPath = path;
             // Use pre-generated thumbnail if available
             _imagePath = thumbnail;
-            _isMirrored = result['mirrored'] ?? false;
+            _isMirrored = mirrored;
           } else {
             _imagePath = path;
             _videoPath = null;
-            _isMirrored = result['mirrored'] ?? false;
+            _isMirrored = mirrored;
           }
         });
+        
+        debugPrint('📸 Set _isMirrored = $mirrored');
         
         // Only generate thumbnail if not provided (fallback)
         if (type == 'video' && thumbnail == null) {
@@ -422,6 +427,8 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
   void _onSaveWithRecord() {
     HapticHelper(ref).heavyImpact();
+    
+    debugPrint('💾 Saving task - videoPath: $_videoPath, isMirrored: $_isMirrored');
     
     final repo = ref.read(taskRepositoryProvider);
     final completedTask = widget.task.copyWith(

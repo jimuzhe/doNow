@@ -196,3 +196,6 @@ class AIPersonaNotifier extends StateNotifier<AIPersona> {
   }
 }
 
+// Debug Log Provider - for showing debug logs on screen (not persisted)
+final debugLogEnabledProvider = StateProvider<bool>((ref) => false);
+

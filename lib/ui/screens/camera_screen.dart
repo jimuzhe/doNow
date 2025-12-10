@@ -365,6 +365,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       // For front camera videos, we use UI-level mirroring during playback
       // (FFmpegKit library has been retired, so physical mirroring is not available)
       bool mirroredFlag = _isFrontCamera;
+      
+      debugPrint('📹 Video recorded - isFrontCamera: $_isFrontCamera, mirroredFlag: $mirroredFlag');
+      if (mounted && ref.read(debugLogEnabledProvider)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('📹 Video: isFrontCamera=$_isFrontCamera, mirrored=$mirroredFlag'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
 
       // Generate video thumbnail (from the FINAL path)
       try {
@@ -385,9 +395,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           _capturedPath = finalPath;
           _isVideo = true;
           _videoThumbnailPath = thumbnailPath;
-          _isVideoMirrored = mirroredFlag; 
+          _isVideoMirrored = mirroredFlag;
           _isProcessingVideo = false;
         });
+        debugPrint('📹 Set _isVideoMirrored = $mirroredFlag');
       }
     } catch (e) {
       debugPrint('Error stopping video: $e');
@@ -409,6 +420,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   void _confirm() {
     if (_capturedPath != null) {
+      debugPrint('✅ Confirming - path: $_capturedPath, isVideo: $_isVideo, mirrored: $_isVideoMirrored');
+      if (ref.read(debugLogEnabledProvider)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Confirm: mirrored=$_isVideoMirrored'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
       Navigator.pop(context, {
         'path': _capturedPath, 
         'type': _isVideo ? 'video' : 'photo',

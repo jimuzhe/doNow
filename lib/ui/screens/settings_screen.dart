@@ -199,13 +199,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 
                 // AI Configuration - only show if developer mode enabled
-                if (_showAIConfig)
+                if (_showAIConfig) ...[
                   _SettingsTile(
                     icon: Icons.psychology_outlined,
                     title: "AI Configuration",
                     trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
                     onTap: () => _showAiConfigModal(context, ref),
                   ),
+                  
+                  const Divider(height: 32),
+                  
+                  // Debug Log Toggle
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final debugEnabled = ref.watch(debugLogEnabledProvider);
+                      return _SettingsTile(
+                        icon: Icons.bug_report,
+                        title: "Debug Logs",
+                        trailing: Switch(
+                          value: debugEnabled,
+                          onChanged: (value) {
+                            ref.read(debugLogEnabledProvider.notifier).state = value;
+                            HapticHelper(ref).selectionClick();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(value ? 'Debug logs enabled' : 'Debug logs disabled'),
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  const Divider(height: 32),
+                ],
 
                 _SettingsTile(
                   icon: Icons.info_outline,

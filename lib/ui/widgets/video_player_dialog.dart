@@ -25,6 +25,7 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🎬 VideoPlayerDialog init - isMirrored: ${widget.isMirrored}');
     _initializeVideo();
   }
 
@@ -79,14 +80,14 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
           children: [
             // Video Layer
             if (_isInitialized)
-              SizedBox.expand(
-                child: FittedBox(
-                  fit: BoxFit.contain, // Maintain aspect ratio, show full video
-                  child: SizedBox(
-                    width: _controller.value.size.width,
-                    height: _controller.value.size.height,
-                    child: Transform.flip(
-                      flipX: widget.isMirrored,
+              Transform.flip(
+                flipX: widget.isMirrored,
+                child: SizedBox.expand(
+                  child: FittedBox(
+                    fit: BoxFit.contain, // Maintain aspect ratio, show full video
+                    child: SizedBox(
+                      width: _controller.value.size.width,
+                      height: _controller.value.size.height,
                       child: VideoPlayer(_controller),
                     ),
                   ),
