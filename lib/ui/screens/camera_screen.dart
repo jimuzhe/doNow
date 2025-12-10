@@ -14,8 +14,8 @@ import 'package:do_now/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 import 'package:image/image.dart' as img;
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter/return_code.dart';
+import 'package:ffmpeg_kit_flutter_full/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_full/return_code.dart';
 import '../widgets/video_player_dialog.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {

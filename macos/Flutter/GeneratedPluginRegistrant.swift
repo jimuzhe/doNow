@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import audio_session
-import ffmpeg_kit_flutter
+import ffmpeg_kit_flutter_full
 import file_selector_macos
 import firebase_analytics
 import firebase_auth
