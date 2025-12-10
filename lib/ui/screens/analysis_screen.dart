@@ -977,6 +977,7 @@ class _TaskTimelineItem extends StatelessWidget {
                         ),
                         // Image thumbnail (aligned with title)
                         if (task.journalImagePath != null)
+                          // Thumbnail is already mirrored during camera capture
                           Container(
                             height: 48,
                             width: 48,
@@ -1131,13 +1132,16 @@ class _TimelineItemWithLine extends StatelessWidget {
 
   void _showMediaViewer(BuildContext context, Task task) {
     if (task.journalVideoPath != null) {
-      // Show video player dialog
+      // Show video player dialog - video still needs mirroring (file not processed)
       showDialog(
         context: context,
-        builder: (context) => VideoPlayerDialog(videoPath: task.journalVideoPath!),
+        builder: (context) => VideoPlayerDialog(
+          videoPath: task.journalVideoPath!,
+          isMirrored: task.journalMediaMirrored,
+        ),
       );
     } else if (task.journalImagePath != null) {
-      // Show image viewer
+      // Image is already mirrored during camera capture, display directly
       showDialog(
         context: context,
         barrierColor: Colors.black87,
@@ -1348,6 +1352,7 @@ class _TimelineItemWithLine extends StatelessWidget {
                     if (task.journalImagePath != null || task.journalVideoPath != null)
                       GestureDetector(
                         onTap: () => _showMediaViewer(context, task),
+                        // Thumbnail is already mirrored during camera capture
                         child: Container(
                           height: 50,
                           width: 50,

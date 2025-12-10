@@ -426,6 +426,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       journalVideoPath: _videoPath,
       journalLocation: _location,
       journalNote: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
+      journalMediaMirrored: _isMirrored, // Save mirror flag for front camera media
     );
     repo.updateTask(completedTask);
     
@@ -610,18 +611,12 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Thumbnail or loading indicator or web placeholder
-                      // For video thumbnails: apply mirror to match video playback
-                      // For photos: iOS auto-mirrors saved photos, so no flip needed
+                      // Photo and thumbnail are already mirrored during camera capture
                       if (_imagePath != null)
                         Positioned.fill(
-                          child: Transform.flip(
-                            // Only mirror video thumbnails (when _videoPath is set), not photos
-                            flipX: _videoPath != null && _isMirrored,
-                            child: kIsWeb
-                                ? Image.network(_imagePath!, fit: BoxFit.cover)
-                                : Image.file(File(_imagePath!), fit: BoxFit.cover),
-                          ),
+                          child: kIsWeb
+                              ? Image.network(_imagePath!, fit: BoxFit.cover)
+                              : Image.file(File(_imagePath!), fit: BoxFit.cover),
                         )
                       else if (_isGeneratingThumbnail)
                         const Center(
