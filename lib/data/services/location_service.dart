@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:amap_flutter_location/amap_flutter_location.dart';
-import 'package:amap_flutter_location/amap_location_option.dart';
+
+// Conditional import for Amap (Android only)
+import 'location_service_amap_stub.dart'
+    if (dart.library.io) 'location_service_amap.dart' as amap_impl;
 
 class LocationResult {
   final double latitude;
@@ -25,10 +27,6 @@ class LocationService {
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
   LocationService._internal();
-
-  // Amap instance
-  AmapFlutterLocation? _amapLocation;
-  StreamSubscription<Map<String, Object>>? _amapSubscription;
 
   /// Get current location
   /// On Android: Uses Amap SDK (requires API Key in AndroidManifest.xml)
@@ -62,76 +60,17 @@ class LocationService {
 
     // 2. Platform Specific Logic
     if (!kIsWeb && Platform.isAndroid) {
-      return _getAmapLocation();
+      final result = await amap_impl.getAmapLocation();
+      if (result != null) {
+        return LocationResult(
+          latitude: result['latitude'] as double,
+          longitude: result['longitude'] as double,
+          address: result['address'] as String?,
+        );
+      }
+      return null;
     } else {
       return _getSystemLocation();
-    }
-  }
-
-  /// Get location using Amap SDK (Android)
-  Future<LocationResult?> _getAmapLocation() async {
-    try {
-      // Required privacy agreement for Amap
-      AmapFlutterLocation.updatePrivacyShow(true, true);
-      AmapFlutterLocation.updatePrivacyAgree(true);
-      
-      _amapLocation ??= AmapFlutterLocation();
-      
-      final completer = Completer<LocationResult?>();
-      
-      // Configure options
-      final options = AMapLocationOption(
-        onceLocation: true,
-        needAddress: true,
-        geoLanguage: GeoLanguage.DEFAULT,
-        desiredLocationAccuracyAuthorizationMode: AMapLocationAccuracyAuthorizationMode.ReduceAccuracy,
-        locationInterval: 2000,
-      );
-      
-      _amapLocation!.setLocationOption(options);
-      
-      _amapSubscription?.cancel();
-      _amapSubscription = _amapLocation!.onLocationChanged().listen((Map<String, Object> result) {
-        // debugPrint('Amap Result: $result');
-        _amapSubscription?.cancel();
-        _amapLocation!.stopLocation();
-        
-        // Parse result
-        // Amap returns strings for lat/lng usually, or doubles. Handle both.
-        final lat = _parseDouble(result['latitude']);
-        final lng = _parseDouble(result['longitude']);
-        final address = result['address'] as String?;
-        final errorCode = result['errorCode'] as int? ?? 0;
-        final errorInfo = result['errorInfo'] as String?;
-        
-        if (errorCode != 0) {
-          debugPrint('Amap Error: $errorCode - $errorInfo');
-          completer.complete(null);
-          return;
-        }
-
-        if (lat != null && lng != null) {
-          completer.complete(LocationResult(
-            latitude: lat,
-            longitude: lng,
-            address: (address != null && address.isNotEmpty) ? address : null,
-          ));
-        } else {
-          completer.complete(null);
-        }
-      });
-
-      _amapLocation!.startLocation();
-      
-      return completer.future.timeout(const Duration(seconds: 10), onTimeout: () {
-        _amapLocation!.stopLocation();
-        _amapSubscription?.cancel();
-        return null;
-      });
-      
-    } catch (e) {
-      debugPrint('Error getting Amap location: $e');
-      return null;
     }
   }
 
@@ -191,16 +130,8 @@ class LocationService {
       return null;
     }
   }
-
-  double? _parseDouble(dynamic value) {
-    if (value is double) return value;
-    if (value is String) return double.tryParse(value);
-    return null;
-  }
   
   void dispose() {
-    _amapSubscription?.cancel();
-    _amapLocation?.stopLocation();
-    _amapLocation?.destroy();
+    amap_impl.disposeAmap();
   }
 }

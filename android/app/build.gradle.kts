@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.atomictask.do_now"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35  // Fixed to 35 for amap_flutter_location compatibility
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
