@@ -100,14 +100,27 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(t('analysis_title'), style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
         child: Column(
           children: [
+            // Header Title
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                child: Text(
+                  t('analysis_title'),
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.0,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+              ),
+            ),
+            
             // 1. Total Focus Time - Big Display
             _buildTotalFocusTime(focusHours, focusMinutes, t, isDark),
             
@@ -185,6 +198,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
       ),
     );
   }
