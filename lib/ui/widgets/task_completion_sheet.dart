@@ -229,6 +229,14 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       final mirrored = result['mirrored'] ?? false;
       
       debugPrint('📸 Received from camera - type: $type, mirrored: $mirrored');
+      if (ref.read(debugLogEnabledProvider)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('📸 Received: type=$type, mirrored=$mirrored'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
       
       if (path != null) {
         setState(() {
@@ -429,6 +437,14 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     HapticHelper(ref).heavyImpact();
     
     debugPrint('💾 Saving task - videoPath: $_videoPath, isMirrored: $_isMirrored');
+    if (ref.read(debugLogEnabledProvider)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('💾 Saving: $_videoPath != null ? "video" : "photo", mirrored=$_isMirrored'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     
     final repo = ref.read(taskRepositoryProvider);
     final completedTask = widget.task.copyWith(
