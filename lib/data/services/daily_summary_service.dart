@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import '../models/daily_summary.dart';
 import '../providers.dart';
+import '../localization.dart';
 
 // Provider
 final dailySummaryServiceProvider = Provider<DailySummaryService>((ref) {
@@ -86,7 +87,7 @@ class DailySummaryService {
   }
 
   // Schedule daily reminder notification at 8:00 AM
-  Future<void> scheduleDailyReminder({int hour = 8, int minute = 0}) async {
+  Future<void> scheduleDailyReminder({int hour = 8, int minute = 0, String locale = 'en'}) async {
     // Skip on web
     if (kIsWeb) return;
     
@@ -106,11 +107,15 @@ class DailySummaryService {
     
     final tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
     
+    // Localized notification text
+    final title = locale == 'zh' ? '📊 昨日总结已就绪' : '📊 Yesterday\'s Summary Ready';
+    final body = locale == 'zh' ? '查看你的表现，获取AI洞见！' : 'Check out your performance and get AI insights!';
+    
     // Android notification details
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'daily_summary_reminder',
-      'Daily Summary Reminder',
-      channelDescription: 'Reminds you to check yesterday\'s summary',
+      locale == 'zh' ? '每日总结提醒' : 'Daily Summary Reminder',
+      channelDescription: locale == 'zh' ? '提醒您查看昨日总结' : 'Reminds you to check yesterday\'s summary',
       importance: Importance.high,
       priority: Priority.defaultPriority,
       icon: '@mipmap/ic_launcher',
@@ -122,7 +127,7 @@ class DailySummaryService {
       presentSound: true,
     );
     
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -130,8 +135,8 @@ class DailySummaryService {
     try {
       await _notifications.zonedSchedule(
         100, // Notification ID
-        '📊 Yesterday\'s Summary Ready',
-        'Check out your performance and get AI insights!',
+        title,
+        body,
         tzScheduledTime,
         details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -169,8 +174,11 @@ class DailySummaryService {
 
   // Check if we need to generate summary for yesterday
   Future<void> checkAndGenerate(WidgetRef ref) async {
+    // Get current locale for notification text
+    final locale = ref.read(localeProvider);
+    
     // Schedule daily reminder (if not already scheduled)
-    scheduleDailyReminder();
+    scheduleDailyReminder(locale: locale);
 
     final now = DateTime.now();
     // Only generate after 8:00 AM per user request
