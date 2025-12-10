@@ -216,12 +216,16 @@ class TaskDetailDialog extends StatelessWidget {
                         GestureDetector(
                            onTap: () {
                              if (task.journalVideoPath != null) {
+                               // Video still needs mirroring (file not processed)
                                showDialog(
                                  context: context, 
-                                 builder: (_) => VideoPlayerDialog(videoPath: task.journalVideoPath!)
+                                 builder: (_) => VideoPlayerDialog(
+                                   videoPath: task.journalVideoPath!,
+                                   isMirrored: task.journalMediaMirrored,
+                                 )
                                );
                              } else if (task.journalImagePath != null) {
-                               // Simple image viewer
+                               // Image is already mirrored, display directly
                                showDialog(
                                  context: context,
                                  builder: (_) => Dialog(
@@ -236,6 +240,7 @@ class TaskDetailDialog extends StatelessWidget {
                                );
                              }
                            },
+                           // Thumbnail is already mirrored, display directly
                            child: Container(
                              height: 180,
                              width: double.infinity,

@@ -13,6 +13,7 @@ import 'package:do_now/data/localization.dart';
 import 'package:do_now/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
+import 'package:image/image.dart' as img;
 import '../widgets/video_player_dialog.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -284,11 +285,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
     try {
       final XFile image = await _controller!.takePicture();
+      String finalPath = image.path;
+      
+      // Mirror the photo for front camera so saved file matches what user saw
+      if (_isFrontCamera) {
+        final bytes = await File(image.path).readAsBytes();
+        final decodedImage = img.decodeImage(bytes);
+        if (decodedImage != null) {
+          // Flip horizontally
+          final flippedImage = img.flipHorizontal(decodedImage);
+          // Save to new file
+          final tempDir = await getTemporaryDirectory();
+          final mirroredPath = '${tempDir.path}/mirrored_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          await File(mirroredPath).writeAsBytes(img.encodeJpg(flippedImage, quality: 95));
+          finalPath = mirroredPath;
+        }
+      }
       
       setState(() {
-        _capturedPath = image.path;
+        _capturedPath = finalPath;
         _isVideo = false;
-        _isVideoMirrored = _isFrontCamera; // Reuse this flag for photos too
+        _isVideoMirrored = false; // Photo is already mirrored in file, no need for display flip
       });
     } catch (e) {
       debugPrint('Error taking picture: $e');
@@ -339,6 +356,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           maxHeight: 1920, // Full HD height
           quality: 85,
         );
+        
+        // Mirror thumbnail for front camera
+        if (_isFrontCamera && thumbnailPath != null) {
+          final bytes = await File(thumbnailPath).readAsBytes();
+          final decodedImage = img.decodeImage(bytes);
+          if (decodedImage != null) {
+            final flippedImage = img.flipHorizontal(decodedImage);
+            final tempDir = await getTemporaryDirectory();
+            final mirroredPath = '${tempDir.path}/mirrored_thumb_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            await File(mirroredPath).writeAsBytes(img.encodeJpg(flippedImage, quality: 90));
+            thumbnailPath = mirroredPath;
+          }
+        }
       } catch (e) {
         debugPrint('Thumbnail generation error: $e');
       }
@@ -348,7 +378,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         _capturedPath = video.path;
         _isVideo = true;
         _videoThumbnailPath = thumbnailPath;
-        _isVideoMirrored = _isFrontCamera; // Track if video needs mirroring on playback
+        _isVideoMirrored = _isFrontCamera; // Video still needs mirroring on playback
       });
     } catch (e) {
       debugPrint('Error stopping video: $e');
@@ -577,15 +607,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         fit: StackFit.expand,
         children: [
           if (_capturedPath != null)
-            // For photos: iOS auto-mirrors saved photos, so no flip needed
-            // For videos: File is not mirrored, so we need to flip thumbnail to match playback
+            // Photo and thumbnail are already mirrored during save, display directly
             _isVideo 
-              ? Transform.flip(
-                  flipX: _isVideoMirrored,
-                  child: _videoThumbnailPath != null
-                    ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
-                    : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)),
-                )
+              ? (_videoThumbnailPath != null
+                  ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
+                  : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
               : Image.file(File(_capturedPath!), fit: BoxFit.cover),
           
           // Video indicator overlay - tap to play

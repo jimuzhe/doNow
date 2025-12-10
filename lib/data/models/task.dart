@@ -17,6 +17,7 @@ class Task {
   final String? journalVideoPath;
   final String? journalLocation;
   final String? journalNote; // Text note 
+  final bool journalMediaMirrored; // True if media from front camera (needs mirror display)
 
   Task({
     required this.id,
@@ -35,6 +36,7 @@ class Task {
     this.journalVideoPath,
     this.journalLocation,
     this.journalNote,
+    this.journalMediaMirrored = false,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Task copyWith({
@@ -53,6 +55,7 @@ class Task {
     String? journalVideoPath,
     String? journalLocation,
     String? journalNote,
+    bool? journalMediaMirrored,
   }) {
     return Task(
       id: id ?? this.id,
@@ -71,6 +74,7 @@ class Task {
       journalVideoPath: journalVideoPath ?? this.journalVideoPath,
       journalLocation: journalLocation ?? this.journalLocation,
       journalNote: journalNote ?? this.journalNote,
+      journalMediaMirrored: journalMediaMirrored ?? this.journalMediaMirrored,
     );
   }
 
@@ -93,6 +97,7 @@ class Task {
       'journalVideoPath': journalVideoPath,
       'journalLocation': journalLocation,
       'journalNote': journalNote,
+      'journalMediaMirrored': journalMediaMirrored,
     };
   }
 
@@ -124,6 +129,7 @@ class Task {
       journalVideoPath: json['journalVideoPath'] as String?,
       journalLocation: json['journalLocation'] as String?,
       journalNote: json['journalNote'] as String?,
+      journalMediaMirrored: json['journalMediaMirrored'] as bool? ?? false,
     );
   }
 }
