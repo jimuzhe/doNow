@@ -80,13 +80,13 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
             // Video Layer
             if (_isInitialized)
               SizedBox.expand(
-                child: Transform.flip(
-                  flipX: widget.isMirrored,
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                      width: _controller.value.size.width,
-                      height: _controller.value.size.height,
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _controller.value.size.width,
+                    height: _controller.value.size.height,
+                    child: Transform.flip(
+                      flipX: widget.isMirrored,
                       child: VideoPlayer(_controller),
                     ),
                   ),
