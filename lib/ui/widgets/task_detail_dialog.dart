@@ -217,12 +217,14 @@ class TaskDetailDialog extends StatelessWidget {
                            onTap: () {
                              if (task.journalVideoPath != null) {
                                // Video still needs mirroring (file not processed)
-                               showDialog(
-                                 context: context, 
-                                 builder: (_) => VideoPlayerDialog(
-                                   videoPath: task.journalVideoPath!,
-                                   isMirrored: task.journalMediaMirrored,
-                                 )
+                               Navigator.of(context).push(
+                                 MaterialPageRoute(
+                                   fullscreenDialog: true,
+                                   builder: (_) => VideoPlayerDialog(
+                                     videoPath: task.journalVideoPath!,
+                                     isMirrored: task.journalMediaMirrored,
+                                   ),
+                                 ),
                                );
                              } else if (task.journalImagePath != null) {
                                // Image view with mirror support
