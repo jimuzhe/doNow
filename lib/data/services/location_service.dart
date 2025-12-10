@@ -1,12 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-
-// Conditional import for Amap (Android only)
-import 'location_service_amap_stub.dart'
-    if (dart.library.io) 'location_service_amap.dart' as amap_impl;
 
 class LocationResult {
   final double latitude;
@@ -27,6 +24,9 @@ class LocationService {
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
   LocationService._internal();
+
+  // Platform channel for Amap on Android
+  static const MethodChannel _amapChannel = MethodChannel('com.donow.app/amap_location');
 
   /// Get current location
   /// On Android: Uses Amap SDK (requires API Key in AndroidManifest.xml)
@@ -60,21 +60,52 @@ class LocationService {
 
     // 2. Platform Specific Logic
     if (!kIsWeb && Platform.isAndroid) {
-      final result = await amap_impl.getAmapLocation();
-      if (result != null) {
+      // Try Amap first on Android
+      final amapResult = await _getAmapLocation();
+      if (amapResult != null) {
+        return amapResult;
+      }
+      // Fallback to system location if Amap fails
+      debugPrint('Amap failed, falling back to system location');
+    }
+    
+    return _getSystemLocation();
+  }
+
+  /// Get location using Amap SDK via platform channel (Android only)
+  Future<LocationResult?> _getAmapLocation() async {
+    if (kIsWeb || !Platform.isAndroid) return null;
+
+    try {
+      final result = await _amapChannel.invokeMethod<Map<dynamic, dynamic>>('getLocation');
+      
+      if (result == null) {
+        debugPrint('Amap returned null');
+        return null;
+      }
+
+      final lat = result['latitude'] as double?;
+      final lng = result['longitude'] as double?;
+      final address = result['address'] as String?;
+
+      if (lat != null && lng != null) {
         return LocationResult(
-          latitude: result['latitude'] as double,
-          longitude: result['longitude'] as double,
-          address: result['address'] as String?,
+          latitude: lat,
+          longitude: lng,
+          address: address,
         );
       }
       return null;
-    } else {
-      return _getSystemLocation();
+    } on PlatformException catch (e) {
+      debugPrint('Amap platform error: ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('Error getting Amap location: $e');
+      return null;
     }
   }
 
-  /// Get location using Geolocator + Geocoding (iOS/Web)
+  /// Get location using Geolocator + Geocoding (iOS/Web/fallback)
   Future<LocationResult?> _getSystemLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition(
@@ -132,6 +163,10 @@ class LocationService {
   }
   
   void dispose() {
-    amap_impl.disposeAmap();
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        _amapChannel.invokeMethod('dispose');
+      } catch (_) {}
+    }
   }
 }

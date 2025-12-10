@@ -7,20 +7,33 @@ import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.amap.api.location.AMapLocation
+import com.amap.api.location.AMapLocationClient
+import com.amap.api.location.AMapLocationClientOption
+import com.amap.api.location.AMapLocationListener
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterActivity(), AMapLocationListener {
     
     companion object {
         const val CHANNEL = "com.donow.app/android_notification"
+        const val AMAP_CHANNEL = "com.donow.app/amap_location"
         const val TAG = "MainActivity"
     }
     
     private var methodChannel: MethodChannel? = null
+    private var amapChannel: MethodChannel? = null
+    private var locationClient: AMapLocationClient? = null
+    private var pendingLocationResult: MethodChannel.Result? = null
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
+        // Initialize Amap privacy agreement
+        AMapLocationClient.updatePrivacyShow(this, true, true)
+        AMapLocationClient.updatePrivacyAgree(this, true)
+        
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        amapChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, AMAP_CHANNEL)
         
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -55,6 +68,78 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        
+        // Amap location channel
+        amapChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getLocation" -> {
+                    getAmapLocation(result)
+                }
+                "dispose" -> {
+                    disposeLocationClient()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+    
+    private fun getAmapLocation(result: MethodChannel.Result) {
+        try {
+            if (locationClient == null) {
+                locationClient = AMapLocationClient(applicationContext)
+                locationClient?.setLocationListener(this)
+            }
+            
+            pendingLocationResult = result
+            
+            val option = AMapLocationClientOption()
+            option.locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
+            option.isOnceLocation = true
+            option.isNeedAddress = true
+            option.httpTimeOut = 10000
+            
+            locationClient?.setLocationOption(option)
+            locationClient?.startLocation()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Amap location error: ${e.message}")
+            result.error("AMAP_ERROR", e.message, null)
+        }
+    }
+    
+    override fun onLocationChanged(location: AMapLocation?) {
+        val result = pendingLocationResult
+        pendingLocationResult = null
+        
+        if (location == null) {
+            result?.success(null)
+            return
+        }
+        
+        if (location.errorCode != 0) {
+            Log.e(TAG, "Amap error: ${location.errorCode} - ${location.errorInfo}")
+            result?.success(null)
+            return
+        }
+        
+        val locationData = mapOf(
+            "latitude" to location.latitude,
+            "longitude" to location.longitude,
+            "address" to location.address,
+            "city" to location.city,
+            "district" to location.district,
+            "street" to location.street
+        )
+        
+        result?.success(locationData)
+        locationClient?.stopLocation()
+    }
+    
+    private fun disposeLocationClient() {
+        locationClient?.stopLocation()
+        locationClient?.onDestroy()
+        locationClient = null
     }
     
     override fun onResume() {
@@ -70,6 +155,11 @@ class MainActivity : FlutterActivity() {
         if (intent.getBooleanExtra("from_notification", false)) {
             checkAndNotifyPendingAction()
         }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        disposeLocationClient()
     }
     
     private fun startTaskService(taskTitle: String, currentStep: String, progress: Double, endTimeMillis: Long) {
@@ -132,3 +222,4 @@ class MainActivity : FlutterActivity() {
         }
     }
 }
+
