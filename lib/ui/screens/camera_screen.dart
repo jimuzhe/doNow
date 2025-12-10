@@ -373,20 +373,22 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
            final dir = await getTemporaryDirectory();
            final outputPath = '${dir.path}/mirrored_${DateTime.now().millisecondsSinceEpoch}.mp4';
            
-           // -vf hflip: Horizontal flip
-           // -c:a copy: Copy audio stream without re-encoding
-           // -c:v libx264: Re-encode video (needed for filter) - usually default but specified for safety
-           // -preset ultrafast: Fast encoding to reduce wait time
-           final command = '-y -i "${video.path}" -vf hflip -c:a copy -preset ultrafast "$outputPath"';
+           // Default encoder with hflip. Removing ultrafast as it requires libx264 which might be missing in LGPL.
+           final command = '-y -i "${video.path}" -vf hflip -c:a copy "$outputPath"';
            
            await FFmpegKit.execute(command).then((session) async {
              final returnCode = await session.getReturnCode();
              if (ReturnCode.isSuccess(returnCode)) {
                finalPath = outputPath;
                mirroredFlag = false; // File is now mirrored, no UI flip needed
-               debugPrint('Video mirrored successfully: $finalPath');
              } else {
-               debugPrint('FFmpeg mirroring failed. Return code: $returnCode');
+               final logs = await session.getLogsAsString();
+               debugPrint('FFmpeg mirroring failed. RC: $returnCode, Logs: $logs');
+               if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Video mirror failed (RC: $returnCode). Using fallback.'), duration: const Duration(seconds: 2))
+                  );
+               }
              }
            });
          } catch (e) {

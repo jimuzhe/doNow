@@ -309,7 +309,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     super.dispose();
   }
 
-  Future<void> _completeMission() async {
+  Future<void> _completeMission({bool playSound = true}) async {
     // 1. Calculate stats
     final actualDuration = DateTime.now().difference(_taskStartTime);
 
@@ -333,14 +333,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
       builder: (ctx) => TaskCompletionSheet(
         task: widget.task,
         actualDuration: actualDuration,
+        playSound: playSound,
       ),
     );
 
     // If user swiped down to dismiss without saving, show it again or stay
     if (saved != true) {
-      // User dismissed without saving - show again
+      // User dismissed without saving - show again (without sound)
       if (mounted) {
-        return _completeMission(); // Recursive call to show sheet again
+        return _completeMission(playSound: false); // Recursive call, no sound
       }
       return;
     }
