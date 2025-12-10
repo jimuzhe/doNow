@@ -89,19 +89,18 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
           children: [
             // Video Layer
             if (_isInitialized)
-              Transform(
-                alignment: Alignment.center,
-                transform: widget.isMirrored 
-                    ? (Matrix4.identity()..rotateY(math.pi))
-                    : Matrix4.identity(),
-                child: SizedBox.expand(
-                  child: FittedBox(
-                    fit: BoxFit.contain, // Maintain aspect ratio, show full video
-                    child: SizedBox(
-                      width: _controller.value.size.width,
-                      height: _controller.value.size.height,
-                      child: VideoPlayer(_controller),
-                    ),
+              SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.contain, // Maintain aspect ratio, show full video
+                  child: SizedBox(
+                    width: _controller.value.size.width,
+                    height: _controller.value.size.height,
+                    // TEMPORARY: Always mirror to test if Transform works
+                    child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()..scale(widget.isMirrored ? -1.0 : 1.0, 1.0, 1.0),
+                        child: VideoPlayer(_controller),
+                      ),
                   ),
                 ),
               )

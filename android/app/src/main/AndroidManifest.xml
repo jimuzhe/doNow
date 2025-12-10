@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
     
     <application
         android:label="Do Now"
@@ -59,6 +64,14 @@
         
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <!-- Amap API Key - REPLACE WITH YOUR KEY -->
+        <meta-data
+            android:name="com.amap.api.v2.apikey"
+            android:value="90f8078b816771f6ad4843902021f1c3" />
+        
+        <!-- Amap Service -->
+        <service android:name="com.amap.api.location.APSService" />
+        
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

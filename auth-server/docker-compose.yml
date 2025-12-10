@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  auth-server:
+    build: .
+    container_name: donow-auth
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      # 使用 host.docker.internal 连接宿主机，或者填宿主机局域网IP
+      - MYSQL_HOST=host.docker.internal
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # 允许容器访问宿主机
+    networks:
+      - donow-net
+
+networks:
+  donow-net:
+    driver: bridge

@@ -252,7 +252,11 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
           return const MainScreen();
         },
         loading: () => const _SplashScreen(),
-        error: (_, __) => const LoginScreen(),
+        // When Firebase is blocked (error), go directly to MainScreen (offline mode)
+        error: (error, stackTrace) {
+          debugPrint('Auth error (possibly Firebase blocked): $error');
+          return const MainScreen();
+        },
       ),
     );
   }

@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+import '../../data/services/location_service.dart';
 import '../../data/models/task.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
@@ -84,58 +83,10 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
   // Auto-fetch location when sheet opens
   Future<void> _fetchLocationOnStart() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      
-      if (permission == LocationPermission.deniedForever || 
-          permission == LocationPermission.denied) {
-        return; // Don't show error, just skip
-      }
-
-      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      
-      String addressText = "${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
-      
-      if (!kIsWeb) {
-        try {
-          final placemarks = await placemarkFromCoordinates(
-            position.latitude, 
-            position.longitude,
-          );
-          
-          if (placemarks.isNotEmpty) {
-            final p = placemarks.first;
-            final List<String> addressParts = [];
-            
-            if (p.street != null && p.street!.isNotEmpty && p.street != p.name) {
-              addressParts.add(p.street!);
-            }
-            if (p.name != null && p.name!.isNotEmpty && !addressParts.contains(p.name)) {
-              if (!RegExp(r'^\d+$').hasMatch(p.name!)) {
-                addressParts.add(p.name!);
-              }
-            }
-            if (p.subLocality != null && p.subLocality!.isNotEmpty) {
-              if (!addressParts.contains(p.subLocality)) {
-                addressParts.add(p.subLocality!);
-              }
-            }
-            if (p.locality != null && p.locality!.isNotEmpty) {
-              if (!addressParts.contains(p.locality)) {
-                addressParts.add(p.locality!);
-              }
-            }
-            
-            if (addressParts.isNotEmpty) {
-              addressText = addressParts.take(3).join(", ");
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (mounted) {
+      final result = await LocationService().getCurrentLocation();
+      if (result != null && mounted) {
+        String addressText = result.address ?? 
+            "${result.latitude.toStringAsFixed(4)}, ${result.longitude.toStringAsFixed(4)}";
         setState(() => _location = addressText);
       }
     } catch (_) {
@@ -334,88 +285,18 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
     setState(() => _isLocating = true);
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          _showError("Location permission denied");
-          return;
-        }
-      }
-      
-      if (permission == LocationPermission.deniedForever) {
-        _showError("Location permissions are permanently denied.");
-        return;
-      }
+      final result = await LocationService().getCurrentLocation();
 
-      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      
-      // Default to coordinates if geocoding fails
-      String addressText = "${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
-      
-      // Try to get human-readable address (not supported on web)
-      if (!kIsWeb) {
-        try {
-          final placemarks = await placemarkFromCoordinates(
-            position.latitude, 
-            position.longitude,
-          );
-          
-          if (placemarks.isNotEmpty) {
-            final p = placemarks.first;
-            
-            // Build detailed address with multiple components
-            // Priority: Street -> SubLocality -> Locality -> SubAdministrativeArea -> AdministrativeArea
-            final List<String> addressParts = [];
-            
-            // Street name (most specific)
-            if (p.street != null && p.street!.isNotEmpty && p.street != p.name) {
-              addressParts.add(p.street!);
-            }
-            
-            // Name/POI
-            if (p.name != null && p.name!.isNotEmpty && !addressParts.contains(p.name)) {
-              // Only add if it's not just a number (street number)
-              if (!RegExp(r'^\d+$').hasMatch(p.name!)) {
-                addressParts.add(p.name!);
-              }
-            }
-            
-            // SubLocality (neighborhood/district)
-            if (p.subLocality != null && p.subLocality!.isNotEmpty) {
-              if (!addressParts.contains(p.subLocality)) {
-                addressParts.add(p.subLocality!);
-              }
-            }
-            
-            // Locality (city)
-            if (p.locality != null && p.locality!.isNotEmpty) {
-              if (!addressParts.contains(p.locality)) {
-                addressParts.add(p.locality!);
-              }
-            }
-            
-            // SubAdministrativeArea (county/prefecture)
-            if (p.subAdministrativeArea != null && p.subAdministrativeArea!.isNotEmpty) {
-              if (!addressParts.contains(p.subAdministrativeArea)) {
-                addressParts.add(p.subAdministrativeArea!);
-              }
-            }
-            
-            // Construct final address
-            if (addressParts.isNotEmpty) {
-              // Limit to 3 most relevant parts for cleaner display
-              addressText = addressParts.take(3).join(", ");
-            }
-          }
-        } catch (e) {
-          debugPrint('Geocoding error: $e');
-          // Keep the coordinates as fallback
-        }
+      if (result != null) {
+        String addressText = result.address ?? 
+            "${result.latitude.toStringAsFixed(4)}, ${result.longitude.toStringAsFixed(4)}";
+        
+        setState(() => _location = addressText);
+        HapticHelper(ref).mediumImpact();
+      } else {
+        // If result is null, it typically means permission denied or service disabled
+        _showError("Could not get location. Check permissions.");
       }
-
-      setState(() => _location = addressText);
-      HapticHelper(ref).mediumImpact();
     } catch (e) {
       _showError("Could not get location: $e");
     } finally {
