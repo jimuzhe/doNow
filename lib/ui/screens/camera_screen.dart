@@ -14,8 +14,6 @@ import 'package:do_now/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 import 'package:image/image.dart' as img;
-import 'package:ffmpeg_kit_flutter_full/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_full/return_code.dart';
 import '../widgets/video_player_dialog.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -364,40 +362,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
       String finalPath = video.path;
       String? thumbnailPath;
+      // For front camera videos, we use UI-level mirroring during playback
+      // (FFmpegKit library has been retired, so physical mirroring is not available)
       bool mirroredFlag = _isFrontCamera;
-
-      // Physically mirror video if front camera
-      // This ensures the saved file is what the user saw (mirrored)
-      if (_isFrontCamera && (Platform.isAndroid || Platform.isIOS)) {
-         try {
-           final dir = await getTemporaryDirectory();
-           final outputPath = '${dir.path}/mirrored_${DateTime.now().millisecondsSinceEpoch}.mp4';
-           
-           // Default encoder with hflip
-           final command = '-y -i "${video.path}" -vf hflip -c:a copy "$outputPath"';
-           
-           debugPrint('FFmpeg command: $command');
-           
-           final session = await FFmpegKit.execute(command);
-           final returnCode = await session.getReturnCode();
-           
-           if (ReturnCode.isSuccess(returnCode)) {
-             finalPath = outputPath;
-             mirroredFlag = false; // File is now mirrored, no UI flip needed
-             debugPrint('FFmpeg mirroring succeeded: $finalPath');
-           } else {
-             final logs = await session.getLogsAsString();
-             debugPrint('FFmpeg mirroring failed. RC: $returnCode, Logs: $logs');
-             if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Video mirror failed (RC: $returnCode). Using fallback.'), duration: const Duration(seconds: 2))
-                );
-             }
-           }
-         } catch (e) {
-           debugPrint('Error mirroring video: $e');
-         }
-      }
 
       // Generate video thumbnail (from the FINAL path)
       try {
