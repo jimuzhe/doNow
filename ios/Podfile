@@ -34,8 +34,8 @@ target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
   # Fix for FFmpegKit 404 error (Original repository removed)
-  # Using community mirror from freddi-kit
-  pod 'ffmpeg-kit-ios-full', :podspec => 'https://raw.githubusercontent.com/freddi-kit/ffmpeg-kit-ios-full/6.0/ffmpeg-kit-ios-full.podspec'
+  # Using community mirror from luthviar (verified working)
+  pod 'ffmpeg-kit-ios-full', :podspec => 'https://raw.githubusercontent.com/luthviar/ffmpeg-kit-ios-full/main/ffmpeg-kit-ios-full.podspec'
   
   target 'RunnerTests' do
     inherit! :search_paths
