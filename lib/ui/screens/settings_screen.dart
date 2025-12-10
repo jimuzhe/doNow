@@ -70,12 +70,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.all(24.0),
               children: [
                 Text(
-                  t('settings').toUpperCase(),
+                  t('settings'),
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1.0,
-                    color: theme.textTheme.bodyLarge?.color,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
                 ),
                 const SizedBox(height: 32),
