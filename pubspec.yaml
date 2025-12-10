@@ -51,7 +51,7 @@ dependencies:
   image_picker: ^1.0.7
   geolocator: ^12.0.0
   geocoding: ^3.0.0
-  amap_flutter_location: ^3.0.0
+  # amap_flutter_location removed - using native Android SDK via platform channel
   just_audio: ^0.9.36
   audio_session: ^0.1.18
   path_provider: ^2.1.5

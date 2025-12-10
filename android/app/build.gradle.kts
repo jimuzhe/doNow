@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.atomictask.do_now"
-    compileSdk = 35  // Fixed to 35 for amap_flutter_location compatibility
+    compileSdk = 36  // Required for latest Flutter plugins
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -50,6 +50,9 @@ android {
 dependencies {
     // Core library desugaring for Java 8+ APIs on older Android versions
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    
+    // Amap Location SDK (native Android)
+    implementation("com.amap.api:location:6.4.5")
 }
 
 flutter {
