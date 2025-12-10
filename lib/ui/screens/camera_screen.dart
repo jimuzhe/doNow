@@ -577,14 +577,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         fit: StackFit.expand,
         children: [
           if (_capturedPath != null)
-            Transform.flip(
-              flipX: _isVideoMirrored, // Mirror for front camera content
-              child: _isVideo 
-                ? (_videoThumbnailPath != null
+            // For photos: iOS auto-mirrors saved photos, so no flip needed
+            // For videos: File is not mirrored, so we need to flip thumbnail to match playback
+            _isVideo 
+              ? Transform.flip(
+                  flipX: _isVideoMirrored,
+                  child: _videoThumbnailPath != null
                     ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
-                    : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
-                : Image.file(File(_capturedPath!), fit: BoxFit.cover),
-            ),
+                    : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)),
+                )
+              : Image.file(File(_capturedPath!), fit: BoxFit.cover),
           
           // Video indicator overlay - tap to play
           if (_isVideo && _capturedPath != null)
