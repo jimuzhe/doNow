@@ -35,9 +35,23 @@ struct DynamicStepInfo {
             return nil
         }
         
+        // First, try to use currentStepIndex from state (source of truth after manual completion)
+        let stateIndex = state.currentStepIndex
+        if stateIndex >= 0 && stateIndex < steps.count {
+            let step = steps[stateIndex]
+            let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+            return DynamicStepInfo(
+                title: step.title,
+                startTime: stepStart,
+                endTime: step.endTime,
+                index: stateIndex,
+                totalSteps: steps.count
+            )
+        }
+        
         let now = Date()
         
-        // Find current step based on time
+        // Fallback: Find current step based on time
         for (index, step) in steps.enumerated() {
             let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
             if now < step.endTime {
@@ -230,8 +244,15 @@ struct AutoAdvancingStepTextView: View {
     let state: DoNowActivityAttributes.ContentState
     let currentDate: Date
     
-    // Helper to find current step index
+    // Helper to find current step index - prioritize state.currentStepIndex
     private func getCurrentStepIndex(steps: [StepInfo]) -> Int {
+        // First, use the currentStepIndex from state if it's valid
+        // This is the source of truth when user manually completes a step
+        if state.currentStepIndex >= 0 && state.currentStepIndex < steps.count {
+            return state.currentStepIndex
+        }
+        
+        // Fallback to time-based calculation
         for (index, step) in steps.enumerated() {
             let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
             if currentDate >= stepStart && currentDate < step.endTime {
@@ -250,18 +271,20 @@ struct AutoAdvancingStepTextView: View {
         if let steps = state.steps, !steps.isEmpty {
             let currentIndex = getCurrentStepIndex(steps: steps)
             
-            // Use ZStack with multiple Text views, only one visible at a time
-            ZStack {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    Text(step.title)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .opacity(index == currentIndex ? 1 : 0)
-                        .id("\(index)-\(step.title)") // Unique ID for proper refresh
-                }
+            // Only show the current step text - no ZStack needed
+            if currentIndex < steps.count {
+                Text(steps[currentIndex].title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .id("step-\(currentIndex)-\(steps[currentIndex].title)")
+                    .animation(.easeInOut(duration: 0.2), value: currentIndex)
+            } else {
+                Text(state.currentStep)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
             }
-            .animation(.easeInOut(duration: 0.2), value: currentIndex)
         } else {
             // Fallback to static step
             Text(state.currentStep)
@@ -278,8 +301,14 @@ struct AutoAdvancingStepCounterView: View {
     let state: DoNowActivityAttributes.ContentState
     let currentDate: Date
     
-    // Helper to find current step index
+    // Helper to find current step index - prioritize state.currentStepIndex
     private func getCurrentStepIndex(steps: [StepInfo]) -> Int {
+        // First, use the currentStepIndex from state if it's valid
+        if state.currentStepIndex >= 0 && state.currentStepIndex < steps.count {
+            return state.currentStepIndex
+        }
+        
+        // Fallback to time-based calculation
         for (index, step) in steps.enumerated() {
             let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
             if currentDate >= stepStart && currentDate < step.endTime {
@@ -393,27 +422,48 @@ struct DynamicCompactTrailingView: View {
     let state: DoNowActivityAttributes.ContentState
     let currentDate: Date
     
+    // Helper to find current step index - prioritize state.currentStepIndex
+    private func getCurrentStepIndex(steps: [StepInfo]) -> Int {
+        // First, use the currentStepIndex from state if it's valid
+        if state.currentStepIndex >= 0 && state.currentStepIndex < steps.count {
+            return state.currentStepIndex
+        }
+        
+        // Fallback to time-based calculation
+        for (index, step) in steps.enumerated() {
+            let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
+            if currentDate >= stepStart && currentDate < step.endTime {
+                return index
+            }
+        }
+        // If past all steps, return last index
+        if let lastStep = steps.last, currentDate >= lastStep.endTime {
+            return steps.count - 1
+        }
+        return 0
+    }
+    
     var body: some View {
         if let steps = state.steps, !steps.isEmpty {
-            // Use ZStack approach for auto-advancing countdown
-            ZStack {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    if step.endTime > currentDate {
-                        let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
-                        let isCurrentStep = currentDate >= stepStart
-                        
-                        if isCurrentStep {
-                            Text(timerInterval: currentDate...step.endTime, countsDown: true)
-                                .monospacedDigit()
-                                .font(.caption2.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: 45)
-                        }
-                    }
-                }
-                
-                // Show checkmark if all steps completed
-                if let lastStep = steps.last, currentDate >= lastStep.endTime {
+            let currentIndex = getCurrentStepIndex(steps: steps)
+            
+            // Check if all steps are completed (past the last step's endTime)
+            if let lastStep = steps.last, currentDate >= lastStep.endTime {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+            } else if currentIndex < steps.count {
+                // Show countdown for current step - only one timer, no ZStack overlap
+                let step = steps[currentIndex]
+                if step.endTime > currentDate {
+                    Text(timerInterval: currentDate...step.endTime, countsDown: true)
+                        .monospacedDigit()
+                        .font(.caption2.bold())
+                        .foregroundColor(.white)
+                        .frame(maxWidth: 45)
+                        .id("timer-\(currentIndex)")
+                } else {
+                    // Step time passed, show checkmark
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                         .font(.caption)
@@ -461,8 +511,15 @@ struct LockScreenView: View {
     let context: ActivityViewContext<DoNowActivityAttributes>
     let currentDate: Date
     
-    // Helper to find current step index
+    // Helper to find current step index - prioritize state.currentStepIndex
     private func getCurrentStepIndex(steps: [StepInfo]) -> Int {
+        // First, use the currentStepIndex from state if it's valid
+        let stateIndex = context.state.currentStepIndex
+        if stateIndex >= 0 && stateIndex < steps.count {
+            return stateIndex
+        }
+        
+        // Fallback to time-based calculation
         for (index, step) in steps.enumerated() {
             let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
             if currentDate >= stepStart && currentDate < step.endTime {
