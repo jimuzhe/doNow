@@ -977,26 +977,29 @@ class _TaskTimelineItem extends StatelessWidget {
                         ),
                         // Image thumbnail (aligned with title)
                         if (task.journalImagePath != null)
-                          // Thumbnail is already mirrored during camera capture
-                          Container(
-                            height: 48,
-                            width: 48,
-                            margin: const EdgeInsets.only(left: 12),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isDark ? Colors.white12 : Colors.black12,
+                          // Mirror front camera content
+                          Transform.flip(
+                            flipX: task.journalMediaMirrored,
+                            child: Container(
+                              height: 48,
+                              width: 48,
+                              margin: const EdgeInsets.only(left: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isDark ? Colors.white12 : Colors.black12,
+                                ),
+                                image: DecorationImage(
+                                  image: kIsWeb 
+                                      ? NetworkImage(task.journalImagePath!) 
+                                      : FileImage(File(task.journalImagePath!)) as ImageProvider,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
-                              image: DecorationImage(
-                                image: kIsWeb 
-                                    ? NetworkImage(task.journalImagePath!) 
-                                    : FileImage(File(task.journalImagePath!)) as ImageProvider,
-                                fit: BoxFit.cover,
-                              ),
+                              child: task.journalVideoPath != null
+                                  ? const Icon(Icons.play_circle_fill, color: Colors.white, size: 20)
+                                  : null,
                             ),
-                            child: task.journalVideoPath != null
-                                ? const Icon(Icons.play_circle_fill, color: Colors.white, size: 20)
-                                : null,
                           ),
                       ],
                     ),
@@ -1141,7 +1144,7 @@ class _TimelineItemWithLine extends StatelessWidget {
         ),
       );
     } else if (task.journalImagePath != null) {
-      // Image is already mirrored during camera capture, display directly
+      // Show image viewer with mirror support
       showDialog(
         context: context,
         barrierColor: Colors.black87,
@@ -1152,9 +1155,12 @@ class _TimelineItemWithLine extends StatelessWidget {
             insetPadding: const EdgeInsets.all(16),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: kIsWeb
-                  ? Image.network(task.journalImagePath!, fit: BoxFit.contain)
-                  : Image.file(File(task.journalImagePath!), fit: BoxFit.contain),
+              child: Transform.flip(
+                flipX: task.journalMediaMirrored,
+                child: kIsWeb
+                    ? Image.network(task.journalImagePath!, fit: BoxFit.contain)
+                    : Image.file(File(task.journalImagePath!), fit: BoxFit.contain),
+              ),
             ),
           ),
         ),
@@ -1352,38 +1358,41 @@ class _TimelineItemWithLine extends StatelessWidget {
                     if (task.journalImagePath != null || task.journalVideoPath != null)
                       GestureDetector(
                         onTap: () => _showMediaViewer(context, task),
-                        // Thumbnail is already mirrored during camera capture
-                        child: Container(
-                          height: 50,
-                          width: 50,
-                          margin: const EdgeInsets.only(left: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isDark ? Colors.white12 : Colors.black12,
+                        // Mirror front camera content
+                        child: Transform.flip(
+                          flipX: task.journalMediaMirrored,
+                          child: Container(
+                            height: 50,
+                            width: 50,
+                            margin: const EdgeInsets.only(left: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isDark ? Colors.white12 : Colors.black12,
+                              ),
+                              // Use darker background for video without thumbnail
+                              color: task.journalImagePath == null && task.journalVideoPath != null
+                                  ? (isDark ? Colors.grey[800] : Colors.grey[600])
+                                  : Colors.black12,
+                              image: task.journalImagePath != null
+                                  ? DecorationImage(
+                                      image: kIsWeb
+                                          ? NetworkImage(task.journalImagePath!)
+                                          : FileImage(File(task.journalImagePath!)) as ImageProvider,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
                             ),
-                            // Use darker background for video without thumbnail
-                            color: task.journalImagePath == null && task.journalVideoPath != null
-                                ? (isDark ? Colors.grey[800] : Colors.grey[600])
-                                : Colors.black12,
-                            image: task.journalImagePath != null
-                                ? DecorationImage(
-                                    image: kIsWeb
-                                        ? NetworkImage(task.journalImagePath!)
-                                        : FileImage(File(task.journalImagePath!)) as ImageProvider,
-                                    fit: BoxFit.cover,
+                            child: task.journalVideoPath != null
+                                ? Center(
+                                    child: Icon(
+                                      Icons.play_circle_fill, 
+                                      color: Colors.white.withOpacity(0.9), 
+                                      size: 24,
+                                    ),
                                   )
                                 : null,
                           ),
-                          child: task.journalVideoPath != null
-                              ? Center(
-                                  child: Icon(
-                                    Icons.play_circle_fill, 
-                                    color: Colors.white.withOpacity(0.9), 
-                                    size: 24,
-                                  ),
-                                )
-                              : null,
                         ),
                       ),
                   ],

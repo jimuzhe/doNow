@@ -285,27 +285,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
     try {
       final XFile image = await _controller!.takePicture();
-      String finalPath = image.path;
-      
-      // Mirror the photo for front camera so saved file matches what user saw
-      if (_isFrontCamera) {
-        final bytes = await File(image.path).readAsBytes();
-        final decodedImage = img.decodeImage(bytes);
-        if (decodedImage != null) {
-          // Flip horizontally
-          final flippedImage = img.flipHorizontal(decodedImage);
-          // Save to new file
-          final tempDir = await getTemporaryDirectory();
-          final mirroredPath = '${tempDir.path}/mirrored_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          await File(mirroredPath).writeAsBytes(img.encodeJpg(flippedImage, quality: 95));
-          finalPath = mirroredPath;
-        }
-      }
       
       setState(() {
-        _capturedPath = finalPath;
+        _capturedPath = image.path;
         _isVideo = false;
-        _isVideoMirrored = false; // Photo is already mirrored in file, no need for display flip
+        _isVideoMirrored = _isFrontCamera; // Mark front camera for display mirroring
       });
     } catch (e) {
       debugPrint('Error taking picture: $e');
@@ -352,23 +336,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           video: video.path,
           thumbnailPath: (await getTemporaryDirectory()).path,
           imageFormat: vt.ImageFormat.JPEG,
-          maxWidth: 1080,  // Ensure width is large enough
-          maxHeight: 1920, // Full HD height
+          maxWidth: 1080,
+          maxHeight: 1920,
           quality: 85,
         );
-        
-        // Mirror thumbnail for front camera
-        if (_isFrontCamera && thumbnailPath != null) {
-          final bytes = await File(thumbnailPath).readAsBytes();
-          final decodedImage = img.decodeImage(bytes);
-          if (decodedImage != null) {
-            final flippedImage = img.flipHorizontal(decodedImage);
-            final tempDir = await getTemporaryDirectory();
-            final mirroredPath = '${tempDir.path}/mirrored_thumb_${DateTime.now().millisecondsSinceEpoch}.jpg';
-            await File(mirroredPath).writeAsBytes(img.encodeJpg(flippedImage, quality: 90));
-            thumbnailPath = mirroredPath;
-          }
-        }
       } catch (e) {
         debugPrint('Thumbnail generation error: $e');
       }
@@ -378,7 +349,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         _capturedPath = video.path;
         _isVideo = true;
         _videoThumbnailPath = thumbnailPath;
-        _isVideoMirrored = _isFrontCamera; // Video still needs mirroring on playback
+        _isVideoMirrored = _isFrontCamera; // Mark for display mirroring
       });
     } catch (e) {
       debugPrint('Error stopping video: $e');
@@ -607,12 +578,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         fit: StackFit.expand,
         children: [
           if (_capturedPath != null)
-            // Photo and thumbnail are already mirrored during save, display directly
-            _isVideo 
-              ? (_videoThumbnailPath != null
-                  ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
-                  : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
-              : Image.file(File(_capturedPath!), fit: BoxFit.cover),
+            // Mirror front camera content
+            Transform.flip(
+              flipX: _isVideoMirrored,
+              child: _isVideo 
+                ? (_videoThumbnailPath != null
+                    ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
+                    : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
+                : Image.file(File(_capturedPath!), fit: BoxFit.cover),
+            ),
           
           // Video indicator overlay - tap to play
           if (_isVideo && _capturedPath != null)

@@ -225,85 +225,91 @@ class TaskDetailDialog extends StatelessWidget {
                                  )
                                );
                              } else if (task.journalImagePath != null) {
-                               // Image is already mirrored, display directly
+                               // Image view with mirror support
                                showDialog(
                                  context: context,
                                  builder: (_) => Dialog(
                                    backgroundColor: Colors.transparent,
                                    child: ClipRRect(
                                      borderRadius: BorderRadius.circular(16),
-                                     child: kIsWeb
-                                       ? Image.network(task.journalImagePath!)
-                                       : Image.file(File(task.journalImagePath!)),
+                                     child: Transform.flip(
+                                       flipX: task.journalMediaMirrored,
+                                       child: kIsWeb
+                                         ? Image.network(task.journalImagePath!)
+                                         : Image.file(File(task.journalImagePath!)),
+                                     ),
                                    ),
                                  ),
                                );
                              }
                            },
-                           // Thumbnail is already mirrored, display directly
-                           child: Container(
-                             height: 180,
-                             width: double.infinity,
-                             decoration: BoxDecoration(
-                               borderRadius: BorderRadius.circular(16),
-                               color: Colors.black,
-                               boxShadow: [
-                                 BoxShadow(
-                                   color: Colors.black.withOpacity(0.1),
-                                   blurRadius: 10,
-                                   offset: const Offset(0, 4),
-                                 ),
-                               ],
-                               image: task.journalImagePath != null 
-                                 ? DecorationImage(
-                                     image: kIsWeb 
-                                       ? NetworkImage(task.journalImagePath!) 
-                                       : FileImage(File(task.journalImagePath!)) as ImageProvider,
-                                     fit: BoxFit.cover,
-                                   )
-                                 : null,
-                             ),
-                             child: Stack(
-                               alignment: Alignment.center,
-                               children: [
-                                 if (task.journalVideoPath != null)
-                                   Container(
-                                     padding: const EdgeInsets.all(12),
-                                     decoration: const BoxDecoration(
-                                       color: Colors.black45, 
-                                       shape: BoxShape.circle,
-                                     ),
-                                     child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+                           // Mirror front camera content
+                           child: Transform.flip(
+                             flipX: task.journalMediaMirrored,
+                             child: Container(
+                               height: 180,
+                               width: double.infinity,
+                               decoration: BoxDecoration(
+                                 borderRadius: BorderRadius.circular(16),
+                                 color: Colors.black,
+                                 boxShadow: [
+                                   BoxShadow(
+                                     color: Colors.black.withOpacity(0.1),
+                                     blurRadius: 10,
+                                     offset: const Offset(0, 4),
                                    ),
-                                   
-                                 // Type Badge
-                                 Positioned(
-                                   bottom: 12,
-                                   right: 12,
-                                   child: Container(
-                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                     decoration: BoxDecoration(
-                                       color: Colors.black54,
-                                       borderRadius: BorderRadius.circular(6),
+                                 ],
+                                 image: task.journalImagePath != null 
+                                   ? DecorationImage(
+                                       image: kIsWeb 
+                                         ? NetworkImage(task.journalImagePath!) 
+                                         : FileImage(File(task.journalImagePath!)) as ImageProvider,
+                                       fit: BoxFit.cover,
+                                     )
+                                   : null,
+                               ),
+                               child: Stack(
+                                 alignment: Alignment.center,
+                                 children: [
+                                   if (task.journalVideoPath != null)
+                                     Container(
+                                       padding: const EdgeInsets.all(12),
+                                       decoration: const BoxDecoration(
+                                         color: Colors.black45, 
+                                         shape: BoxShape.circle,
+                                       ),
+                                       child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
                                      ),
-                                     child: Row(
-                                       mainAxisSize: MainAxisSize.min,
-                                       children: [
-                                         Icon(
-                                           task.journalVideoPath != null ? Icons.videocam : Icons.photo,
-                                           color: Colors.white,
-                                           size: 12,
-                                         ),
-                                         const SizedBox(width: 4),
-                                         Text(
-                                            task.journalVideoPath != null ? t('journal_video') : t('journal_photo'),
-                                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                         ),
-                                       ],
+                                     
+                                   // Type Badge
+                                   Positioned(
+                                     bottom: 12,
+                                     right: 12,
+                                     child: Container(
+                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                       decoration: BoxDecoration(
+                                         color: Colors.black54,
+                                         borderRadius: BorderRadius.circular(6),
+                                       ),
+                                       child: Row(
+                                         mainAxisSize: MainAxisSize.min,
+                                         children: [
+                                           Icon(
+                                             task.journalVideoPath != null ? Icons.videocam : Icons.photo,
+                                             color: Colors.white,
+                                             size: 12,
+                                           ),
+                                           const SizedBox(width: 4),
+                                           Text(
+                                              task.journalVideoPath != null ? t('journal_video') : t('journal_photo'),
+                                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                           ),
+                                         ],
+                                       ),
                                      ),
                                    ),
-                                 ),
-                               ],
+                                 ],
+                               ),
                              ),
                            ),
                         ),

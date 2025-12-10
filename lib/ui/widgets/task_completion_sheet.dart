@@ -611,12 +611,15 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Photo and thumbnail are already mirrored during camera capture
+                      // Mirror front camera content
                       if (_imagePath != null)
                         Positioned.fill(
-                          child: kIsWeb
-                              ? Image.network(_imagePath!, fit: BoxFit.cover)
-                              : Image.file(File(_imagePath!), fit: BoxFit.cover),
+                          child: Transform.flip(
+                            flipX: _isMirrored,
+                            child: kIsWeb
+                                ? Image.network(_imagePath!, fit: BoxFit.cover)
+                                : Image.file(File(_imagePath!), fit: BoxFit.cover),
+                          ),
                         )
                       else if (_isGeneratingThumbnail)
                         const Center(
