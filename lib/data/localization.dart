@@ -198,6 +198,9 @@ class AppStrings {
       'camera_hint': 'Tap to capture • Hold to record',
       'pick_photo': 'Photo',
       'pick_video': 'Video',
+      // Notifications
+      'daily_summary_notification_title': '📊 Yesterday\'s Summary Ready',
+      'daily_summary_notification_body': 'Check out your performance and get AI insights!',
     },
     'zh': {
       'home': '首页',
@@ -348,6 +351,9 @@ class AppStrings {
       'camera_hint': '点按拍照 • 长按录像',
       'pick_photo': '照片',
       'pick_video': '视频',
+      // Notifications
+      'daily_summary_notification_title': '📊 昨日总结已就绪',
+      'daily_summary_notification_body': '查看你的表现，获取AI洞见！',
     }
   };
 

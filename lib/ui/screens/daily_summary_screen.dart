@@ -185,21 +185,6 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
             
             // AI Summary Section
             _buildAISummarySection(isDark, t),
-            
-            const SizedBox(height: 32),
-            
-            // Task List
-            Text(
-              t('tasks'),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black,
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            ...dayTasks.map((task) => _TaskSummaryCard(task: task, isDark: isDark)),
           ],
         ),
       ),
