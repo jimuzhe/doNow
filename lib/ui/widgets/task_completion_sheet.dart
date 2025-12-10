@@ -42,6 +42,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
   bool _isRecordingVideo = false;
   bool _showNoteInput = false;
   bool _isGeneratingThumbnail = false; // Track thumbnail generation
+  bool _isMirrored = false; // Track if image should be mirrored (front camera)
   
   late AnimationController _checkAnimController;
   late Animation<double> _checkAnimation;
@@ -58,6 +59,11 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       curve: Curves.easeOutBack,
     );
     
+    // Pre-warm camera in background for instant camera open
+    if (!kIsWeb) {
+      CameraService().prewarm();
+    }
+
     // Play sound and start animation
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(soundEffectServiceProvider).playSuccess();
@@ -65,11 +71,6 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       
       // Auto-fetch location by default
       _fetchLocationOnStart();
-      
-      // Pre-warm camera in background for instant camera open
-      if (!kIsWeb) {
-        CameraService().prewarm();
-      }
     });
   }
 
@@ -226,9 +227,11 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
             _videoPath = path;
             // Use pre-generated thumbnail if available
             _imagePath = thumbnail;
+            _isMirrored = result['mirrored'] ?? false;
           } else {
             _imagePath = path;
             _videoPath = null;
+            _isMirrored = result['mirrored'] ?? false;
           }
         });
         
@@ -587,7 +590,10 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                   if (_videoPath != null) {
                     showDialog(
                       context: context, 
-                      builder: (_) => VideoPlayerDialog(videoPath: _videoPath!)
+                      builder: (_) => VideoPlayerDialog(
+                        videoPath: _videoPath!,
+                        isMirrored: _isMirrored,
+                      )
                     );
                   }
                 },
@@ -599,16 +605,18 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                     color: Colors.black,
                   ),
                   clipBehavior: Clip.hardEdge,
-                  alignment: Alignment.center,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       // Thumbnail or loading indicator or web placeholder
                       if (_imagePath != null)
                         Positioned.fill(
-                          child: kIsWeb
-                              ? Image.network(_imagePath!, fit: BoxFit.cover)
-                              : Image.file(File(_imagePath!), fit: BoxFit.cover),
+                          child: Transform.flip(
+                            flipX: _isMirrored,
+                            child: kIsWeb
+                                ? Image.network(_imagePath!, fit: BoxFit.cover)
+                                : Image.file(File(_imagePath!), fit: BoxFit.cover),
+                          ),
                         )
                       else if (_isGeneratingThumbnail)
                         const Center(

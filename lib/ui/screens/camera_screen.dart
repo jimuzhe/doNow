@@ -75,6 +75,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     final cameraService = CameraService();
     
     // Try to use prewarmed controller first
+    // If it's currently initializing, wait for it
+    if (cameraService.isPrewarming) {
+      await cameraService.prewarm();
+    }
+
     if (cameraService.isPrewarmed) {
       final prewarmedController = cameraService.takeController();
       if (prewarmedController != null && prewarmedController.value.isInitialized) {
@@ -183,11 +188,29 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     if (_cameras.length < 2) return;
     HapticHelper(ref).lightImpact();
     
+    // 1. Get reference to current controller to dispose
+    final oldController = _controller;
+    
+    // 2. Set loading state and clear controller from UI immediately
+    if (mounted) {
+      setState(() {
+        _isInit = false;
+        _controller = null;
+      });
+    }
+
+    // 3. Dispose old controller safely
+    try {
+      await oldController?.dispose();
+    } catch (e) {
+      debugPrint('Error disposing camera: $e');
+    }
+
+    // 4. Update index and camera props
     _selectedCameraIdx = (_selectedCameraIdx + 1) % _cameras.length;
     _isFrontCamera = _cameras[_selectedCameraIdx].lensDirection == CameraLensDirection.front;
     
-    await _controller?.dispose();
-    setState(() => _isInit = false);
+    // 5. Initialize new camera
     await _startCamera(_cameras[_selectedCameraIdx]);
   }
 
@@ -394,11 +417,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                child: Transform.scale(
                  scale: scale,
                  child: Center(
-                   // Mirror front camera preview to match final captured image
-                   child: Transform.flip(
-                     flipX: _isFrontCamera,
-                     child: CameraPreview(_controller!),
-                   ),
+                   // CameraPreview handles mirroring for front camera on native platforms
+                   child: CameraPreview(_controller!),
                  ),
                ),
             ),
@@ -572,7 +592,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
               onTap: () {
                 showDialog(
                   context: context,
-                  builder: (_) => VideoPlayerDialog(videoPath: _capturedPath!),
+                  builder: (_) => VideoPlayerDialog(
+                    videoPath: _capturedPath!,
+                    isMirrored: _isVideoMirrored,
+                  ),
                 );
               },
               child: Center(

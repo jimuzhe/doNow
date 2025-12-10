@@ -5,8 +5,13 @@ import 'package:video_player/video_player.dart';
 
 class VideoPlayerDialog extends StatefulWidget {
   final String videoPath;
+  final bool isMirrored;
 
-  const VideoPlayerDialog({super.key, required this.videoPath});
+  const VideoPlayerDialog({
+    super.key, 
+    required this.videoPath,
+    this.isMirrored = false,
+  });
 
   @override
   State<VideoPlayerDialog> createState() => _VideoPlayerDialogState();
@@ -63,36 +68,43 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
   Widget build(BuildContext context) {
     return Dialog.fullscreen(
       backgroundColor: Colors.black,
-      child: SafeArea(
-        child: GestureDetector(
-          onTap: () {
-            setState(() {
-              _showControls = !_showControls;
-            });
-          },
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Video Layer
-              if (_isInitialized)
-                Center(
-                  child: AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    child: VideoPlayer(_controller),
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _showControls = !_showControls;
+          });
+        },
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Video Layer
+            if (_isInitialized)
+              SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _controller.value.size.width,
+                    height: _controller.value.size.height,
+                    child: Transform.flip(
+                      flipX: widget.isMirrored,
+                      child: VideoPlayer(_controller),
+                    ),
                   ),
-                )
-              else
-                const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
                 ),
+              )
+            else
+              const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
 
-              // Controls Overlay
-              if (_isInitialized)
-                AnimatedOpacity(
-                  opacity: _showControls ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 300),
-                  child: Container(
-                    color: Colors.black26,
+            // Controls Overlay
+            if (_isInitialized)
+              AnimatedOpacity(
+                opacity: _showControls ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: Container(
+                  color: Colors.black26,
+                  child: SafeArea(
                     child: Stack(
                       children: [
                         // Center Play/Pause Button
@@ -175,8 +187,8 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

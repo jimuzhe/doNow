@@ -12,6 +12,7 @@ class CameraService {
   CameraController? _controller;
   bool _isPrewarming = false;
   bool _isPrewarmed = false;
+  Future<void>? _initFuture;
 
   /// Get available cameras (cached)
   List<CameraDescription>? get cameras => _cameras;
@@ -22,11 +23,23 @@ class CameraService {
   /// Check if camera is prewarmed and ready
   bool get isPrewarmed => _isPrewarmed && _controller != null && _controller!.value.isInitialized;
 
+  /// Check if camera is currently prewarming
+  bool get isPrewarming => _isPrewarming;
+
   /// Pre-warm the camera (call this before opening camera screen)
-  /// This initializes the camera in background so it's ready when user opens camera
+  /// If already warming, returns the ongoing future.
   Future<void> prewarm() async {
-    if (_isPrewarming || _isPrewarmed || kIsWeb) return;
+    if (kIsWeb) return;
+    if (_isPrewarmed && _controller != null) return;
     
+    // Return existing future if currently initializing
+    if (_initFuture != null) return _initFuture;
+
+    _initFuture = _initializeCamera();
+    return _initFuture;
+  }
+
+  Future<void> _initializeCamera() async {
     _isPrewarming = true;
     
     try {
@@ -34,7 +47,6 @@ class CameraService {
       _cameras ??= await availableCameras();
       
       if (_cameras == null || _cameras!.isEmpty) {
-        _isPrewarming = false;
         return;
       }
       
@@ -61,10 +73,12 @@ class CameraService {
       debugPrint('Camera pre-warmed successfully');
     } catch (e) {
       debugPrint('Camera prewarm error: $e');
-      _controller?.dispose();
+      await _controller?.dispose();
       _controller = null;
+      _isPrewarmed = false;
     } finally {
       _isPrewarming = false;
+      _initFuture = null;
     }
   }
 
