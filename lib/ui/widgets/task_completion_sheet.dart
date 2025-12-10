@@ -588,16 +588,18 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
               GestureDetector(
                 onTap: () {
                   if (_videoPath != null) {
-                    showDialog(
-                      context: context, 
-                      builder: (_) => VideoPlayerDialog(
-                        videoPath: _videoPath!,
-                        isMirrored: _isMirrored,
-                      )
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => VideoPlayerDialog(
+                          videoPath: _videoPath!,
+                          isMirrored: _isMirrored,
+                        ),
+                      ),
                     );
                   }
                 },
                 child: Container(
+                  width: double.infinity,
                   height: 240,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
