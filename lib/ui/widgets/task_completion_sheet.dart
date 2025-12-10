@@ -591,6 +591,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                   if (_videoPath != null) {
                     Navigator.of(context).push(
                       MaterialPageRoute(
+                        fullscreenDialog: true,
                         builder: (_) => VideoPlayerDialog(
                           videoPath: _videoPath!,
                           isMirrored: _isMirrored,

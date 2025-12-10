@@ -14,6 +14,8 @@ import 'package:do_now/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 import 'package:image/image.dart' as img;
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter/return_code.dart';
 import '../widgets/video_player_dialog.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -286,10 +288,34 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     try {
       final XFile image = await _controller!.takePicture();
       
+      // Automatically mirror front camera photos so they are saved correctly
+      // This avoids needing to handle mirroring in every display widget
+      bool processedMirrored = false;
+      if (_isFrontCamera) {
+        try {
+          final file = File(image.path);
+          final bytes = await file.readAsBytes();
+          var original = img.decodeImage(bytes);
+          
+          if (original != null) {
+            // Bake orientation ensures we handle the 90deg rotation from phone sensors
+            original = img.bakeOrientation(original);
+            final flipped = img.flip(original, direction: img.FlipDirection.horizontal);
+            
+            await file.writeAsBytes(img.encodeJpg(flipped));
+            processedMirrored = true;
+          }
+        } catch (e) {
+          debugPrint('Error mirroring image: $e');
+        }
+      }
+      
       setState(() {
         _capturedPath = image.path;
         _isVideo = false;
-        _isVideoMirrored = _isFrontCamera; // Mark front camera for display mirroring
+        // If we successfully flipped it physically, we don't need UI mirroring
+        // If processing failed (or not front camera), we fall back to standard behavior
+        _isVideoMirrored = _isFrontCamera && !processedMirrored; 
       });
     } catch (e) {
       debugPrint('Error taking picture: $e');
@@ -320,6 +346,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     }
   }
 
+  bool _isProcessingVideo = false; // Video processing state
+
   Future<void> _stopRecording() async {
     if (!_isRecording) return;
     
@@ -329,11 +357,47 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     try {
       final XFile video = await _controller!.stopVideoRecording();
       
-      // Generate video thumbnail
+      setState(() {
+        _isRecording = false;
+        _isProcessingVideo = true; // Start processing
+      });
+
+      String finalPath = video.path;
       String? thumbnailPath;
+      bool mirroredFlag = _isFrontCamera;
+
+      // Physically mirror video if front camera
+      // This ensures the saved file is what the user saw (mirrored)
+      if (_isFrontCamera && (Platform.isAndroid || Platform.isIOS)) {
+         try {
+           final dir = await getTemporaryDirectory();
+           final outputPath = '${dir.path}/mirrored_${DateTime.now().millisecondsSinceEpoch}.mp4';
+           
+           // -vf hflip: Horizontal flip
+           // -c:a copy: Copy audio stream without re-encoding
+           // -c:v libx264: Re-encode video (needed for filter) - usually default but specified for safety
+           // -preset ultrafast: Fast encoding to reduce wait time
+           final command = '-y -i "${video.path}" -vf hflip -c:a copy -preset ultrafast "$outputPath"';
+           
+           await FFmpegKit.execute(command).then((session) async {
+             final returnCode = await session.getReturnCode();
+             if (ReturnCode.isSuccess(returnCode)) {
+               finalPath = outputPath;
+               mirroredFlag = false; // File is now mirrored, no UI flip needed
+               debugPrint('Video mirrored successfully: $finalPath');
+             } else {
+               debugPrint('FFmpeg mirroring failed. Return code: $returnCode');
+             }
+           });
+         } catch (e) {
+           debugPrint('Error mirroring video: $e');
+         }
+      }
+
+      // Generate video thumbnail (from the FINAL path)
       try {
         thumbnailPath = await vt.VideoThumbnail.thumbnailFile(
-          video: video.path,
+          video: finalPath,
           thumbnailPath: (await getTemporaryDirectory()).path,
           imageFormat: vt.ImageFormat.JPEG,
           maxWidth: 1080,
@@ -344,16 +408,21 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         debugPrint('Thumbnail generation error: $e');
       }
       
-      setState(() {
-        _isRecording = false;
-        _capturedPath = video.path;
-        _isVideo = true;
-        _videoThumbnailPath = thumbnailPath;
-        _isVideoMirrored = _isFrontCamera; // Mark for display mirroring
-      });
+      if (mounted) {
+        setState(() {
+          _capturedPath = finalPath;
+          _isVideo = true;
+          _videoThumbnailPath = thumbnailPath;
+          _isVideoMirrored = mirroredFlag; 
+          _isProcessingVideo = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error stopping video: $e');
-      setState(() => _isRecording = false);
+      if (mounted) setState(() {
+        _isRecording = false;
+        _isProcessingVideo = false;
+      });
     }
   }
 
@@ -566,6 +635,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
               ],
             ),
           ),
+          // Processing overlay
+          if (_isProcessingVideo)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black54,
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 16),
+                      Text("Saving Video...", style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -592,11 +678,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           if (_isVideo && _capturedPath != null)
             GestureDetector(
               onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => VideoPlayerDialog(
-                    videoPath: _capturedPath!,
-                    isMirrored: _isVideoMirrored,
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) => VideoPlayerDialog(
+                      videoPath: _capturedPath!,
+                      isMirrored: _isVideoMirrored,
+                    ),
                   ),
                 );
               },
