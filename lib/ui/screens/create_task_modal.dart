@@ -163,7 +163,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           SizedBox(
             height: 150,
             child: CupertinoTimerPicker(
-              // Removed ValueKey - it was causing unnecessary rebuilds
+              // Key forces rebuild when AI estimate updates the duration
+              key: ValueKey(_selectedDuration.inMinutes),
               mode: CupertinoTimerPickerMode.hm,
               initialTimerDuration: _selectedDuration,
               onTimerDurationChanged: (val) {

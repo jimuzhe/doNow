@@ -611,10 +611,13 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
                     alignment: Alignment.center,
                     children: [
                       // Thumbnail or loading indicator or web placeholder
+                      // For video thumbnails: apply mirror to match video playback
+                      // For photos: iOS auto-mirrors saved photos, so no flip needed
                       if (_imagePath != null)
                         Positioned.fill(
                           child: Transform.flip(
-                            flipX: _isMirrored,
+                            // Only mirror video thumbnails (when _videoPath is set), not photos
+                            flipX: _videoPath != null && _isMirrored,
                             child: kIsWeb
                                 ? Image.network(_imagePath!, fit: BoxFit.cover)
                                 : Image.file(File(_imagePath!), fit: BoxFit.cover),
