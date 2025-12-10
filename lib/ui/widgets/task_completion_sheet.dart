@@ -61,11 +61,6 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       curve: Curves.easeOutBack,
     );
     
-    // Pre-warm camera in background for instant camera open
-    if (!kIsWeb) {
-      CameraService().prewarm();
-    }
-
     // Play sound and start animation
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.playSound) {
@@ -75,6 +70,13 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       
       // Auto-fetch location by default
       _fetchLocationOnStart();
+      
+      // Pre-warm camera in background AFTER sound finishes (avoid audio stutter)
+      if (!kIsWeb) {
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          CameraService().prewarm();
+        });
+      }
     });
   }
 
