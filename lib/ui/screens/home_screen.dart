@@ -47,7 +47,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return false; // Expired and not repeating
       }
       return true;
-    }).toList();
+    }).toList()
+    ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
 
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);

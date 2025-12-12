@@ -633,33 +633,72 @@ $personaPrompt
     int tasksSlower = 0;
     
     for (final task in dayTasks) {
+      // Use localized labels based on input locale
+      final isZh = locale != 'en'; 
+      
+      // 1. Decisions
+      if (task.isDecision) {
+        if (isZh) {
+          taskDetails.writeln('🔵 [决策] ${task.title}');
+          if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   备注: ${task.journalNote}');
+        } else {
+          taskDetails.writeln('🔵 [Decision] ${task.title}');
+          if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   Note: ${task.journalNote}');
+        }
+        taskDetails.writeln();
+        continue;
+      }
+
+      // 2. Quick Focus
+      if (task.isQuickFocus) {
+        final actualMinutes = task.actualDuration?.inMinutes ?? 0;
+        totalActualMinutes += actualMinutes;
+        
+        if (isZh) {
+          taskDetails.writeln('⚡ [快速专注] ${task.title}');
+          taskDetails.writeln('   时长: ${actualMinutes}分钟');
+          if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   备注: ${task.journalNote}');
+        } else {
+          taskDetails.writeln('⚡ [Quick Focus] ${task.title}');
+          taskDetails.writeln('   Duration: ${actualMinutes} min');
+          if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   Note: ${task.journalNote}');
+        }
+        taskDetails.writeln();
+        continue;
+      }
+
+      // 3. Regular Tasks
       final plannedMinutes = task.totalDuration.inMinutes;
       final actualMinutes = task.actualDuration?.inMinutes ?? plannedMinutes;
       final diff = actualMinutes - plannedMinutes;
-      final startTime = task.scheduledStart;
-      final completedTime = task.completedAt;
       
       totalPlannedMinutes += plannedMinutes;
       totalActualMinutes += actualMinutes;
       
-      String diffStr;
+      String diffStr, diffStrZh;
       if (diff > 0) {
-        diffStr = '慢了${diff}分钟';
+        diffStrZh = '慢了${diff}分钟';
+        diffStr = 'Slower by ${diff}m';
         tasksSlower++;
       } else if (diff < 0) {
-        diffStr = '快了${diff.abs()}分钟';
+        diffStrZh = '快了${diff.abs()}分钟';
+        diffStr = 'Faster by ${diff.abs()}m';
         tasksFaster++;
       } else {
-        diffStr = '准时完成';
+        diffStrZh = '准时完成';
+        diffStr = 'On time';
         tasksOnTime++;
       }
       
-      taskDetails.writeln('任务: ${task.title}');
-      taskDetails.writeln('  - 开始时间: ${_formatTime(startTime)}');
-      taskDetails.writeln('  - 计划时长: ${plannedMinutes}分钟');
-      taskDetails.writeln('  - 完成时间: ${completedTime != null ? _formatTime(completedTime) : "未知"}');
-      taskDetails.writeln('  - 实际用时: ${actualMinutes}分钟');
-      taskDetails.writeln('  - 差异: $diffStr');
+      if (isZh) {
+        taskDetails.writeln('📋 [任务] ${task.title}');
+        taskDetails.writeln('   计划: ${plannedMinutes}分钟 | 实际: ${actualMinutes}分钟 | $diffStrZh');
+        if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   笔记: ${task.journalNote}');
+      } else {
+         taskDetails.writeln('📋 [Task] ${task.title}');
+         taskDetails.writeln('   Plan: ${plannedMinutes}m | Actual: ${actualMinutes}m | $diffStr');
+         if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   Note: ${task.journalNote}');
+      }
       taskDetails.writeln();
     }
     
@@ -755,7 +794,7 @@ $taskDetails
 【你的任务】
 根据以上详细数据，生成一段富有洞察力的每日总结。
 
-1. 分析用户的时间管理模式（哪些任务预估准确，哪些需要调整）
+1. 分析用户的时间管理模式、决策倾向及专注状态（参考任务笔记和决策记录）
 2. 给出具体、可操作的改进建议
 3. 用温暖且富有激励性的语气
 
@@ -796,7 +835,7 @@ $taskDetails
 【Your Mission】
 Generate an insightful daily summary based on the above data.
 
-1. Analyze user's time management patterns.
+1. Analyze user's time management, decisions, and focus patterns (refer to notes).
 2. Provide specific, actionable advice.
 3. Use a warm and encouraging tone.
 

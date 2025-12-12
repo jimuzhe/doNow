@@ -924,7 +924,7 @@ packages:
       sha256: "41a20518f0cb1256669420fdba0cd90d21561e560ac240f26ef8322e45bb7ed6"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "3.0.0"
+    version: "2.0.0"
   package_config:
     dependency: transitive
     description:

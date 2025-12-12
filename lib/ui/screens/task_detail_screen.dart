@@ -76,6 +76,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     // Mark this task as active (to prevent duplicate navigation from scheduler)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(activeTaskIdProvider.notifier).state = widget.task.id;
+      ref.read(isBusyUIProvider.notifier).state = true;
     });
     
     // Initialize current step timer
@@ -306,6 +307,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         ref.read(activeTaskIdProvider.notifier).state = null;
+        ref.read(isBusyUIProvider.notifier).state = false;
       } catch (_) {}
     });
     
@@ -400,43 +402,85 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
   void _handleCancel() {
     final locale = ref.read(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => CustomDialog(
-        title: t('abort_title'),
-        content: t('abort_content'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(t('cancel')),
-          ),
-          // Reschedule
-          TextButton(
-             onPressed: () {
-               Navigator.pop(context);
-               _rescheduleTask();
-             },
-             child: Text(t('reschedule')),
-          ),
-           TextButton(
-            onPressed: () {
-               // 1. Cancel timer
-               _timer.cancel();
-               
-               // 2. Mark task as abandoned (for analysis tracking)
-               ref.read(taskRepositoryProvider).abandonTask(widget.task);
-               
-               // 3. End Live Activity / Dynamic Island
-               ref.read(notificationServiceProvider).endActivity();
-               
-               // 4. Close dialogs and return to home
-               Navigator.pop(context);
-               Navigator.pop(context);
-            },
-            child: Text(t('btn_quit'), style: const TextStyle(color: Colors.red)),
-          ),
-        ],
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            Text(t('abort_title'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+            const SizedBox(height: 12),
+            Text(
+               t('abort_content'), 
+               style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600], fontSize: 14, height: 1.5),
+               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            
+            // Actions
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                   Navigator.pop(context);
+                   _rescheduleTask();
+                },
+                style: ElevatedButton.styleFrom(
+                   backgroundColor: isDark ? Colors.white : Colors.black,
+                   foregroundColor: isDark ? Colors.black : Colors.white,
+                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                   elevation: 0,
+                ),
+                icon: const Icon(Icons.calendar_today_rounded, size: 20),
+                label: Text(t('reschedule'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: OutlinedButton(
+                onPressed: () {
+                   _timer.cancel();
+                   ref.read(taskRepositoryProvider).abandonTask(widget.task);
+                   ref.read(notificationServiceProvider).endActivity();
+                   Navigator.pop(context); // close sheet
+                   Navigator.pop(context); // close screen
+                },
+                style: OutlinedButton.styleFrom(
+                   side: BorderSide(color: Colors.red.withOpacity(0.3)),
+                   foregroundColor: Colors.red,
+                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text(t('btn_quit'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+             TextButton(
+               onPressed: () => Navigator.pop(context),
+               child: Text(t('cancel'), style: TextStyle(color: isDark?Colors.white54:Colors.grey)),
+             ),
+          ],
+        ),
       ),
     );
   }
