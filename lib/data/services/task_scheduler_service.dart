@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/task.dart';
 import '../providers.dart';
+import '../localization.dart';
 
 /// Service that monitors scheduled tasks and triggers notifications
 /// when it's time to execute them
@@ -99,41 +100,87 @@ class TaskSchedulerService {
       
       // If now is 10s before target: diff = -10.
       // If now is 300s after target: diff = 300.
+      // 2. Logic Check
+      
+      // A. Upcoming Warning (3 minutes before)
+      // Check window: [-190s, -170s] (Target is 180s in future)
+      if (diffSeconds >= -190 && diffSeconds <= -170) {
+         if (!_notifiedTaskIds.contains('${task.id}_upcoming')) {
+             _notifiedTaskIds.add('${task.id}_upcoming');
+             _sendUpcomingNotification(task);
+         }
+         continue;
+      }
+      
+      // B. Start Time Reached
+      // Check window: [-30s, 300s]
       if (diffSeconds >= -30 && diffSeconds <= 300) {
-         // Valid window: 30s before up to 5 minutes after
-         _notifiedTaskIds.add(task.id);
-         _triggerTaskDue(task);
+         if (!_notifiedTaskIds.contains('${task.id}_due')) {
+             _notifiedTaskIds.add('${task.id}_due');
+
+            // CONFLICT CHECK: Is there an active task?
+            final activeTaskId = _ref.read(activeTaskIdProvider);
+            if (activeTaskId != null && activeTaskId != task.id) {
+               // Conflict! Another task is active.
+               // Notify user but DO NOT auto-navigate.
+               _sendConflictNotification(task);
+            } else {
+               // No conflict, proceed as normal
+               _triggerTaskDue(task);
+            }
+         }
       }
     }
   }
 
-  /// Trigger notification and navigation for a due task
-  Future<void> _triggerTaskDue(Task task) async {
-    print('Task due: ${task.title}');
-    
-    // Send system notification
-    await _sendNotification(task);
-    
-    // Emit navigation event (UI will handle actual navigation)
-    _navigationController.add(task);
+  /// Send "Upcoming Task" warning (3 mins before)
+  Future<void> _sendUpcomingNotification(Task task) async {
+    final locale = _ref.read(localeProvider);
+    final title = locale == 'zh' ? '即将开始的任务' : 'Upcoming Task';
+    final body = locale == 'zh' 
+        ? '任务 "${task.title}" 将在3分钟后开始' 
+        : '"${task.title}" starts in 3 minutes';
+
+    await _showNotification(
+       id: task.id.hashCode + 1, // Different ID from due notification
+       title: title,
+       body: body,
+       taskId: task.id,
+    );
   }
 
-  /// Send a local notification for the task
-  Future<void> _sendNotification(Task task) async {
+  /// Send "Conflict / Due" notification when another task is already active
+  Future<void> _sendConflictNotification(Task task) async {
+    final locale = _ref.read(localeProvider);
+    final title = locale == 'zh' ? '任务时间已到' : 'Task Time Reached';
+    final body = locale == 'zh'
+        ? '您正在进行其他事项。是否切换到 "${task.title}"?'
+        : 'You are busy. Switch to "${task.title}"?';
+    
+    // We can add actions here later if we use a more advanced plugin, 
+    // for now just a notification that brings them to app.
+    await _showNotification(
+      id: task.id.hashCode,
+      title: title,
+      body: body,
+      taskId: task.id,
+    );
+  }
+
+  /// Wrapper for showing notification
+  Future<void> _showNotification({required int id, required String title, required String body, required String taskId}) async {
     const androidDetails = AndroidNotificationDetails(
       'task_due_channel',
-      'Task Due Notifications',
-      channelDescription: 'Notifications when a task is due to start',
+      'Task Notifications',
+      channelDescription: 'Notifications for tasks',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
       enableVibration: true,
-      fullScreenIntent: true,
     );
     
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
-      presentBadge: true,
       presentSound: true,
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
@@ -145,16 +192,33 @@ class TaskSchedulerService {
     
     try {
       await _notifications.show(
-        task.id.hashCode,
-        '🚀 任务开始时间到！',
-        task.title,
+        id,
+        title,
+        body,
         details,
-        payload: task.id,
+        payload: taskId,
       );
     } catch (e) {
       print('Failed to show notification: $e');
     }
   }
+
+  /// Trigger notification and navigation for a due task
+  Future<void> _triggerTaskDue(Task task) async {
+    print('Task due: ${task.title}');
+    
+    // Send system notification
+    await _showNotification(
+       id: task.id.hashCode,
+       title: '🚀 任务开始时间到！',
+       body: task.title,
+       taskId: task.id,
+    );
+    
+    // Emit navigation event (UI will handle actual navigation)
+    _navigationController.add(task);
+  }
+
 
   /// Reset notification state for a task (e.g., when rescheduled)
   void resetTaskNotification(String taskId) {

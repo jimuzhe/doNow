@@ -8,6 +8,7 @@ import '../../data/providers.dart';
 import '../../data/localization.dart';
 import '../../data/services/ai_service.dart'; // For AIEstimateResult
 import '../../utils/haptic_helper.dart';
+import '../../utils/snackbar_helper.dart';
 import '../widgets/custom_loading_overlay.dart';
 import '../widgets/subtask_editor_sheet.dart';
 import 'task_detail_screen.dart';
@@ -222,9 +223,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
   Future<void> _onAIEstimate() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('enter_title_first')), backgroundColor: Colors.orange),
-      );
+      SnackBarHelper.showWarning(t('enter_title_first'));
       return;
     }
     
@@ -233,7 +232,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     
     try {
       final aiService = ref.read(aiServiceProvider);
-      final result = await aiService.estimateAndDecompose(title);
+      final locale = ref.read(localeProvider);
+      final result = await aiService.estimateAndDecompose(title, locale: locale);
       
       if (mounted) {
         setState(() {
@@ -246,13 +246,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
         
         HapticHelper(ref).mediumImpact();
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${t('estimated')}: ${result.estimatedDuration.inMinutes} ${t('minutes')}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showSuccess('${t('estimated')}: ${result.estimatedDuration.inMinutes} ${t('minutes')}');
       }
     } catch (e) {
       if (mounted) {
@@ -263,9 +257,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           errorMsg = t('security_error');
         }
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
-        );
+        SnackBarHelper.showError(errorMsg);
       }
     }
   }
@@ -390,8 +382,9 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
       
       if (needsRegeneration) {
           final aiService = ref.read(aiServiceProvider);
+          final locale = ref.read(localeProvider);
           setState(() {
-            _aiFuture = aiService.decomposeTask(title, _selectedDuration);
+            _aiFuture = aiService.decomposeTask(title, _selectedDuration, locale: locale);
           });
       }
     }
@@ -418,8 +411,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     // Calculate time difference in minutes
     final diffInMinutes = scheduledDateTime.difference(now).inMinutes;
     
-    // If scheduled time is within 2 minutes of now (or in the past), treat as "start now"
-    final isImmediate = diffInMinutes <= 2 && diffInMinutes >= -2;
+    // If scheduled time is within 1 minute of now (or in the past), treat as "start now"
+    final isImmediate = diffInMinutes <= 1 && diffInMinutes >= -2;
     
     _finish(now: isImmediate);
   }
@@ -439,12 +432,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
       );
       
       if (scheduledDateTime.isBefore(DateTime.now())) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(t('time_in_past')),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarHelper.showWarning(t('time_in_past'));
         return;
       }
     }
@@ -488,7 +476,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
               errorMsg = t('security_error');
            }
            
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+           SnackBarHelper.showError(errorMsg);
         }
       }
     } else {
@@ -537,7 +525,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                errorMsg = t('security_error');
             }
             
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+            SnackBarHelper.showError(errorMsg);
           }
         }
       } else {

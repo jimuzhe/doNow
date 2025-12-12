@@ -201,7 +201,7 @@ class DailySummaryService {
         try {
            final tasks = ref.read(taskListProvider); 
            
-           final summary = await _aiService.generateDailySummary(tasks, yesterday);
+           final summary = await _aiService.generateDailySummary(tasks, yesterday, locale: locale);
            ref.read(dailySummaryProvider.notifier).addSummary(summary);
            
         } catch (e) {

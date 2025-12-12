@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 import 'package:image/image.dart' as img;
 import '../widgets/video_player_dialog.dart';
+import 'package:do_now/utils/snackbar_helper.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -368,12 +369,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       
       debugPrint('📹 Video recorded - isFrontCamera: $_isFrontCamera, mirroredFlag: $mirroredFlag');
       if (mounted && ref.read(debugLogEnabledProvider)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('📹 Video: isFrontCamera=$_isFrontCamera, mirrored=$mirroredFlag'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showInfo('📹 Video: isFrontCamera=$_isFrontCamera, mirrored=$mirroredFlag');
       }
 
       // Generate video thumbnail (from the FINAL path)
@@ -422,12 +418,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     if (_capturedPath != null) {
       debugPrint('✅ Confirming - path: $_capturedPath, isVideo: $_isVideo, mirrored: $_isVideoMirrored');
       if (ref.read(debugLogEnabledProvider)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Confirm: mirrored=$_isVideoMirrored'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showInfo('✅ Confirm: mirrored=$_isVideoMirrored');
       }
       Navigator.pop(context, {
         'path': _capturedPath, 

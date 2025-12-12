@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
+import '../models/habit.dart';
 import '../models/api_settings.dart';
 import '../api_config.dart';
 
@@ -169,6 +170,48 @@ class StorageService {
   /// Load AI persona from storage (default: 'balanced')
   String loadAIPersona() {
     return prefs.getString(_userKey(_aiPersonaKey)) ?? 'balanced';
+  }
+
+  // ============== ONBOARDING (per-user) ==============
+  
+  static const String _isFirstLaunchKey = 'is_first_launch';
+
+  /// Check if this is the first launch for this user
+  /// Returns true if the key doesn't exist yet
+  bool loadIsFirstLaunch() {
+    return prefs.getBool(_userKey(_isFirstLaunchKey)) ?? true;
+  }
+
+  /// Set first launch flag to false
+  Future<void> setFirstLaunchCompleted() async {
+    await prefs.setBool(_userKey(_isFirstLaunchKey), false);
+  }
+
+  // ============== HABITS (per-user) ==============
+  
+  static const String _habitsKey = 'habits';
+
+  Future<void> saveHabits(List<Habit> habits) async {
+    final jsonList = habits.map((h) => h.toJson()).toList();
+    final jsonString = jsonEncode(jsonList);
+    await prefs.setString(_userKey(_habitsKey), jsonString);
+  }
+
+  List<Habit> loadHabits() {
+    final jsonString = prefs.getString(_userKey(_habitsKey));
+    if (jsonString == null || jsonString.isEmpty) {
+      return [];
+    }
+    
+    try {
+      final jsonList = jsonDecode(jsonString) as List<dynamic>;
+      return jsonList
+          .map((json) => Habit.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print('Error loading habits: $e');
+      return [];
+    }
   }
 
   // ============== CLEAR ALL ==============

@@ -5,6 +5,7 @@ import '../../utils/haptic_helper.dart';
 import 'home_screen.dart';
 import 'analysis_screen.dart';
 import 'settings_screen.dart';
+import 'quick_focus_screen.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -34,46 +35,56 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: _onTabTapped,
-          backgroundColor: isDark ? Colors.black : Colors.white,
-          elevation: 0, // Flat
-          type: BottomNavigationBarType.fixed,
-          showSelectedLabels: false,
-          showUnselectedLabels: false,
-          selectedItemColor: isDark ? Colors.white : Colors.black,
-          unselectedItemColor: Colors.grey[500],
-          iconSize: 28,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home_filled),
-              label: 'Home',
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        // If landscape, show Quick Focus directly
+        if (orientation == Orientation.landscape) {
+          return const QuickFocusScreen(isAutoLandscape: true);
+        }
+
+        // Portrait: Standard Tabbed View
+        return Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          bottomNavigationBar: Theme(
+            data: Theme.of(context).copyWith(
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart_outlined), // More twitter like analysis icon?
-              activeIcon: Icon(Icons.bar_chart),
-              label: 'Analysis',
+            child: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: _onTabTapped,
+              backgroundColor: isDark ? Colors.black : Colors.white,
+              elevation: 0, // Flat
+              type: BottomNavigationBarType.fixed,
+              showSelectedLabels: false,
+              showUnselectedLabels: false,
+              selectedItemColor: isDark ? Colors.white : Colors.black,
+              unselectedItemColor: Colors.grey[500],
+              iconSize: 28,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home_filled),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.bar_chart_outlined), // More twitter like analysis icon?
+                  activeIcon: Icon(Icons.bar_chart),
+                  label: 'Analysis',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings_outlined),
+                  activeIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
