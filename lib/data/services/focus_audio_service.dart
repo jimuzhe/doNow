@@ -10,116 +10,114 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class FocusAudioService {
   final AudioPlayer _player = AudioPlayer();
-  bool _isPlaying = false;
+  bool _isPlaying = false; // Tracks if audio is actually outputting/playing
+  bool _isSessionActive = false; // Tracks if the user *intends* for audio to be active (timer running)
   File? _silentFile;
   Timer? _keepAliveTimer;
   
   FocusSoundType _currentType = FocusSoundType.none;
-  double _volume = 0.5; // Default volume for white noise
-
-  /// Generate a proper silent WAV file programmatically
-  /// This creates a longer duration silent file (10 seconds) for better reliability
-  Uint8List _generateSilentWav({int durationSeconds = 10}) {
-    const int sampleRate = 44100;
-    const int bitsPerSample = 16;
-    const int numChannels = 1;
-    final int numSamples = sampleRate * durationSeconds;
-    final int dataSize = numSamples * (bitsPerSample ~/ 8) * numChannels;
-    final int fileSize = 36 + dataSize;
-
-    final ByteData byteData = ByteData(44 + dataSize);
-    int offset = 0;
-
-    // RIFF header
-    byteData.setUint8(offset++, 0x52); // R
-    byteData.setUint8(offset++, 0x49); // I
-    byteData.setUint8(offset++, 0x46); // F
-    byteData.setUint8(offset++, 0x46); // F
-    byteData.setUint32(offset, fileSize, Endian.little); offset += 4;
-    byteData.setUint8(offset++, 0x57); // W
-    byteData.setUint8(offset++, 0x41); // A
-    byteData.setUint8(offset++, 0x56); // V
-    byteData.setUint8(offset++, 0x45); // E
-
-    // fmt  subchunk
-    byteData.setUint8(offset++, 0x66); // f
-    byteData.setUint8(offset++, 0x6D); // m
-    byteData.setUint8(offset++, 0x74); // t
-    byteData.setUint8(offset++, 0x20); // space
-    byteData.setUint32(offset, 16, Endian.little); offset += 4; // subchunk size
-    byteData.setUint16(offset, 1, Endian.little); offset += 2; // audio format (PCM)
-    byteData.setUint16(offset, numChannels, Endian.little); offset += 2;
-    byteData.setUint32(offset, sampleRate, Endian.little); offset += 4;
-    byteData.setUint32(offset, sampleRate * numChannels * (bitsPerSample ~/ 8), Endian.little); offset += 4; // byte rate
-    byteData.setUint16(offset, numChannels * (bitsPerSample ~/ 8), Endian.little); offset += 2; // block align
-    byteData.setUint16(offset, bitsPerSample, Endian.little); offset += 2;
-
-    // data subchunk
-    byteData.setUint8(offset++, 0x64); // d
-    byteData.setUint8(offset++, 0x61); // a
-    byteData.setUint8(offset++, 0x74); // t
-    byteData.setUint8(offset++, 0x61); // a
-    byteData.setUint32(offset, dataSize, Endian.little); offset += 4;
-
-    // All remaining bytes are 0 (silence) - ByteData is initialized to 0
-    
-    return byteData.buffer.asUint8List();
-  }
+  double _volume = 0.5;
 
   Future<void> init() async {
-    // Skip on web/unsupported platforms
-    if (kIsWeb) return;
-    
-    try {
-      final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
-        avAudioSessionMode: AVAudioSessionMode.defaultMode,
-        avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
-        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
-        androidAudioAttributes: AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.music,
-          flags: AndroidAudioFlags.none,
-          usage: AndroidAudioUsage.media,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: false,
-      ));
-      
-      // Prepare the silent file
+    // Configure audio session for background playback
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playback,
+      avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
+      avAudioSessionMode: AVAudioSessionMode.defaultMode,
+      avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+      avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
+      androidAudioAttributes: AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.music,
+        flags: AndroidAudioFlags.none,
+        usage: AndroidAudioUsage.media,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      androidWillPauseWhenDucked: true,
+    ));
+
+    // Prepare silent audio file for keep-alive on native platforms
+    if (!kIsWeb) {
       await _prepareSilentFile();
-      
-      debugPrint('🔇 FocusAudioService initialized');
-    } catch (e) {
-      debugPrint('❌ Error initializing FocusAudioService: $e');
     }
   }
 
   Future<void> _prepareSilentFile() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      _silentFile = File('${dir.path}/silent_focus_10s.wav');
-      
-      // Generate and write a proper 10-second silent WAV file
-      final silentData = _generateSilentWav(durationSeconds: 10);
-      await _silentFile!.writeAsBytes(silentData);
-      
-      debugPrint('🔇 Created silent WAV file: ${_silentFile!.path} (${silentData.length} bytes)');
+      _silentFile = File('${dir.path}/silent_keep_alive.wav');
+      if (!await _silentFile!.exists()) {
+        // Generate a 1-second silent WAV file
+        final bytes = _generateSilentWav(1); // 1 second
+        await _silentFile!.writeAsBytes(bytes);
+      }
     } catch (e) {
-      debugPrint('❌ Error creating silent file: $e');
+      debugPrint("Error preparing silent file: $e");
     }
   }
 
-  /// Start playing the focus sound (or silent keep-alive)
+  Uint8List _generateSilentWav(int durationSeconds) {
+    const int sampleRate = 44100;
+    const int numChannels = 1;
+    const int bitsPerSample = 16;
+    const int byteRate = sampleRate * numChannels * bitsPerSample ~/ 8;
+    const int blockAlign = numChannels * bitsPerSample ~/ 8;
+    final int dataSize = durationSeconds * byteRate;
+    final int fileSize = 36 + dataSize;
+
+    final buffer = ByteData(fileSize + 8);
+    // RIFF chunk
+    buffer.setUint32(0, 0x52494646, Endian.big); // "RIFF"
+    buffer.setUint32(4, fileSize, Endian.little);
+    buffer.setUint32(8, 0x57415645, Endian.big); // "WAVE"
+    // fmt chunk
+    buffer.setUint32(12, 0x666d7420, Endian.big); // "fmt "
+    buffer.setUint32(16, 16, Endian.little); // Chunk size (16 for PCM)
+    buffer.setUint16(20, 1, Endian.little); // Audio format (1 = PCM)
+    buffer.setUint16(22, numChannels, Endian.little);
+    buffer.setUint32(24, sampleRate, Endian.little);
+    buffer.setUint32(28, byteRate, Endian.little);
+    buffer.setUint16(32, blockAlign, Endian.little);
+    buffer.setUint16(34, bitsPerSample, Endian.little);
+    // data chunk
+    buffer.setUint32(36, 0x64617461, Endian.big); // "data"
+    buffer.setUint32(40, dataSize, Endian.little);
+    
+    // Data is all zeros (silence), which is default for ByteData
+
+    return buffer.buffer.asUint8List();
+  }
+
+  /// Start the focus session (active timer).
+  /// This will play audio if a sound is selected.
   Future<void> startFocusSound() async {
-    // kIsWeb is now ALLOWED for playing sounds, but we need to handle "silent" keep-alive differently
-    // Do not check _isPlaying here, allow restarting/changing track
+    _isSessionActive = true;
+    await _updateAudioState();
+  }
+
+  /// Stop the focus session (timer paused/stopped).
+  Future<void> stopFocusSound() async {
+    _isSessionActive = false;
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = null;
     
     try {
+      await _player.stop();
+      _isPlaying = false; 
+      debugPrint('🔇 Focus audio stopped (Session Ended)');
+    } catch (e) {
+      debugPrint('❌ Error stopping audio: $e');
+    }
+  }
+
+  /// Internal method to sync player state with session state and selection
+  Future<void> _updateAudioState() async {
+    if (!_isSessionActive) return; // Should not play if session inactive
+
+    try {
       if (_currentType == FocusSoundType.none) {
+        // User wants silence
         if (kIsWeb) {
-            // Web doesn't need "silent keepalive" file, just stop playing
             await _player.stop();
             _isPlaying = false;
             return;
@@ -129,45 +127,43 @@ class FocusAudioService {
         if (_silentFile == null) await _prepareSilentFile();
         if (_silentFile != null) {
             await _player.setFilePath(_silentFile!.path);
-            await _player.setVolume(0.0); // Silence
+            await _player.setVolume(0.0);
+            await _player.setLoopMode(LoopMode.one);
+            await _player.play();
+            _isPlaying = true;
         }
       } else {
-        // Play white noise asset
+        // User selected a sound
         try {
-          // setAsset works on both Web and Native
+          // Stop first to ensure clean state switch (helps with some "no response" issues)
+          if (_isPlaying) await _player.stop(); 
+          
           await _player.setAsset(_currentType.assetPath);
           await _player.setVolume(_volume);
+          await _player.setLoopMode(LoopMode.one);
+          await _player.play();
+          
+          _isPlaying = true;
+          debugPrint('🎵 Playing: ${_currentType.name}');
         } catch (assetError) {
-          debugPrint('⚠️ Asset not found for ${_currentType.name}, falling back to silence: $assetError');
-          
-          if (kIsWeb) {
-             await _player.stop();
-             _isPlaying = false;
-             return;
-          }
-          
-          // Fallback to silence if asset missing on native
-          if (_silentFile == null) await _prepareSilentFile();
-          if (_silentFile != null) {
-              await _player.setFilePath(_silentFile!.path);
-              await _player.setVolume(0.0);
+          debugPrint('⚠️ Error playing asset: $assetError');
+          // Fallback logic...
+          if (!kIsWeb && _silentFile != null) {
+             await _player.setFilePath(_silentFile!.path);
+             await _player.setVolume(0.0);
+             await _player.play();
           }
         }
       }
-
-      await _player.setLoopMode(LoopMode.one); // Infinite loop
-      await _player.play();
-      _isPlaying = true;
       
-      // Start a keep-alive timer that periodically ensures audio is still playing
+      // Keep-alive timer logic
       _keepAliveTimer?.cancel();
-      _keepAliveTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-        _ensureAudioPlaying();
-      });
+      if (_isPlaying) {
+        _keepAliveTimer = Timer.periodic(const Duration(seconds: 30), (_) => _ensureAudioPlaying());
+      }
       
-      debugPrint('🎵 Background audio started: ${_currentType.name}');
     } catch (e) {
-      debugPrint('❌ Error starting focus sound: $e');
+      debugPrint('❌ Error updating audio state: $e');
     }
   }
 
@@ -176,9 +172,9 @@ class FocusAudioService {
     if (_currentType == type) return;
     _currentType = type;
     
-    if (_isPlaying) {
-      // Restart with new source
-      await startFocusSound();
+    // If session is active, apply the new sound immediately
+    if (_isSessionActive) {
+      await _updateAudioState();
     }
   }
 
@@ -193,29 +189,9 @@ class FocusAudioService {
   FocusSoundType get currentType => _currentType;
   double get currentVolume => _volume;
 
-  /// Periodically called to ensure audio session stays active
   void _ensureAudioPlaying() {
-    if (!_isPlaying) return;
-    
-    if (!_player.playing) {
-      debugPrint('🔄 Restarting audio (was stopped)');
-      _player.play();
-    }
-  }
-
-  Future<void> stopFocusSound() async {
-    if (!_isPlaying) return;
-    
-    try {
-      _keepAliveTimer?.cancel();
-      _keepAliveTimer = null;
-      
-      await _player.stop();
-      _isPlaying = false;
-      
-      debugPrint('🔇 Focus audio stopped');
-    } catch (e) {
-      debugPrint('❌ Error stopping focus sound: $e');
+    if (_isSessionActive && _isPlaying && !_player.playing) {
+       _player.play();
     }
   }
   

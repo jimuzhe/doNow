@@ -248,7 +248,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                    child: GestureDetector(
                      onTap: _handleVersionTap,
                      child: Text(
-                       "${t('version')} 2.0.0", 
+                       "${t('version')} 3.0.0", 
                        style: TextStyle(color: Colors.grey[400], fontSize: 12)
                      ),
                    ),
@@ -339,7 +339,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                ),
              ),
              const SizedBox(height: 16),
-             Text("Version 2.0.0", style: TextStyle(color: Colors.grey[600])),
+             Text("Version 3.0.0", style: TextStyle(color: Colors.grey[600])),
              const SizedBox(height: 32),
              Padding(
                padding: const EdgeInsets.symmetric(horizontal: 32),

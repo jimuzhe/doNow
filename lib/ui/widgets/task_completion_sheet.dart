@@ -434,70 +434,102 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
           // Time Stats (Hidden for Decision)
           if (!widget.task.isDecision)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50],
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Planned
-                  _TimeStatItem(
-                    label: locale == 'zh' ? '计划' : 'Planned',
-                    value: '${widget.task.totalDuration.inMinutes}m',
-                    isDark: isDark,
+            widget.task.isQuickFocus 
+              ? Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.orange.withOpacity(0.1) : Colors.orange.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
                   ),
-                  // Divider
-                  Container(
-                    width: 1,
-                    height: 40,
-                    color: isDark ? Colors.white12 : Colors.black12,
-                  ),
-                  // Actual
-                  _TimeStatItem(
-                    label: locale == 'zh' ? '实际' : 'Actual',
-                    value: '${widget.actualDuration.inMinutes}m',
-                    isDark: isDark,
-                  ),
-                  // Divider
-                  Container(
-                    width: 1,
-                    height: 40,
-                    color: isDark ? Colors.white12 : Colors.black12,
-                  ),
-                  // Difference
-                  Column(
+                  child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: (timeDiff['color'] as Color).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          timeDiff['text'] as String,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: timeDiff['color'] as Color,
-                          ),
+                      Text(
+                        '${widget.actualDuration.inMinutes}',
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                          height: 1.0,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        timeDiff['label'] as String,
+                        t('focus_minutes'),
                         style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.white54 : Colors.grey[600],
+                          fontSize: 14,
+                          color: Colors.orange.withOpacity(0.8),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Planned
+                      _TimeStatItem(
+                        label: locale == 'zh' ? '计划' : 'Planned',
+                        value: '${widget.task.totalDuration.inMinutes}m',
+                        isDark: isDark,
+                      ),
+                      // Divider
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: isDark ? Colors.white12 : Colors.black12,
+                      ),
+                      // Actual
+                      _TimeStatItem(
+                        label: locale == 'zh' ? '实际' : 'Actual',
+                        value: '${widget.actualDuration.inMinutes}m',
+                        isDark: isDark,
+                      ),
+                      // Divider
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: isDark ? Colors.white12 : Colors.black12,
+                      ),
+                      // Difference
+                      Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: (timeDiff['color'] as Color).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              timeDiff['text'] as String,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: timeDiff['color'] as Color,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            timeDiff['label'] as String,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white54 : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
 
           const SizedBox(height: 24),
 

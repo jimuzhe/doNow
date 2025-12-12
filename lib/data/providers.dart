@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'models/task.dart';
+import 'models/habit.dart';
 import 'models/api_settings.dart';
 import 'models/ai_persona.dart';
 import 'services/ai_service.dart';
@@ -108,8 +109,8 @@ class TaskListNotifier extends StateNotifier<List<Task>> {
         scheduledStart: now.add(const Duration(minutes: 2)), 
         totalDuration: const Duration(minutes: 20),
         subTasks: [
-          SubTask(id: const Uuid().v4(), title: "试着长按这个任务卡片 (预览子任务) 👆", estimatedDuration: const Duration(minutes: 5)),
-          SubTask(id: const Uuid().v4(), title: "点击卡片进入，然后点击底部的 ▶️ 开始专注", estimatedDuration: const Duration(minutes: 5)),
+          SubTask(id: const Uuid().v4(), title: "长按事务卡片可以预览子任务 👆", estimatedDuration: const Duration(minutes: 5)),
+          SubTask(id: const Uuid().v4(), title: "左右滑动事务卡片可以进行修改操作，长按右上角➕号使用更多功能", estimatedDuration: const Duration(minutes: 5)),
           SubTask(id: const Uuid().v4(), title: "在任务进行中，点击右上角🎧打开背景白噪音", estimatedDuration: const Duration(minutes: 5)),
           SubTask(id: const Uuid().v4(), title: "回到桌面查看灵动岛/锁屏进度 🏝️", estimatedDuration: const Duration(minutes: 5)),
         ],
@@ -261,4 +262,66 @@ class AIPersonaNotifier extends StateNotifier<AIPersona> {
 
 // Debug Log Provider - for showing debug logs on screen (not persisted)
 final debugLogEnabledProvider = StateProvider<bool>((ref) => false);
+
+
+// Habit List Provider
+final habitListProvider = StateNotifierProvider<HabitListNotifier, List<Habit>>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return HabitListNotifier(storage);
+});
+
+class HabitListNotifier extends StateNotifier<List<Habit>> {
+  final StorageService _storage;
+
+  HabitListNotifier(this._storage) : super([]) {
+    _loadFromStorage();
+  }
+
+  void _loadFromStorage() {
+    try {
+      state = _storage.loadHabits();
+    } catch (_) { }
+  }
+
+  void addHabit(Habit habit) {
+    state = [...state, habit];
+    _storage.saveHabits(state);
+  }
+
+  void updateHabit(Habit habit) {
+    state = state.map((h) => h.id == habit.id ? habit : h).toList();
+    _storage.saveHabits(state);
+  }
+
+  void deleteHabit(String id) {
+    state = state.where((h) => h.id != id).toList();
+    _storage.saveHabits(state);
+  }
+
+  void toggleToday(String id) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    state = state.map((h) {
+      if (h.id != id) return h;
+      
+      final isCompleted = h.isCompletedToday();
+      List<DateTime> newDates;
+      
+      if (isCompleted) {
+        // Remove today
+        newDates = h.completedDates.where((d) => 
+          !(d.year == today.year && d.month == today.month && d.day == today.day)
+        ).toList();
+      } else {
+        // Add today
+        newDates = [...h.completedDates, today];
+      }
+      
+      return h.copyWith(completedDates: newDates);
+    }).toList();
+    
+    _storage.saveHabits(state);
+  }
+}
 

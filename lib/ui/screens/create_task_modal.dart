@@ -232,7 +232,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     
     try {
       final aiService = ref.read(aiServiceProvider);
-      final result = await aiService.estimateAndDecompose(title);
+      final locale = ref.read(localeProvider);
+      final result = await aiService.estimateAndDecompose(title, locale: locale);
       
       if (mounted) {
         setState(() {
@@ -381,8 +382,9 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
       
       if (needsRegeneration) {
           final aiService = ref.read(aiServiceProvider);
+          final locale = ref.read(localeProvider);
           setState(() {
-            _aiFuture = aiService.decomposeTask(title, _selectedDuration);
+            _aiFuture = aiService.decomposeTask(title, _selectedDuration, locale: locale);
           });
       }
     }
@@ -409,8 +411,8 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
     // Calculate time difference in minutes
     final diffInMinutes = scheduledDateTime.difference(now).inMinutes;
     
-    // If scheduled time is within 2 minutes of now (or in the past), treat as "start now"
-    final isImmediate = diffInMinutes <= 2 && diffInMinutes >= -2;
+    // If scheduled time is within 1 minute of now (or in the past), treat as "start now"
+    final isImmediate = diffInMinutes <= 1 && diffInMinutes >= -2;
     
     _finish(now: isImmediate);
   }

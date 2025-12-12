@@ -12,8 +12,10 @@ import '../../utils/haptic_helper.dart';
 import 'task_detail_screen.dart';
 import 'create_task_modal.dart';
 import 'decision_screen.dart';
+import 'quick_focus_screen.dart';
 import '../widgets/responsive_center.dart';
 import '../widgets/subtask_editor_sheet.dart';
+import '../widgets/habit_list.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -120,6 +122,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                             ),
                             PopupMenuItem<String>(
+                              value: 'quick_focus',
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.hourglass_empty, size: 24, color: isDark ? Colors.white : Colors.black),
+                                  const SizedBox(width: 12),
+                                  Text(t('quick_focus'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem<String>(
                               value: 'decision',
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -136,6 +149,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                              _showTaskModal(context);
                            } else if (value == 'decision') {
                              Navigator.push(context, MaterialPageRoute(builder: (_) => const DecisionScreen()));
+                           } else if (value == 'quick_focus') {
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => const QuickFocusScreen()));
                            }
                         });
                       },
@@ -144,7 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
             ),
-
+            
             // 2. Task List with Slides
             Expanded(
               child: tasks.isEmpty

@@ -13,20 +13,20 @@ class AIEstimateResult {
 }
 
 abstract class AIService {
-  Future<List<SubTask>> decomposeTask(String taskTitle, Duration totalDuration);
+  Future<List<SubTask>> decomposeTask(String taskTitle, Duration totalDuration, {String? locale});
   
   /// Estimate task duration and decompose into subtasks in one AI call
-  Future<AIEstimateResult> estimateAndDecompose(String taskTitle);
+  Future<AIEstimateResult> estimateAndDecompose(String taskTitle, {String? locale});
 
   /// Generate a daily summary, encouragement, and improvement suggestions specifically for the previous day
-  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date);
+  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date, {String? locale});
 }
 
 class MockAIService implements AIService {
   final Uuid _uuid = const Uuid();
 
   @override
-  Future<List<SubTask>> decomposeTask(String taskTitle, Duration totalDuration) async {
+  Future<List<SubTask>> decomposeTask(String taskTitle, Duration totalDuration, {String? locale}) async {
     // Simulate network delay
     await Future.delayed(const Duration(seconds: 2));
 
@@ -58,7 +58,7 @@ class MockAIService implements AIService {
   }
   
   @override
-  Future<AIEstimateResult> estimateAndDecompose(String taskTitle) async {
+  Future<AIEstimateResult> estimateAndDecompose(String taskTitle, {String? locale}) async {
     await Future.delayed(const Duration(seconds: 2));
     
     // Mock: estimate 60 minutes and split into 4 parts
@@ -78,7 +78,7 @@ class MockAIService implements AIService {
 
 
   @override
-  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date) async {
+  Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date, {String? locale}) async {
     await Future.delayed(const Duration(seconds: 2));
     return DailySummary(
       date: date,

@@ -1204,19 +1204,23 @@ class _TimelineItemWithLine extends StatelessWidget {
               width: 24,
               child: Column(
                 children: [
-                  // Time indicator dot (Different for decision)
+                  // Time indicator dot (Different for decision/quick focus)
                   Container(
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: task.isDecision ? Colors.purpleAccent : statusColor,
+                      color: task.isDecision 
+                          ? Colors.purpleAccent 
+                          : (task.isQuickFocus ? Colors.orangeAccent : statusColor),
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: isDark ? Colors.grey[800]! : Colors.white,
                         width: 2,
                       ),
                     ),
-                    child: task.isDecision ? const Center(child: Icon(Icons.star, size: 8, color: Colors.white)) : null,
+                    child: task.isDecision 
+                        ? const Center(child: Icon(Icons.star, size: 8, color: Colors.white))
+                        : (task.isQuickFocus ? const Center(child: Icon(Icons.bolt, size: 8, color: Colors.white)) : null),
                   ),
                   // Connecting line (if not last item)
                   if (!isLast)
@@ -1245,8 +1249,8 @@ class _TimelineItemWithLine extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Time + Duration on same line (Hidden for Decision)
-                          if (!task.isDecision)
+                          // Time + Duration on same line (Hidden for Decision/QuickFocus special handling)
+                          if (!task.isDecision && !task.isQuickFocus)
                             Row(
                               children: [
                                 Text(
@@ -1294,6 +1298,40 @@ class _TimelineItemWithLine extends StatelessWidget {
                                 ],
                               ],
                             )
+                          else if (task.isQuickFocus)
+                             // Quick Focus Row
+                             Row(
+                               children: [
+                                 Text(
+                                   timeStr,
+                                   style: TextStyle(
+                                     fontSize: 12,
+                                     fontWeight: FontWeight.w500,
+                                     color: isDark ? Colors.white70 : Colors.grey[700],
+                                   ),
+                                 ),
+                                 const SizedBox(width: 8),
+                                 Container(
+                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                   decoration: BoxDecoration(
+                                     color: Colors.orange.withOpacity(0.1),
+                                     borderRadius: BorderRadius.circular(4),
+                                     border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                   ),
+                                   child: Row(
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       Icon(Icons.bolt, size: 10, color: Colors.orange[700]),
+                                       const SizedBox(width: 2),
+                                       Text(
+                                         task.actualDuration != null ? '${task.actualDuration!.inMinutes}m' : 'Focus',
+                                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange[700]),
+                                       ),
+                                     ],
+                                   ),
+                                 )
+                               ],
+                             )
                           else
                             // Special Time display/Tag for Decision
                             Row(
@@ -1315,7 +1353,7 @@ class _TimelineItemWithLine extends StatelessWidget {
                                     border: Border.all(color: Colors.purple.withOpacity(0.3)),
                                   ),
                                   child: Text(
-                                    "Decision", // Could be localized, but 'Decision' is clear enough or use symbol
+                                    "Decision", 
                                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.purple[300]),
                                   ),
                                 )

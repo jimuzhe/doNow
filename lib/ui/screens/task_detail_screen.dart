@@ -528,7 +528,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                      }
                   }
 
-                  return InkWell(
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
                       onTap: () {
                       // Haptic feedback for step toggle
                       HapticHelper(ref).selectionClick();
@@ -588,7 +591,6 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         // Dark mode: use dark greys instead of white
@@ -675,9 +677,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
+            ),
             ),
 
             // Bottom Actions
