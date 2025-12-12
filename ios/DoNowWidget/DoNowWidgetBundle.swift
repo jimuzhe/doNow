@@ -5,5 +5,6 @@ import SwiftUI
 struct DoNowWidgetBundle: WidgetBundle {
     var body: some Widget {
         DoNowActivityWidget()
+        DoNowHomeWidget()
     }
 }

@@ -13,6 +13,9 @@ class FocusAudioService {
   bool _isPlaying = false;
   File? _silentFile;
   Timer? _keepAliveTimer;
+  
+  FocusSoundType _currentType = FocusSoundType.none;
+  double _volume = 0.5; // Default volume for white noise
 
   /// Generate a proper silent WAV file programmatically
   /// This creates a longer duration silent file (10 seconds) for better reliability
@@ -108,17 +111,51 @@ class FocusAudioService {
     }
   }
 
+  /// Start playing the focus sound (or silent keep-alive)
   Future<void> startFocusSound() async {
-    if (kIsWeb) return;
-    if (_isPlaying || _silentFile == null) return;
+    // kIsWeb is now ALLOWED for playing sounds, but we need to handle "silent" keep-alive differently
+    // Do not check _isPlaying here, allow restarting/changing track
     
     try {
-      await _player.setFilePath(_silentFile!.path);
+      if (_currentType == FocusSoundType.none) {
+        if (kIsWeb) {
+            // Web doesn't need "silent keepalive" file, just stop playing
+            await _player.stop();
+            _isPlaying = false;
+            return;
+        }
+
+        // Native: Play silent file for background keep-alive
+        if (_silentFile == null) await _prepareSilentFile();
+        if (_silentFile != null) {
+            await _player.setFilePath(_silentFile!.path);
+            await _player.setVolume(0.0); // Silence
+        }
+      } else {
+        // Play white noise asset
+        try {
+          // setAsset works on both Web and Native
+          await _player.setAsset(_currentType.assetPath);
+          await _player.setVolume(_volume);
+        } catch (assetError) {
+          debugPrint('⚠️ Asset not found for ${_currentType.name}, falling back to silence: $assetError');
+          
+          if (kIsWeb) {
+             await _player.stop();
+             _isPlaying = false;
+             return;
+          }
+          
+          // Fallback to silence if asset missing on native
+          if (_silentFile == null) await _prepareSilentFile();
+          if (_silentFile != null) {
+              await _player.setFilePath(_silentFile!.path);
+              await _player.setVolume(0.0);
+          }
+        }
+      }
+
       await _player.setLoopMode(LoopMode.one); // Infinite loop
-      
-      // Set volume to absolute zero - the audio session is what keeps the app alive,
-      // not the actual sound output
-      await _player.setVolume(0.0);
       await _player.play();
       _isPlaying = true;
       
@@ -128,18 +165,40 @@ class FocusAudioService {
         _ensureAudioPlaying();
       });
       
-      debugPrint('🔇 Silent background audio started');
+      debugPrint('🎵 Background audio started: ${_currentType.name}');
     } catch (e) {
       debugPrint('❌ Error starting focus sound: $e');
     }
   }
+
+  /// Switch the sound type while playing
+  Future<void> setSoundType(FocusSoundType type) async {
+    if (_currentType == type) return;
+    _currentType = type;
+    
+    if (_isPlaying) {
+      // Restart with new source
+      await startFocusSound();
+    }
+  }
+
+  /// Update volume for white noise
+  Future<void> setVolume(double volume) async {
+    _volume = volume.clamp(0.0, 1.0);
+    if (_isPlaying && _currentType != FocusSoundType.none) {
+      await _player.setVolume(_volume);
+    }
+  }
+  
+  FocusSoundType get currentType => _currentType;
+  double get currentVolume => _volume;
 
   /// Periodically called to ensure audio session stays active
   void _ensureAudioPlaying() {
     if (!_isPlaying) return;
     
     if (!_player.playing) {
-      debugPrint('🔄 Restarting silent audio (was stopped)');
+      debugPrint('🔄 Restarting audio (was stopped)');
       _player.play();
     }
   }
@@ -154,7 +213,7 @@ class FocusAudioService {
       await _player.stop();
       _isPlaying = false;
       
-      debugPrint('🔇 Silent background audio stopped');
+      debugPrint('🔇 Focus audio stopped');
     } catch (e) {
       debugPrint('❌ Error stopping focus sound: $e');
     }
@@ -163,6 +222,34 @@ class FocusAudioService {
   void dispose() {
     _keepAliveTimer?.cancel();
     _player.dispose();
+  }
+}
+
+enum FocusSoundType {
+  none,
+  rain,
+  fire,
+  forest,
+  stream;
+
+  String get assetPath {
+    switch (this) {
+      case FocusSoundType.rain: return 'assets/sound/rain.mp3';
+      case FocusSoundType.fire: return 'assets/sound/fire.mp3';
+      case FocusSoundType.forest: return 'assets/sound/forest.mp3';
+      case FocusSoundType.stream: return 'assets/sound/stream.mp3';
+      case FocusSoundType.none: return '';
+    }
+  }
+  
+  String get labelKey {
+    switch (this) {
+      case FocusSoundType.rain: return 'sound_rain';
+      case FocusSoundType.fire: return 'sound_fire';
+      case FocusSoundType.forest: return 'sound_forest';
+      case FocusSoundType.stream: return 'sound_stream';
+      case FocusSoundType.none: return 'sound_none';
+    }
   }
 }
 

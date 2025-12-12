@@ -18,6 +18,7 @@ class Task {
   final String? journalLocation;
   final String? journalNote; // Text note 
   final bool journalMediaMirrored; // True if media from front camera (needs mirror display)
+  final bool isDecision; // New field for Decision type tasks
 
   Task({
     required this.id,
@@ -37,6 +38,7 @@ class Task {
     this.journalLocation,
     this.journalNote,
     this.journalMediaMirrored = false,
+    this.isDecision = false,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Task copyWith({
@@ -56,6 +58,7 @@ class Task {
     String? journalLocation,
     String? journalNote,
     bool? journalMediaMirrored,
+    bool? isDecision,
   }) {
     return Task(
       id: id ?? this.id,
@@ -75,6 +78,7 @@ class Task {
       journalLocation: journalLocation ?? this.journalLocation,
       journalNote: journalNote ?? this.journalNote,
       journalMediaMirrored: journalMediaMirrored ?? this.journalMediaMirrored,
+      isDecision: isDecision ?? this.isDecision,
     );
   }
 
@@ -98,6 +102,7 @@ class Task {
       'journalLocation': journalLocation,
       'journalNote': journalNote,
       'journalMediaMirrored': journalMediaMirrored,
+      'isDecision': isDecision,
     };
   }
 
@@ -130,6 +135,7 @@ class Task {
       journalLocation: json['journalLocation'] as String?,
       journalNote: json['journalNote'] as String?,
       journalMediaMirrored: json['journalMediaMirrored'] as bool? ?? false,
+      isDecision: json['isDecision'] as bool? ?? false,
     );
   }
 }

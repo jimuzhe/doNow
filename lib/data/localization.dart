@@ -201,6 +201,31 @@ class AppStrings {
       // Notifications
       'daily_summary_notification_title': '📊 Yesterday\'s Summary Ready',
       'daily_summary_notification_body': 'Check out your performance and get AI insights!',
+      // Focus Soundscapes
+      'sound_bgm': 'Background Sound',
+      'sound_none': 'Silent',
+      'sound_rain': 'Rain',
+      'sound_fire': 'Bonfire',
+      'sound_forest': 'Forest',
+      'sound_stream': 'Stream',
+      'sound_volume': 'Volume',
+      'sound_missing_title': 'Sound File Missing',
+      'sound_missing_desc': 'To use this feature, please add: ',
+      // Decision
+      'make_decision': 'Make a Decision',
+      'make_decision_subtitle': 'Flip a coin when in doubt',
+      'flip_coin': 'Flip Coin',
+      'flip_again': 'Flip Again',
+      'final_advice': 'Final Advice',
+      'decision_made': 'I\'ve made up my mind',
+      'accept_fate': 'Accept Fate & Record',
+      'decision_hint': 'Should I ...?',
+      'decision_recorded': 'Decision recorded!',
+      'fate_advice': 'When you are hesitant, the answer is usually to take the bold step. Trust your gut.',
+      'yes': 'YES',
+      'no': 'NO',
+      'create_task': 'Create Task',
+      'create_task_subtitle': 'Actionable steps',
     },
     'zh': {
       'home': '首页',
@@ -354,6 +379,31 @@ class AppStrings {
       // Notifications
       'daily_summary_notification_title': '📊 昨日总结已就绪',
       'daily_summary_notification_body': '查看你的表现，获取AI洞见！',
+      // Focus Soundscapes
+      'sound_bgm': '背景音效',
+      'sound_none': '静音',
+      'sound_rain': '雨声',
+      'sound_fire': '篝火',
+      'sound_forest': '森林',
+      'sound_stream': '溪流',
+      'sound_volume': '音量',
+      'sound_missing_title': '音频文件缺失',
+      'sound_missing_desc': '如需使用此背景音，请添加文件: ',
+      // Decision
+      'make_decision': '做个决定',
+      'make_decision_subtitle': '抛硬币，听天由命',
+      'flip_coin': '抛硬币',
+      'flip_again': '再抛一次',
+      'final_advice': '最终建议',
+      'decision_made': '我想好了',
+      'accept_fate': '接受天意，记录结果',
+      'decision_hint': '该不该...?',
+      'decision_recorded': '决定已记录！',
+      'fate_advice': '犹豫不决时，不妨大胆尝试。相信直觉。',
+      'yes': '做',
+      'no': '不做',
+      'create_task': '创建任务',
+      'create_task_subtitle': 'AI 拆解步骤',
     }
   };
 

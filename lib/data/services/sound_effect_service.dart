@@ -26,21 +26,35 @@ class SoundEffectService {
     }
   }
 
-  /// Play the success sound effect
-  Future<void> playSuccess() async {
-    if (!_isInitialized || _player == null) {
-      await init();
-      if (!_isInitialized || _player == null) return;
+  /// Play the coin throw sound
+  Future<void> playCoinThrow() async {
+    await _playAsset('assets/coin/throw.mp3');
+  }
+
+  /// Play the coin land sound
+  Future<void> playCoinLand() async {
+    await _playAsset('assets/coin/land.mp3');
+  }
+
+  /// Helper to play any asset
+  Future<void> _playAsset(String assetPath) async {
+    if (_player == null) {
+      _player = AudioPlayer();
+      _isInitialized = true;
     }
     
     try {
-      // Reset to beginning before playing
+      await _player!.setAsset(assetPath);
       await _player!.seek(Duration.zero);
       await _player!.play();
-      debugPrint('🔔 Playing success sound from asset');
     } catch (e) {
-      debugPrint('❌ Error playing success sound: $e');
+      debugPrint('❌ Error playing sound $assetPath: $e');
     }
+  }
+
+  /// Play the success sound effect
+  Future<void> playSuccess() async {
+    await _playAsset('assets/sound/success.mp3');
   }
 
   /// Dispose of audio resources

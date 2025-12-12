@@ -12,6 +12,7 @@ import '../../data/services/sound_effect_service.dart';
 import '../../data/services/camera_service.dart';
 import '../screens/camera_screen.dart'; // Custom camera UI
 import 'video_player_dialog.dart';
+import '../../utils/snackbar_helper.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -23,7 +24,7 @@ class TaskCompletionSheet extends ConsumerStatefulWidget {
   const TaskCompletionSheet({
     super.key,
     required this.task,
-    required this.actualDuration,
+    this.actualDuration = Duration.zero,
     this.playSound = true,
   });
 
@@ -51,6 +52,13 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
   @override
   void initState() {
     super.initState();
+    // Pre-fill note for decision tasks
+    if (widget.task.isDecision && widget.task.journalNote != null) {
+      _noteController.text = widget.task.journalNote!;
+      _showNoteInput = true;
+      _showRecordOptions = true; // Auto expand options for decision
+    }
+
     _checkAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -181,12 +189,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       
       debugPrint('📸 Received from camera - type: $type, mirrored: $mirrored');
       if (ref.read(debugLogEnabledProvider)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('📸 Received: type=$type, mirrored=$mirrored'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showInfo('📸 Received: type=$type, mirrored=$mirrored');
       }
       
       if (path != null) {
@@ -306,7 +309,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+    SnackBarHelper.showError(message);
   }
 
   void _onAddRecord() {
@@ -319,12 +322,7 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     
     debugPrint('💾 Saving task - videoPath: $_videoPath, isMirrored: $_isMirrored');
     if (ref.read(debugLogEnabledProvider)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('💾 Saving: $_videoPath != null ? "video" : "photo", mirrored=$_isMirrored'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      SnackBarHelper.showInfo('💾 Saving: ${_videoPath != null ? "video" : "photo"}, mirrored=$_isMirrored');
     }
     
     final repo = ref.read(taskRepositoryProvider);
@@ -338,7 +336,12 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       journalNote: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
       journalMediaMirrored: _isMirrored, // Save mirror flag for front camera media
     );
-    repo.updateTask(completedTask);
+    // If it's a decision, it's a new task (add), otherwise it's updating an existing one
+    if (widget.task.isDecision) {
+      repo.addTask(completedTask);
+    } else {
+      repo.updateTask(completedTask);
+    }
     
     Navigator.of(context).pop(true);
   }
@@ -351,7 +354,12 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       completedAt: DateTime.now(),
       actualDuration: widget.actualDuration,
     );
-    repo.updateTask(completedTask);
+     // If it's a decision, it's a new task (add), otherwise it's updating an existing one
+    if (widget.task.isDecision) {
+      repo.addTask(completedTask);
+    } else {
+      repo.updateTask(completedTask);
+    }
     Navigator.of(context).pop(true);
   }
 
@@ -424,71 +432,72 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
 
           const SizedBox(height: 16),
 
-          // Time Stats
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50],
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Planned
-                _TimeStatItem(
-                  label: locale == 'zh' ? '计划' : 'Planned',
-                  value: '${widget.task.totalDuration.inMinutes}m',
-                  isDark: isDark,
-                ),
-                // Divider
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: isDark ? Colors.white12 : Colors.black12,
-                ),
-                // Actual
-                _TimeStatItem(
-                  label: locale == 'zh' ? '实际' : 'Actual',
-                  value: '${widget.actualDuration.inMinutes}m',
-                  isDark: isDark,
-                ),
-                // Divider
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: isDark ? Colors.white12 : Colors.black12,
-                ),
-                // Difference
-                Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: (timeDiff['color'] as Color).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        timeDiff['text'] as String,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: timeDiff['color'] as Color,
+          // Time Stats (Hidden for Decision)
+          if (!widget.task.isDecision)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50],
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Planned
+                  _TimeStatItem(
+                    label: locale == 'zh' ? '计划' : 'Planned',
+                    value: '${widget.task.totalDuration.inMinutes}m',
+                    isDark: isDark,
+                  ),
+                  // Divider
+                  Container(
+                    width: 1,
+                    height: 40,
+                    color: isDark ? Colors.white12 : Colors.black12,
+                  ),
+                  // Actual
+                  _TimeStatItem(
+                    label: locale == 'zh' ? '实际' : 'Actual',
+                    value: '${widget.actualDuration.inMinutes}m',
+                    isDark: isDark,
+                  ),
+                  // Divider
+                  Container(
+                    width: 1,
+                    height: 40,
+                    color: isDark ? Colors.white12 : Colors.black12,
+                  ),
+                  // Difference
+                  Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (timeDiff['color'] as Color).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          timeDiff['text'] as String,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: timeDiff['color'] as Color,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeDiff['label'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white54 : Colors.grey[600],
+                      const SizedBox(height: 4),
+                      Text(
+                        timeDiff['label'] as String,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white54 : Colors.grey[600],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
 
           const SizedBox(height: 24),
 

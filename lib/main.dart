@@ -22,6 +22,9 @@ import 'ui/widgets/dynamic_island_simulation.dart';
 // Global navigator key for navigation from services
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// Global scaffold messenger key for showing SnackBars on top of everything
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -110,6 +113,7 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'Do Now',
       debugShowCheckedModeBanner: false,
       // Localization support for Chinese date/time pickers

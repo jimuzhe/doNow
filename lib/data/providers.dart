@@ -6,6 +6,9 @@ import 'models/ai_persona.dart';
 import 'services/ai_service.dart';
 import 'services/zhipu_ai_service.dart';
 import 'services/storage_service.dart';
+import 'package:uuid/uuid.dart';
+import 'models/subtask.dart';
+import 'services/home_widget_service.dart';
 import 'repositories/task_repository.dart';
 import 'api_config.dart';
 
@@ -53,16 +56,23 @@ final aiServiceProvider = Provider<AIService>((ref) {
   return ZhipuAIService(settings, persona: persona);
 });
 
-// Task List Provider - Now with persistence
+// Home Widget Service Provider
+final homeWidgetServiceProvider = Provider<HomeWidgetService>((ref) {
+  return HomeWidgetService();
+});
+
+// Task List Provider - Now with persistence and Home Widget sync
 final taskListProvider = StateNotifierProvider<TaskListNotifier, List<Task>>((ref) {
   final storage = ref.watch(storageServiceProvider);
-  return TaskListNotifier(storage);
+  final homeWidgetService = ref.watch(homeWidgetServiceProvider);
+  return TaskListNotifier(storage, homeWidgetService);
 });
 
 class TaskListNotifier extends StateNotifier<List<Task>> {
   final StorageService _storage;
+  final HomeWidgetService _homeWidgetService;
 
-  TaskListNotifier(this._storage) : super([]) {
+  TaskListNotifier(this._storage, this._homeWidgetService) : super([]) {
     // Auto-load from storage on init
     _loadFromStorage();
   }
@@ -70,34 +80,87 @@ class TaskListNotifier extends StateNotifier<List<Task>> {
   void _loadFromStorage() {
     try {
       state = _storage.loadTasks();
+      
+      // Onboarding Logic: If first launch and no tasks, create a demo task
+      if (_storage.loadIsFirstLaunch() && state.isEmpty) {
+         _createOnboardingTask();
+         _storage.setFirstLaunchCompleted();
+      }
+
+      // Also update widget on load to ensure consistency
+      _updateWidget();
     } catch (_) {
       // Storage not initialized yet, use defaults
+    }
+  }
+
+  void _createOnboardingTask() {
+    try {
+      final now = DateTime.now();
+      // Check locale roughly (active locale might not be set yet, default to Chinese given region)
+      // Or just use English if unsure. Let's use English for broad compatibility or Chinese if requested.
+      // Since user speaks Chinese, let's create a Chinese task.
+      
+      final demoTask = Task(
+        id: const Uuid().v4(),
+        title: "DoNow 快速上手指南 🚀",
+        // originalInput removed as it does not exist in Task model
+        scheduledStart: now.add(const Duration(minutes: 2)), 
+        totalDuration: const Duration(minutes: 20),
+        subTasks: [
+          SubTask(id: const Uuid().v4(), title: "试着长按这个任务卡片 (预览子任务) 👆", estimatedDuration: const Duration(minutes: 5)),
+          SubTask(id: const Uuid().v4(), title: "点击卡片进入，然后点击底部的 ▶️ 开始专注", estimatedDuration: const Duration(minutes: 5)),
+          SubTask(id: const Uuid().v4(), title: "在任务进行中，点击右上角🎧打开背景白噪音", estimatedDuration: const Duration(minutes: 5)),
+          SubTask(id: const Uuid().v4(), title: "回到桌面查看灵动岛/锁屏进度 🏝️", estimatedDuration: const Duration(minutes: 5)),
+        ],
+        // tags removed as it does not exist in Task model
+        createdAt: now,
+      );
+      
+      state = [demoTask];
+      _storage.saveTasks(state);
+    } catch (e) {
+      debugPrint("Error creating onboarding task: $e");
+    }
+  }
+
+  Future<void> _updateWidget() async {
+    // Fire and forget widget update
+    try {
+      await _homeWidgetService.updateWidget(state);
+    } catch (e) {
+      debugPrint('Error updating home widget: $e');
     }
   }
 
   void setTasks(List<Task> tasks) {
     state = tasks;
     _storage.saveTasks(tasks);
+    _updateWidget();
   }
 
   void addTask(Task task) {
     state = [...state, task];
     _storage.saveTasks(state);
+    _updateWidget();
   }
 
   void updateTask(Task task) {
     state = state.map((t) => t.id == task.id ? task : t).toList();
     _storage.saveTasks(state);
+    _updateWidget();
   }
 
   void removeTask(String id) {
     state = state.where((t) => t.id != id).toList();
     _storage.saveTasks(state);
+    _updateWidget();
   }
 
   void clear() {
     state = [];
     _storage.saveTasks(state);
+    _updateWidget();
   }
 }
 

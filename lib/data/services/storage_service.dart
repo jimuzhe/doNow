@@ -171,6 +171,21 @@ class StorageService {
     return prefs.getString(_userKey(_aiPersonaKey)) ?? 'balanced';
   }
 
+  // ============== ONBOARDING (per-user) ==============
+  
+  static const String _isFirstLaunchKey = 'is_first_launch';
+
+  /// Check if this is the first launch for this user
+  /// Returns true if the key doesn't exist yet
+  bool loadIsFirstLaunch() {
+    return prefs.getBool(_userKey(_isFirstLaunchKey)) ?? true;
+  }
+
+  /// Set first launch flag to false
+  Future<void> setFirstLaunchCompleted() async {
+    await prefs.setBool(_userKey(_isFirstLaunchKey), false);
+  }
+
   // ============== CLEAR ALL ==============
 
   /// Clear all stored data for current user only

@@ -1181,7 +1181,7 @@ class _TimelineItemWithLine extends StatelessWidget {
     // Calculate time difference
     String? timeDiffStr;
     Color? timeDiffColor;
-    if (task.isCompleted && task.actualDuration != null) {
+    if (task.isCompleted && task.actualDuration != null && !task.isDecision) {
       final diff = task.actualDuration!.inMinutes - task.totalDuration.inMinutes;
       if (diff > 0) {
         timeDiffStr = '+${diff}m';
@@ -1204,18 +1204,19 @@ class _TimelineItemWithLine extends StatelessWidget {
               width: 24,
               child: Column(
                 children: [
-                  // Time indicator dot
+                  // Time indicator dot (Different for decision)
                   Container(
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: statusColor,
+                      color: task.isDecision ? Colors.purpleAccent : statusColor,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: isDark ? Colors.grey[800]! : Colors.white,
                         width: 2,
                       ),
                     ),
+                    child: task.isDecision ? const Center(child: Icon(Icons.star, size: 8, color: Colors.white)) : null,
                   ),
                   // Connecting line (if not last item)
                   if (!isLast)
@@ -1244,54 +1245,83 @@ class _TimelineItemWithLine extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Time + Duration on same line
-                          Row(
-                            children: [
-                              Text(
-                                timeStr,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDark ? Colors.white70 : Colors.grey[700],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${task.totalDuration.inMinutes}m',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isDark ? Colors.white54 : Colors.grey[500],
-                                ),
-                              ),
-                              if (task.actualDuration != null) ...[
+                          // Time + Duration on same line (Hidden for Decision)
+                          if (!task.isDecision)
+                            Row(
+                              children: [
                                 Text(
-                                  '→${task.actualDuration!.inMinutes}m',
+                                  timeStr,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white70 : Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${task.totalDuration.inMinutes}m',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: isDark ? Colors.white54 : Colors.grey[500],
                                   ),
                                 ),
-                              ],
-                              if (timeDiffStr != null) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: timeDiffColor!.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    timeDiffStr,
+                                if (task.actualDuration != null) ...[
+                                  Text(
+                                    '→${task.actualDuration!.inMinutes}m',
                                     style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: timeDiffColor,
+                                      fontSize: 11,
+                                      color: isDark ? Colors.white54 : Colors.grey[500],
                                     ),
                                   ),
-                                ),
+                                ],
+                                if (timeDiffStr != null) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: timeDiffColor!.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      timeDiffStr,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: timeDiffColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
-                          ),
+                            )
+                          else
+                            // Special Time display/Tag for Decision
+                            Row(
+                              children: [
+                                Text(
+                                  timeStr,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white70 : Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purple.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    "Decision", // Could be localized, but 'Decision' is clear enough or use symbol
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.purple[300]),
+                                  ),
+                                )
+                              ],
+                            ),
+
                           const SizedBox(height: 4),
                           // Title
                           Text(
@@ -1329,13 +1359,20 @@ class _TimelineItemWithLine extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[100],
+                                color: task.isDecision 
+                                    ? (isDark ? Colors.purple.withOpacity(0.1) : Colors.purple.withOpacity(0.05))
+                                    : (isDark ? Colors.white.withOpacity(0.05) : Colors.grey[100]),
                                 borderRadius: BorderRadius.circular(8),
+                                border: task.isDecision ? Border.all(color: Colors.purple.withOpacity(0.2), width: 1) : null,
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.format_quote, size: 14, color: Colors.grey[500]),
+                                  Icon(
+                                    task.isDecision ? Icons.psychology : Icons.format_quote, 
+                                    size: 14, 
+                                    color: task.isDecision ? Colors.purple[300] : Colors.grey[500]
+                                  ),
                                   const SizedBox(width: 4),
                                   Flexible(
                                     child: Text(
@@ -1344,8 +1381,9 @@ class _TimelineItemWithLine extends StatelessWidget {
                                         color: isDark ? Colors.white70 : Colors.grey[700],
                                         fontSize: 12,
                                         fontStyle: FontStyle.italic,
+                                        fontWeight: task.isDecision ? FontWeight.w500 : FontWeight.normal,
                                       ),
-                                      maxLines: 3,
+                                      maxLines: 10, // Show more for decision
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
