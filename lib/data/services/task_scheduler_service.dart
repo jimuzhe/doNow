@@ -17,6 +17,10 @@ class TaskSchedulerService {
   // Stream controller for navigation events
   final StreamController<Task> _navigationController = StreamController<Task>.broadcast();
   Stream<Task> get onTaskDue => _navigationController.stream;
+
+  // Stream for upcoming task warnings
+  final StreamController<Task> _upcomingController = StreamController<Task>.broadcast();
+  Stream<Task> get onTaskUpcoming => _upcomingController.stream;
   
   // Track which tasks have already been notified (to avoid duplicate notifications)
   final Set<String> _notifiedTaskIds = {};
@@ -103,13 +107,18 @@ class TaskSchedulerService {
       // 2. Logic Check
       
       // A. Upcoming Warning (3 minutes before)
-      // Check window: [-190s, -170s] (Target is 180s in future)
-      if (diffSeconds >= -190 && diffSeconds <= -170) {
-         if (!_notifiedTaskIds.contains('${task.id}_upcoming')) {
-             _notifiedTaskIds.add('${task.id}_upcoming');
-             _sendUpcomingNotification(task);
-         }
-         continue;
+      // Check window: [-190s, -5s] (Target is >5s and <=190s in future)
+      if (diffSeconds >= -190 && diffSeconds <= -5) {
+         // ONLY Trigger if user is actually BUSY
+         // If user is free (Home/Analysis), we rely on their own awareness or just the final due event
+         final isBusy = _ref.read(isBusyUIProvider) || _ref.read(activeTaskIdProvider) != null;
+         
+         if (isBusy && !_notifiedTaskIds.contains('${task.id}_upcoming')) {
+              _notifiedTaskIds.add('${task.id}_upcoming');
+              _sendUpcomingNotification(task);
+              _upcomingController.add(task); // Emit event for UI handler
+          }
+          continue;
       }
       
       // B. Start Time Reached
@@ -120,7 +129,11 @@ class TaskSchedulerService {
 
             // CONFLICT CHECK: Is there an active task?
             final activeTaskId = _ref.read(activeTaskIdProvider);
-            if (activeTaskId != null && activeTaskId != task.id) {
+            
+            if (activeTaskId == task.id) {
+               // This task is ALREADY running, skip entirely
+               continue;
+            } else if (activeTaskId != null) {
                // Conflict! Another task is active.
                // Notify user but DO NOT auto-navigate.
                _sendConflictNotification(task);
@@ -207,15 +220,21 @@ class TaskSchedulerService {
   Future<void> _triggerTaskDue(Task task) async {
     print('Task due: ${task.title}');
     
-    // Send system notification
-    await _showNotification(
-       id: task.id.hashCode,
-       title: '🚀 任务开始时间到！',
-       body: task.title,
-       taskId: task.id,
-    );
+    // Check if user is busy (in QuickFocus, Decision, or running another task)
+    final isBusy = _ref.read(isBusyUIProvider) || _ref.read(activeTaskIdProvider) != null;
     
-    // Emit navigation event (UI will handle actual navigation)
+    // Only send system notification if user is BUSY
+    // If not busy, we will navigate directly (no notification needed)
+    if (isBusy) {
+      await _showNotification(
+         id: task.id.hashCode,
+         title: '🚀 任务开始时间到！',
+         body: task.title,
+         taskId: task.id,
+      );
+    }
+    
+    // Emit navigation event (UI will handle actual navigation or show dialog)
     _navigationController.add(task);
   }
 
@@ -223,6 +242,8 @@ class TaskSchedulerService {
   /// Reset notification state for a task (e.g., when rescheduled)
   void resetTaskNotification(String taskId) {
     _notifiedTaskIds.remove(taskId);
+    _notifiedTaskIds.remove('${taskId}_upcoming');
+    _notifiedTaskIds.remove('${taskId}_due');
   }
 
   /// Clear all notification states (e.g., at midnight for repeating tasks)
@@ -233,7 +254,9 @@ class TaskSchedulerService {
   /// Dispose resources
   void dispose() {
     _checkTimer?.cancel();
+    _checkTimer?.cancel();
     _navigationController.close();
+    _upcomingController.close();
   }
 }
 

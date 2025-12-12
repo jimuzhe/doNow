@@ -25,6 +25,9 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 // Global scaffold messenger key for showing SnackBars on top of everything
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
+// Global route observer
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -57,6 +60,8 @@ class AtomicApp extends ConsumerStatefulWidget {
 
 class _AtomicAppState extends ConsumerState<AtomicApp> {
   StreamSubscription<Task>? _taskDueSubscription;
+  StreamSubscription<Task>? _taskUpcomingSubscription;
+  final List<String> _deferredTaskQueue = []; // Queue of tasks waiting for user to become free
 
   @override
   void initState() {
@@ -76,32 +81,300 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     _taskDueSubscription = scheduler.onTaskDue.listen((task) {
       _navigateToTaskDetail(task);
     });
+    
+    // Listen for upcoming task warnings
+    _taskUpcomingSubscription = scheduler.onTaskUpcoming.listen((task) {
+      // Only show blocking dialog if user is "busy" 
+      // (Running a task, or in Quick Focus / Decision screen)
+      if (_isBusy()) {
+        _showUpcomingDialog(task);
+      } else {
+        // If not busy (Home, Settings, Analysis), do nothing here.
+        // The system notification will still show (via scheduler), 
+        // and when time is up, it will direct jump.
+      }
+    });
   }
 
   @override
   void dispose() {
     _taskDueSubscription?.cancel();
+    _taskUpcomingSubscription?.cancel();
     super.dispose();
+  }
+
+  /// Check if user is currently in a "blocking" activity or screen
+  bool _isBusy() {
+    final context = navigatorKey.currentContext;
+    if (context == null) return false;
+
+    // 1. Check if a task is actively running
+    final activeTaskId = ref.read(activeTaskIdProvider);
+    if (activeTaskId != null) return true;
+    
+    // 2. Check explicit busy UI state (Decision / Quick Focus)
+    return ref.read(isBusyUIProvider);
   }
 
   /// Navigate to task detail screen when a task is due
   void _navigateToTaskDetail(Task task) {
-    // Check if this task (or any task) is already being executed
-    final activeTaskId = ref.read(activeTaskIdProvider);
-    if (activeTaskId != null) {
-      // A task is already being executed, don't navigate again
-      print('Task ${task.title} is due but another task is already active');
+    if (_isBusy()) {
+      // User is busy, show reminder dialog instead of forcing navigation
+      _showTaskDueDialog(task);
       return;
     }
     
-    // Use the global navigator key to navigate
-    final navigator = navigatorKey.currentState;
-    if (navigator != null) {
-      navigator.push(
+    // If this task was in the deferred queue, remove it
+    _deferredTaskQueue.remove(task.id);
+    
+    // Navigate
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (context) => TaskDetailScreen(task: task),
+      ),
+    );
+  }
+
+  /// Show dialog when task is explicitly DUE (0s) but user is busy
+  void _showTaskDueDialog(Task task) {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    final t = AppStrings.get;
+    final locale = ref.read(localeProvider);
+    
+    // Construct message: "Task <Title> will start immediately after you finish."
+    final msg = locale == 'zh'
+        ? "在您结束当前工作后，事项 \"${task.title}\" 将会立即开始。"
+        : "Task \"${task.title}\" will start immediately after you finish current work.";
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(t('task_starting', locale)),
+          content: Text(msg),
+          actions: [
+             ElevatedButton(
+               onPressed: () {
+                 Navigator.pop(context);
+                 // Add to deferred queue (avoid duplicates)
+                 if (!_deferredTaskQueue.contains(task.id)) {
+                   _deferredTaskQueue.add(task.id);
+                 }
+               },
+               child: Text(t('ok_cool', locale)), // "I know"
+             ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Show dialog for upcoming task (3 min warning)
+  void _showUpcomingDialog(Task task) {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    
+    final locale = ref.read(localeProvider);
+    final t = AppStrings.get;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          title: Text(t('upcoming_task', locale)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(task.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 8),
+              Text(t('upcoming_task_desc', locale)),
+            ],
+          ),
+          actions: [
+             // "I Know" - Dismiss and stay
+             TextButton(
+               onPressed: () => Navigator.pop(context),
+               child: Text(t('ok_cool', locale), style: const TextStyle(color: Colors.grey)),
+             ),
+             
+             // "Postpone" - Reschedule
+             ElevatedButton(
+               onPressed: () {
+                 Navigator.pop(context); // Close dialog
+                 _showRescheduleSheet(task);
+               },
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: isDark ? Colors.white : Colors.black,
+                 foregroundColor: isDark ? Colors.black : Colors.white,
+               ),
+               child: Text(t('action_delay', locale)), // Use "Delay/Postpone" label
+             ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Show sheet to reschedule a task
+  void _showRescheduleSheet(Task task) async {
+     final context = navigatorKey.currentContext;
+     if (context == null) return;
+     
+     final locale = ref.read(localeProvider);
+     final isDark = Theme.of(context).brightness == Brightness.dark;
+     final t = AppStrings.get;
+     
+     // Default reschedule: +10 mins or +30 mins?
+     // Let's default to next 15 min slot or just +15 mins
+     DateTime selectedTime = DateTime.now().add(const Duration(minutes: 15));
+     
+     await showModalBottomSheet(
+       context: context,
+       backgroundColor: Theme.of(context).cardColor,
+       builder: (ctx) => Container(
+         height: 300,
+         padding: const EdgeInsets.all(16),
+         child: Column(
+           children: [
+             Text(
+               t('reschedule', locale), 
+               style: TextStyle(
+                 fontWeight: FontWeight.bold, 
+                 fontSize: 18,
+                 color: isDark ? Colors.white : Colors.black,
+               ),
+             ),
+             const SizedBox(height: 16),
+             Expanded(
+               child: CupertinoTheme(
+                 data: CupertinoThemeData(
+                   brightness: isDark ? Brightness.dark : Brightness.light,
+                   textTheme: CupertinoTextThemeData(
+                     dateTimePickerTextStyle: TextStyle(
+                       color: isDark ? Colors.white : Colors.black,
+                       fontSize: 20,
+                     ),
+                   ),
+                 ),
+                 child: CupertinoDatePicker(
+                   mode: CupertinoDatePickerMode.dateAndTime,
+                   initialDateTime: selectedTime,
+                   minimumDate: DateTime.now(),
+                   use24hFormat: true,
+                   onDateTimeChanged: (val) {
+                      selectedTime = val;
+                   },
+                 ),
+               ),
+             ),
+             const SizedBox(height: 16),
+             SizedBox(
+               width: double.infinity,
+               child: ElevatedButton(
+                 onPressed: () {
+                   Navigator.pop(ctx);
+                   // Update task
+                   final updated = task.copyWith(scheduledStart: selectedTime);
+                   ref.read(taskRepositoryProvider).updateTask(updated);
+                   
+                   // Reset notification state so it triggers again at new time
+                   ref.read(taskSchedulerServiceProvider).resetTaskNotification(task.id);
+                   ref.read(taskSchedulerServiceProvider).resetTaskNotification('${task.id}_upcoming');
+                   ref.read(taskSchedulerServiceProvider).resetTaskNotification('${task.id}_due');
+                   
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     SnackBar(content: Text("Rescheduled to ${_formatTime(selectedTime)}"))
+                   );
+                 },
+                 style: ElevatedButton.styleFrom(
+                   backgroundColor: isDark ? Colors.white : Colors.black,
+                   foregroundColor: isDark ? Colors.black : Colors.white,
+                 ),
+                 child: Text(t('save', locale)),
+               ),
+             )
+           ],
+         ),
+       ),
+     );
+  }
+  
+  String _formatTime(DateTime dt) {
+    return "${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}";
+  }
+  
+  void _checkDeferredTask() {
+    if (_deferredTaskQueue.isEmpty) return;
+    
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    
+    // FAILSAFE: If we're at the navigation root (MainScreen), force reset the busy state.
+    // This handles cases where dispose() failed to reset isBusyUIProvider (e.g., ref was invalid).
+    if (!Navigator.canPop(context)) {
+      // We're at root - definitely not in a sub-screen
+      // Force reset to false in case it got stuck
+      try {
+        if (ref.read(isBusyUIProvider)) {
+          ref.read(isBusyUIProvider.notifier).state = false;
+        }
+      } catch (_) {}
+    }
+    
+    // Now check if still busy (could be in TaskDetailScreen which sets activeTaskIdProvider)
+    if (_isBusy()) return;
+    
+    // Take the FIRST task from the queue (FIFO)
+    final deferredTaskId = _deferredTaskQueue.first;
+    
+    // Retrieve task
+    final tasks = ref.read(taskListProvider);
+    final task = tasks.firstWhere((t) => t.id == deferredTaskId, orElse: () => Task(id: 'null', title: '', totalDuration: Duration.zero, scheduledStart: DateTime.now(), subTasks: []));
+    
+    if (task.id != 'null') {
+      // Found deferred task.
+      // 1. Update its Scheduled Start to NOW (Time also changes as requested)
+      final now = DateTime.now();
+      final updatedTask = task.copyWith(scheduledStart: now);
+      ref.read(taskRepositoryProvider).updateTask(updatedTask);
+      
+      // NOTE: We don't reset notification markers here anymore.
+      // The scheduler now properly skips tasks that are already running (activeTaskId == task.id).
+      
+      // 3. Remove from queue BEFORE navigation to prevent re-entry
+      _deferredTaskQueue.remove(deferredTaskId);
+      
+      // 4. Navigate directly to task (bypassing _navigateToTaskDetail to avoid re-checking _isBusy)
+      navigatorKey.currentState?.push(
         MaterialPageRoute(
-          builder: (context) => TaskDetailScreen(task: task),
+          builder: (context) => TaskDetailScreen(task: updatedTask),
         ),
       );
+      
+      // Feedback: Show how many tasks remaining in queue
+      final locale = ref.read(localeProvider);
+      final remaining = _deferredTaskQueue.length;
+      String msg;
+      if (remaining > 0) {
+        msg = locale == 'zh' 
+            ? '开始延后的任务: ${task.title} (还有 $remaining 个待执行)' 
+            : 'Resuming: ${task.title} ($remaining more in queue)';
+      } else {
+        msg = locale == 'zh' ? '开始延后的任务: ${task.title}' : 'Resuming deferred task: ${task.title}';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } else {
+      // Task not found (maybe deleted), remove from queue and try next
+      _deferredTaskQueue.remove(deferredTaskId);
+      if (_deferredTaskQueue.isNotEmpty) {
+        // Recursively check for next task
+        _checkDeferredTask();
+      }
     }
   }
 
@@ -113,6 +386,10 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [
+         // Custom observer to handle deferred task checks on Pop
+         _DeferredTaskObserver(onDidPop: _checkDeferredTask),
+      ],
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'Do Now',
       debugShowCheckedModeBanner: false,
@@ -253,6 +530,9 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
             }
           }
           
+          // Create onboarding task for first-time users (after login)
+          ref.read(taskListProvider.notifier).checkAndCreateOnboardingTask();
+          
           return const MainScreen();
         },
         loading: () => const _SplashScreen(),
@@ -307,3 +587,17 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
+class _DeferredTaskObserver extends NavigatorObserver {
+  final VoidCallback onDidPop;
+  
+  _DeferredTaskObserver({required this.onDidPop});
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    // Use a delay to ensure the popped widget is fully disposed
+    // and isBusyUIProvider has been reset. Transition animations
+    // typically take 300ms, so 400ms gives margin.
+    Future.delayed(const Duration(milliseconds: 400), onDidPop);
+  }
+}

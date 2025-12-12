@@ -31,6 +31,8 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
   bool _isFlipping = false;
   bool _showResult = false;
   String _resultText = ""; // yes (head) or no (tail)
+  int _headsCount = 0;
+  int _tailsCount = 0;
   
   // Confirmed decision text
   final TextEditingController _decisionController = TextEditingController();
@@ -85,6 +87,11 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
           // Check result
           final isHeads = cos(angle) > 0;
           _resultText = isHeads ? "yes" : "no";
+          if (isHeads) {
+            _headsCount++;
+          } else {
+            _tailsCount++;
+          }
         });
       }
     });
@@ -103,7 +110,23 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
     _initShakeDetection();
   }
 
+  @override
+  void dispose() {
+    try {
+      // Reset Busy UI logic
+      ref.read(isBusyUIProvider.notifier).state = false;
+    } catch (_) {}
+    
+    _accelerometerSubscription?.cancel();
+    _rotateController.dispose();
+    _decisionController.dispose();
+    super.dispose();
+  }
+
   void _initShakeDetection() {
+    // Mark as Busy UI (prevents auto-navigation)
+    Future.microtask(() => ref.read(isBusyUIProvider.notifier).state = true);
+    
     _accelerometerSubscription = userAccelerometerEventStream().listen((event) {
       if (_isFlipping) return;
       
@@ -120,13 +143,7 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
     });
   }
 
-  @override
-  void dispose() {
-    _accelerometerSubscription?.cancel();
-    _rotateController.dispose();
-    _decisionController.dispose();
-    super.dispose();
-  }
+
 
   void _flipCoin() {
     if (_isFlipping) return;
@@ -295,8 +312,31 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
       body: SafeArea(
         child: Column(
           children: [
+             // Counters
              Padding(
-               padding: const EdgeInsets.all(24.0),
+               padding: const EdgeInsets.symmetric(vertical: 8),
+               child: Row(
+                 mainAxisAlignment: MainAxisAlignment.center,
+                 children: [
+                   Column(
+                     children: [
+                       Text(t('coin_heads'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                       Text('$_headsCount', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                     ],
+                   ),
+                   const SizedBox(width: 40),
+                   Column(
+                     children: [
+                       Text(t('coin_tails'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                       Text('$_tailsCount', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                     ],
+                   ),
+                 ],
+               ),
+             ),
+
+             Padding(
+               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
                child: TextField(
                  controller: _decisionController,
                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),

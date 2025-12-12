@@ -248,6 +248,8 @@ class AppStrings {
       'action_delay': 'Delay',
       'action_start_now': 'Start Now',
       'quick_focus_title': 'Quick Focus',
+      'coin_heads': 'Heads (Flower)', // Clarify for user understanding of "Face"
+      'coin_tails': 'Tails (Badge)',
     },
     'zh': {
       'home': '首页',
@@ -447,6 +449,8 @@ class AppStrings {
       'action_delay': '顺延',
       'action_start_now': '现在开始',
       'quick_focus_title': '快速专注',
+      'coin_heads': '花面',
+      'coin_tails': '徽面',
     }
   };
 

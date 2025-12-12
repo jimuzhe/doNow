@@ -82,16 +82,22 @@ class TaskListNotifier extends StateNotifier<List<Task>> {
     try {
       state = _storage.loadTasks();
       
-      // Onboarding Logic: If first launch and no tasks, create a demo task
-      if (_storage.loadIsFirstLaunch() && state.isEmpty) {
-         _createOnboardingTask();
-         _storage.setFirstLaunchCompleted();
-      }
+      // NOTE: Onboarding task is now created via checkAndCreateOnboardingTask() 
+      // which is called after user login in main.dart
 
       // Also update widget on load to ensure consistency
       _updateWidget();
     } catch (_) {
       // Storage not initialized yet, use defaults
+    }
+  }
+
+  /// Create onboarding task if first launch and no tasks exist.
+  /// Should be called AFTER user has logged in.
+  void checkAndCreateOnboardingTask() {
+    if (_storage.loadIsFirstLaunch() && state.isEmpty) {
+      _createOnboardingTask();
+      _storage.setFirstLaunchCompleted();
     }
   }
 
@@ -202,6 +208,10 @@ final taskRepositoryProvider = Provider<TaskRepository>((ref) {
 // Active Task Provider - tracks which task is currently being executed
 // Used to prevent duplicate navigation from scheduler
 final activeTaskIdProvider = StateProvider<String?>((ref) => null);
+
+// Auxiliary provider to track if user is in a "Busy" screen (Decision/QuickFocus)
+// that isn't running a task yet.
+final isBusyUIProvider = StateProvider<bool>((ref) => false);
 
 // Vibration Intensity Provider - Now with persistence
 final vibrationIntensityProvider = StateNotifierProvider<VibrationIntensityNotifier, double>((ref) {

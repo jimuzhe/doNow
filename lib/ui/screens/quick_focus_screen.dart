@@ -51,10 +51,18 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
        duration: const Duration(seconds: 2), // Loop duration for sand flow
     );
      // If running, we repeat.
+     
+    // Mark as Busy UI (prevents auto-navigation)
+    Future.microtask(() => ref.read(isBusyUIProvider.notifier).state = true);
   }
   
   @override
   void dispose() {
+    try {
+      // Reset Busy UI logic
+      ref.read(isBusyUIProvider.notifier).state = false;
+    } catch (_) {}
+    
     _sandAnimation.dispose();
     _taskController.dispose();
     if (_isRunning) _timer.cancel();
@@ -64,12 +72,13 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
   }
 
   void _toggleTimer() {
-    HapticHelper(ref).mediumImpact();
-    
     if (_isRunning) {
-      // Pause and show options
+      // Pause - Heavy Impact
+      HapticHelper(ref).heavyImpact();
       _handlePause();
     } else {
+      // Start - Medium Impact
+      HapticHelper(ref).mediumImpact();
       _startTimer();
     }
   }
@@ -237,8 +246,12 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
                      divisions: 11,
                      label: "$_focusInterval",
                      onChanged: (val) {
-                       setModalState(() => _focusInterval = val.toInt());
-                       setState(() {}); // Update main UI if needed
+                       final newVal = val.toInt();
+                       if (newVal != _focusInterval) {
+                         HapticHelper(ref).selectionClick();
+                         setModalState(() => _focusInterval = newVal);
+                         setState(() {}); // Update main UI if needed
+                       }
                      },
                    ),
                    
@@ -253,8 +266,12 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
                      divisions: 14,
                      label: "$_breakDurationSetting",
                      onChanged: (val) {
-                       setModalState(() => _breakDurationSetting = val.toInt());
-                       setState(() {});
+                       final newVal = val.toInt();
+                       if (newVal != _breakDurationSetting) {
+                         HapticHelper(ref).selectionClick();
+                         setModalState(() => _breakDurationSetting = newVal);
+                         setState(() {});
+                       }
                      },
                    ),
                  ],
@@ -263,6 +280,144 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
            }
          );
       }
+    );
+  }
+
+  Widget _buildTimerVisual(bool isDark) {
+    return SizedBox(
+      width: 250,
+      height: 250,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Circular Progress
+          AnimatedBuilder(
+            animation: _sandAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: 0, // No rotation for circle itself
+                child: child,
+              );
+            },
+            child: SizedBox(
+              width: 250,
+              height: 250,
+              child: CircularProgressIndicator(
+                value: _isBreak 
+                    ? 1.0 - (_breakTimeRemaining.inSeconds / (_breakDurationSetting * 60)) 
+                    : (_accumulatedTime.inSeconds % (_focusInterval * 60)) / (_focusInterval * 60), 
+                strokeWidth: 12,
+                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation(
+                    _isBreak ? Colors.green : (isDark ? Colors.white : Colors.black)
+                ),
+              ),
+            ),
+          ),
+          
+          // Hourglass Icon (Rotating)
+          AnimatedBuilder(
+            animation: _sandAnimation,
+            builder: (context, child) {
+               if (!_isRunning) {
+                 return Icon(Icons.hourglass_empty, size: 60, color: _isBreak ? Colors.green : Colors.grey);
+               }
+               return Transform.rotate(
+                 angle: _sandAnimation.value * pi, 
+                 child: Icon(Icons.hourglass_bottom, size: 60, color: _isBreak ? Colors.green : (isDark ? Colors.white : Colors.black)),
+               );
+            }
+          ),
+          
+          // Touch Area
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _toggleTimer,
+                child: const SizedBox(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControls(String Function(String) t, bool isDark, String timeStr, {bool isLandscape = false}) {
+    return Column(
+      mainAxisAlignment: isLandscape ? MainAxisAlignment.center : MainAxisAlignment.end,
+      children: [
+         // In Landscape, Input is here. In Portrait, it's separate at top.
+         if (isLandscape)
+           Padding(
+             padding: const EdgeInsets.only(bottom: 24.0, left: 24, right: 24),
+             child: TextField(
+               controller: _taskController,
+               enabled: !_isRunning,
+               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
+               decoration: InputDecoration(
+                 hintText: t('what_to_do'),
+                 border: InputBorder.none,
+                 hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+               ),
+               textAlign: TextAlign.center,
+             ),
+           ),
+
+         Text(
+           timeStr,
+           style: const TextStyle(fontSize: 64, fontWeight: FontWeight.bold, fontFamily: 'Courier'),
+         ),
+         if (!_isBreak)
+           Text(t('accumulated_time'), style: const TextStyle(color: Colors.grey)),
+         if (_isBreak)
+           Text(t('break_timer'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+
+         const SizedBox(height: 32),
+
+         // Buttons
+         Padding(
+           padding: const EdgeInsets.all(32),
+           child: Row(
+             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+             children: [
+               if (_accumulatedTime.inSeconds == 0 && !_isBreak)
+                 Expanded(
+                   child: SizedBox(
+                     height: 64,
+                     child: ElevatedButton(
+                       onPressed: _toggleTimer,
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: isDark ? Colors.white : Colors.black,
+                         foregroundColor: isDark ? Colors.black : Colors.white,
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                       ),
+                       child: Text(t('btn_start')),
+                     ),
+                   ),
+                 )
+               else
+                 Expanded(
+                   child: SizedBox(
+                     height: 64,
+                     child: OutlinedButton(
+                       onPressed: _finishFocus,
+                       style: OutlinedButton.styleFrom(
+                         side: BorderSide(color: isDark ? Colors.white : Colors.black, width: 2),
+                         foregroundColor: isDark ? Colors.white : Colors.black,
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                         backgroundColor: isDark ? Colors.black : Colors.white,
+                       ),
+                       child: Text(t('record_activity')),
+                     ),
+                   ),
+                 ),
+             ],
+           ),
+         )
+      ],
     );
   }
 
@@ -278,6 +433,8 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
     final seconds = (displayDuration.inSeconds % 60).toString().padLeft(2, '0');
     final timeStr = "$minutes:$seconds";
     
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -286,13 +443,12 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: widget.isAutoLandscape 
-          ? null // No back button in auto-landscape
+          ? null 
           : IconButton(
               icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
               onPressed: () => Navigator.pop(context),
             ),
         actions: [
-          // White Noise Setting
           IconButton(
             icon: Icon(Icons.headphones, color: isDark ? Colors.white : Colors.black),
             onPressed: () {
@@ -304,7 +460,6 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
                );
             },
           ),
-          // Timer Settings
           IconButton(
             icon: Icon(Icons.tune, color: isDark ? Colors.white : Colors.black),
             onPressed: _showSettings,
@@ -313,154 +468,102 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-             // 1. Task Input (Only editable if not running)
-             Padding(
-               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
-               child: TextField(
-                 controller: _taskController,
-                 enabled: !_isRunning,
-                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
-                 decoration: InputDecoration(
-                   hintText: t('what_to_do'),
-                   border: InputBorder.none,
-                   hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
-                 ),
-                 textAlign: TextAlign.center,
-               ),
-             ),
-             
-             Expanded(
-               child: Center(
-                 child: Stack(
-                   alignment: Alignment.center,
-                   children: [
-                      // Sandglass Animation Logic
-                      // We represent it as a top heavy triangle filling bottom triangle? 
-                      // Or just a rotating container.
-                      // Let's use a CustomPaint for Hourglass shape
-                      AnimatedBuilder(
-                        animation: _sandAnimation,
-                        builder: (context, child) {
-                           // If running, we simulate flowing.
-                           // Rotation if running?
-                           return Transform.rotate(
-                             angle: _isRunning && !_isBreak ? _sandAnimation.value * 2 * pi : 0, // Spin slowly? Or use Lottie? 
-                             // Wait, simple rotation isn't an hourglass flow.
-                             // Let's just do a nice Circular Progress that is full or indeterminate?
-                             // User asked for "sandglass animation showing accumulated time".
-                             // Accumulated time is infinite basically. 
-                             // So let's show a "filling up" circle based on Interval.
-                             child: child,
-                           );
-                        },
-                        child: SizedBox(
-                          width: 250,
-                          height: 250,
-                          child: CircularProgressIndicator(
-                            value: _isBreak 
-                                ? 1.0 - (_breakTimeRemaining.inSeconds / (_breakDurationSetting * 60)) 
-                                : (_accumulatedTime.inSeconds % (_focusInterval * 60)) / (_focusInterval * 60), 
-                            strokeWidth: 12,
-                            backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-                            valueColor: AlwaysStoppedAnimation(
-                                _isBreak ? Colors.green : (isDark ? Colors.white : Colors.black)
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                      // Hourglass Icon (Rotating) for both Focus and Break
-                      AnimatedBuilder(
-                        animation: _sandAnimation,
-                        builder: (context, child) {
-                           // If not running, static empty or bottom?
-                           if (!_isRunning) {
-                             return Icon(Icons.hourglass_empty, size: 60, color: _isBreak ? Colors.green : Colors.grey);
-                           }
-                           return Transform.rotate(
-                             angle: _sandAnimation.value * pi, 
-                             child: Icon(Icons.hourglass_bottom, size: 60, color: _isBreak ? Colors.green : (isDark ? Colors.white : Colors.black)),
-                           );
-                        }
-                      ),
-                      
-                      // Touch Area
-                      Positioned.fill(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _toggleTimer,
-                            child: const SizedBox(),
-                          ),
-                        ),
-                      ),
-                      
-                      // Removed Coffee Icon to align with reading: "Break time is also a paused hourglass"
-
-
-                   ],
-                 ),
-               ),
-             ),
-             
-             Text(
-               timeStr,
-               style: const TextStyle(fontSize: 64, fontWeight: FontWeight.bold, fontFamily: 'Courier'),
-             ),
-             if (!_isBreak)
-               Text(t('accumulated_time'), style: const TextStyle(color: Colors.grey)),
-             if (_isBreak)
-               Text(t('break_timer'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-
-             const SizedBox(height: 32),
-
-             // Control Buttons
-             Padding(
-               padding: const EdgeInsets.all(32),
-               child: Row(
-                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                 children: [
-                  // Start State: Only START
-                   if (_accumulatedTime.inSeconds == 0 && !_isBreak)
-                     Expanded(
-                       child: SizedBox(
-                         height: 64,
-                         child: ElevatedButton(
-                           onPressed: _toggleTimer,
-                           style: ElevatedButton.styleFrom(
-                             backgroundColor: isDark ? Colors.white : Colors.black,
-                             foregroundColor: isDark ? Colors.black : Colors.white,
-                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                           ),
-                           child: Text(t('btn_start')),
-                         ),
-                       ),
-                     )
-                   else
-                     // Running/Paused: Only FINISH
-                     Expanded(
-                       child: SizedBox(
-                         height: 64,
-                         child: OutlinedButton(
-                           onPressed: _finishFocus,
-                           style: OutlinedButton.styleFrom(
-                             side: BorderSide(color: isDark ? Colors.white : Colors.black, width: 2),
-                             foregroundColor: isDark ? Colors.white : Colors.black,
-                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                             backgroundColor: isDark ? Colors.black : Colors.white,
-                           ),
-                           child: Text(t('record_activity')),
-                         ),
-                       ),
+        child: isLandscape 
+          ? Row(
+              children: [
+                // Left: Visual
+                Expanded(
+                  flex: 1,
+                  child: Center(
+                    child: _buildTimerVisual(isDark),
+                  ),
+                ),
+                // Right: Controls
+                Expanded(
+                  flex: 1,
+                  child: _buildControls(t, isDark, timeStr, isLandscape: true),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                 // Portrait: Input at top
+                 Padding(
+                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+                   child: TextField(
+                     controller: _taskController,
+                     enabled: !_isRunning,
+                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
+                     decoration: InputDecoration(
+                       hintText: t('what_to_do'),
+                       border: InputBorder.none,
+                       hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
                      ),
-                 ],
-               ),
-             )
-          ],
-        ),
+                     textAlign: TextAlign.center,
+                   ),
+                 ),
+                 
+                 // Visual
+                 Expanded(
+                   child: Center(
+                     child: _buildTimerVisual(isDark),
+                   ),
+                 ),
+                 
+                 // Controls (Time + Buttons)
+                 // Reusing logic but simpler
+                 Text(
+                   timeStr,
+                   style: const TextStyle(fontSize: 64, fontWeight: FontWeight.bold, fontFamily: 'Courier'),
+                 ),
+                 if (!_isBreak)
+                   Text(t('accumulated_time'), style: const TextStyle(color: Colors.grey)),
+                 if (_isBreak)
+                   Text(t('break_timer'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+
+                 const SizedBox(height: 32),
+
+                 Padding(
+                   padding: const EdgeInsets.all(32),
+                   child: Row(
+                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                     children: [
+                       if (_accumulatedTime.inSeconds == 0 && !_isBreak)
+                         Expanded(
+                           child: SizedBox(
+                             height: 64,
+                             child: ElevatedButton(
+                               onPressed: _toggleTimer,
+                               style: ElevatedButton.styleFrom(
+                                 backgroundColor: isDark ? Colors.white : Colors.black,
+                                 foregroundColor: isDark ? Colors.black : Colors.white,
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                               ),
+                               child: Text(t('btn_start')),
+                             ),
+                           ),
+                         )
+                       else
+                         Expanded(
+                           child: SizedBox(
+                             height: 64,
+                             child: OutlinedButton(
+                               onPressed: _finishFocus,
+                               style: OutlinedButton.styleFrom(
+                                 side: BorderSide(color: isDark ? Colors.white : Colors.black, width: 2),
+                                 foregroundColor: isDark ? Colors.white : Colors.black,
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                 backgroundColor: isDark ? Colors.black : Colors.white,
+                               ),
+                               child: Text(t('record_activity')),
+                             ),
+                           ),
+                         ),
+                     ],
+                   ),
+                 )
+              ],
+            ),
       ),
     );
   }
