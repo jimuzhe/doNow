@@ -494,7 +494,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   task: task,
                   isDark: isDark,
                   isLast: isLast,
-                  onLongPress: () => _showSubTasks(task, isDark),
+                  onLongPress: (!task.isDecision && !task.isQuickFocus && task.subTasks.isNotEmpty)
+                      ? () => _showSubTasks(task, isDark)
+                      : null,
                   onTap: () => _showTaskDetailCard(task, isDark),
                 );
               }),
@@ -580,7 +582,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                           return _TaskListItem(
                             task: task,
                             isDark: isDark,
-                            onLongPress: () => _showSubTasks(task, isDark),
+                            onLongPress: (!task.isDecision && !task.isQuickFocus && task.subTasks.isNotEmpty)
+                                ? () => _showSubTasks(task, isDark)
+                                : null,
                             onTap: () => _showTaskDetailCard(task, isDark),
                           );
                         },
@@ -759,7 +763,7 @@ class _StatCard extends StatelessWidget {
 class _TaskListItem extends StatelessWidget {
   final Task task;
   final bool isDark;
-  final VoidCallback onLongPress;
+  final VoidCallback? onLongPress;
   final VoidCallback onTap;
 
   const _TaskListItem({
@@ -1122,7 +1126,7 @@ class _TimelineItemWithLine extends StatelessWidget {
   final Task task;
   final bool isDark;
   final bool isLast;
-  final VoidCallback onLongPress;
+  final VoidCallback? onLongPress;
   final VoidCallback onTap;
 
   const _TimelineItemWithLine({

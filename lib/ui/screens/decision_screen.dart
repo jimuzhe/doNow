@@ -13,7 +13,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:async'; // For StreamSubscription
 
 class DecisionScreen extends ConsumerStatefulWidget {
-  const DecisionScreen({super.key});
+  final String? initialText;
+  const DecisionScreen({super.key, this.initialText});
 
   @override
   ConsumerState<DecisionScreen> createState() => _DecisionScreenState();
@@ -49,28 +50,27 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
     // Main Controller for the entire sequence (Toss -> Land -> Settle)
     _rotateController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400), 
+      duration: const Duration(milliseconds: 2000), 
     );
 
     _rotateController.addListener(() {
-      // Trigger sound and haptic at impact point (approx 60% of animation)
-      // We use a small range or flag to ensure it triggers once.
+      // Trigger sound and haptic at impact point (now at 80% progress)
       final val = _rotateController.value;
       
-      if (val >= 0.6 && !_landSoundPlayed) {
+      if (val >= 0.8 && !_landSoundPlayed) {
          _landSoundPlayed = true;
          ref.read(soundEffectServiceProvider).playCoinLand();
          HapticHelper(ref).heavyImpact();
       }
       
-      // Wobble vibrations during settle phase (0.6 -> 1.0)
-      if (val >= 0.7 && _wobbleStage < 1) {
+      // Wobble vibrations during settle phase (0.8 -> 1.0)
+      if (val >= 0.85 && _wobbleStage < 1) {
          _wobbleStage = 1;
          HapticHelper(ref).lightImpact();
-      } else if (val >= 0.8 && _wobbleStage < 2) {
+      } else if (val >= 0.90 && _wobbleStage < 2) {
          _wobbleStage = 2;
          HapticHelper(ref).lightImpact();
-      } else if (val >= 0.9 && _wobbleStage < 3) {
+      } else if (val >= 0.95 && _wobbleStage < 3) {
          _wobbleStage = 3;
          HapticHelper(ref).selectionClick();
       }
@@ -106,6 +106,11 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
       precacheImage(const AssetImage('assets/coin/yuan_head.png'), context);
       precacheImage(const AssetImage('assets/coin/yuan_tail.png'), context);
     });
+    
+    // Initialize text if provided
+    if (widget.initialText != null) {
+      _decisionController.text = widget.initialText!;
+    }
 
     _initShakeDetection();
   }
@@ -130,9 +135,9 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
     _accelerometerSubscription = userAccelerometerEventStream().listen((event) {
       if (_isFlipping) return;
       
-      // Check for strong shake on X axis (Left/Right)
-      // Threshold set to 20 to avoid accidental light shakes
-      if (event.x.abs() > 20) {
+      // Check for moderate shake on X axis (Left/Right)
+      // Threshold lowered to 12 (approx 1.2g) for easier triggering
+      if (event.x.abs() > 12) {
         final now = DateTime.now();
         // 500ms debounce
         if (now.difference(_lastShakeTime).inMilliseconds > 500) {
@@ -173,65 +178,86 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
       _rotateController.reset();
 
       // --- Animation Configuration ---
-      // Total Duration: 1400ms
+      // Total Duration: 2000ms (Slower for drama)
       // Structure:
-      // 0.0 -> 0.30: Rise (0 -> -350 height)
-      // 0.30 -> 0.60: Fall (-350 -> 0 height). IMPACT at 0.60.
-      // 0.60 -> 1.00: Settle (Wobble & small bounce)
+      // 0.0 -> 0.4: Rise (Fast)
+      // 0.4 -> 0.6: Apex (Slow Motion)
+      // 0.6 -> 0.8: Fall (Fast)
+      // 0.8 -> 1.0: Settle (Bounce)
 
       // HEIGHT ANIMATION
-      // Impact is exactly at 0.6
+      // Peak height at 0.5 (middle of slow motion)
       _heightAnimation = TweenSequence<double>([
-        // Rise
+        // Rise Fast
         TweenSequenceItem(
-          tween: Tween(begin: 0.0, end: -350.0).chain(CurveTween(curve: Curves.easeOut)), 
-          weight: 30
+          tween: Tween(begin: 0.0, end: -300.0).chain(CurveTween(curve: Curves.easeOutQuart)), 
+          weight: 40
         ),
-        // Fall to ground
+        // Apex Slow Float (Up a bit more then starts down)
         TweenSequenceItem(
-          tween: Tween(begin: -350.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)), 
-          weight: 30
+          tween: Tween(begin: -300.0, end: -300.0).chain(CurveTween(curve: Curves.linear)), 
+          weight: 20
         ),
-        // Settle / Small Bounces
+        // Fall Fast
+        TweenSequenceItem(
+          tween: Tween(begin: -300.0, end: 0.0).chain(CurveTween(curve: Curves.easeInQuart)), 
+          weight: 20
+        ),
+        // Settle / Bounces
         TweenSequenceItem(
           tween: TweenSequence([
-             // Bounce 1
              TweenSequenceItem(tween: Tween(begin: 0.0, end: -40.0).chain(CurveTween(curve: Curves.easeOut)), weight: 40),
              TweenSequenceItem(tween: Tween(begin: -40.0, end: 0.0).chain(CurveTween(curve: Curves.bounceOut)), weight: 60),
           ]), 
-          weight: 40
+          weight: 20
         ),
       ]).animate(_rotateController);
 
-      // SCALE ANIMATION (Simulate depth)
+      // SCALE ANIMATION
       _scaleAnimation = TweenSequence<double>([
-        TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 30), // Grow as it goes up
-        TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 30), // Shrink as it falls
-        TweenSequenceItem(tween: ConstantTween(1.0), weight: 40), // Stay at 1.0 on ground
+        TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.5), weight: 40), // Grow fast
+        TweenSequenceItem(tween: Tween(begin: 1.5, end: 1.5), weight: 20), // Stay big at apex
+        TweenSequenceItem(tween: Tween(begin: 1.5, end: 1.0), weight: 20), // Shrink fast
+        TweenSequenceItem(tween: ConstantTween(1.0), weight: 20),
       ]).animate(_rotateController);
 
       // ROTATION ANIMATION
-      // 0.0 -> 0.60: Complete most rotation (reach targetBase)
-      // 0.60 -> 1.00: Wobble around targetBase
+      // Calculates target rotations
+      // We want distinct speed changes: Fast -> Slow (almost stop) -> Fast -> Settle
+      
+      // Calculate split targets
+      // 40% progress = 40% rotations
+      // 60% progress = 50% rotations (slow down)
+      // 80% progress = 100% rotations
+      
+      final double rotAtApexStart = targetBase * 0.45;
+      final double rotAtApexEnd = targetBase * 0.55;
+
       _rotateAnimation = TweenSequence<double>([
-        // Main spin
+        // Rise: Fast Spin
         TweenSequenceItem(
-          tween: Tween(begin: 0.0, end: targetBase).chain(CurveTween(curve: Curves.easeInOut)), 
-          weight: 60
+          tween: Tween(begin: 0.0, end: rotAtApexStart).chain(CurveTween(curve: Curves.linear)), 
+          weight: 40
+        ),
+        // Apex: Slow Spin (The "Matrix" moment)
+        TweenSequenceItem(
+          tween: Tween(begin: rotAtApexStart, end: rotAtApexEnd).chain(CurveTween(curve: Curves.linear)), 
+          weight: 20
+        ),
+        // Fall: Fast Spin to End
+        TweenSequenceItem(
+          tween: Tween(begin: rotAtApexEnd, end: targetBase).chain(CurveTween(curve: Curves.easeIn)), 
+          weight: 20
         ),
         // Wobble Phase
         TweenSequenceItem(
           tween: TweenSequence([
-             // Wobble 1 (Overshoot)
              TweenSequenceItem(tween: Tween(begin: targetBase, end: targetBase + 0.15), weight: 25),
-             // Wobble 2 (Undershoot)
              TweenSequenceItem(tween: Tween(begin: targetBase + 0.15, end: targetBase - 0.08), weight: 25),
-             // Wobble 3 (Small Overshoot)
              TweenSequenceItem(tween: Tween(begin: targetBase - 0.08, end: targetBase + 0.04), weight: 25),
-             // Settle
              TweenSequenceItem(tween: Tween(begin: targetBase + 0.04, end: targetBase), weight: 25),
           ]).chain(CurveTween(curve: Curves.easeInOut)), 
-          weight: 40
+          weight: 20
         ),
       ]).animate(_rotateController);
       
@@ -354,54 +380,56 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
                  child: Stack(
                    alignment: Alignment.center,
                    children: [
-                     AnimatedBuilder(
-                       animation: Listenable.merge([_rotateAnimation, _heightAnimation]),
-                       builder: (context, child) {
-                         final angle = _rotateAnimation.value;
-                         // Logic to show Head or Tail
-                         // Normalize angle to 0..2pi for easy checking, but Math.cos handles it.
-                         // cos(0) = 1 (Head), cos(pi) = -1 (Tail).
-                         final isHeads = cos(angle) > 0;
-                         
-                         return Transform(
-                           alignment: Alignment.center,
-                           transform: Matrix4.identity()
-                             ..setEntry(3, 2, 0.001) // Perspective
-                             ..translate(0.0, _heightAnimation.value, 0.0) // Moving up/down
-                             ..scale(_scaleAnimation.value) // Scaling
-                             ..rotateX(angle),
-                           child: Container(
-                             width: 200,
-                             height: 200,
-                             decoration: BoxDecoration(
-                               shape: BoxShape.circle,
-                               boxShadow: [
-                                 BoxShadow(
-                                   color: Colors.black.withOpacity(0.3),
-                                   blurRadius: 20,
-                                   offset: const Offset(0, 10),
-                                 )
-                               ],
-                             ),
-                             child: isHeads 
-                               ? Transform.scale(
-                                   scale: 1.1,
-                                   child: Image.asset('assets/coin/yuan_head.png', fit: BoxFit.contain)
-                                 )
-                               : Transform(
-                                   // Rotate the tail image so it appears 'upright' relative to the coin's flip
-                                   // Reverted to rotateX for up-down flip
-                                   alignment: Alignment.center,
-                                   transform: Matrix4.rotationX(pi), 
-                                   child: Image.asset('assets/coin/yuan_tail.png', fit: BoxFit.contain)
-                                 ),
-                           ),
-                         );
+                     GestureDetector(
+                       onTap: () {
+                         if (!_isFlipping) _flipCoin();
                        },
+                       child: AnimatedBuilder(
+                         animation: Listenable.merge([_rotateAnimation, _heightAnimation]),
+                         builder: (context, child) {
+                           final angle = _rotateAnimation.value;
+                           // Logic to show Head or Tail
+                           // Normalize angle to 0..2pi for easy checking, but Math.cos handles it.
+                           // cos(0) = 1 (Head), cos(pi) = -1 (Tail).
+                           final isHeads = cos(angle) > 0;
+                           
+                           return Transform(
+                             alignment: Alignment.center,
+                             transform: Matrix4.identity()
+                               ..setEntry(3, 2, 0.001) // Perspective
+                               ..translate(0.0, _heightAnimation.value, 0.0) // Moving up/down
+                               ..scale(_scaleAnimation.value) // Scaling
+                               ..rotateX(angle),
+                             child: Container(
+                               width: 200,
+                               height: 200,
+                               decoration: BoxDecoration(
+                                 shape: BoxShape.circle,
+                                 boxShadow: [
+                                   BoxShadow(
+                                     color: Colors.black.withOpacity(0.3),
+                                     blurRadius: 20,
+                                     offset: const Offset(0, 10),
+                                   )
+                                 ],
+                               ),
+                               child: isHeads 
+                                 ? Transform.scale(
+                                     scale: 1.1,
+                                     child: Image.asset('assets/coin/yuan_head.png', fit: BoxFit.contain)
+                                   )
+                                 : Transform(
+                                     // Rotate the tail image so it appears 'upright' relative to the coin's flip
+                                     // Reverted to rotateX for up-down flip
+                                     alignment: Alignment.center,
+                                     transform: Matrix4.rotationX(pi), 
+                                     child: Image.asset('assets/coin/yuan_tail.png', fit: BoxFit.contain)
+                                   ),
+                             ),
+                           );
+                         },
+                       ),
                      ),
-                     
-                     // Helper text removed as requested
-
                    ],
                  ),
                ),
