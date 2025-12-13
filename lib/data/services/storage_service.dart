@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
 import '../models/habit.dart';
+import '../models/routine.dart';
 import '../models/api_settings.dart';
 import '../api_config.dart';
 
@@ -210,6 +211,33 @@ class StorageService {
           .toList();
     } catch (e) {
       print('Error loading habits: $e');
+      return [];
+    }
+  }
+
+  // ============== ROUTINES (per-user) ==============
+  
+  static const String _routinesKey = 'routines';
+
+  Future<void> saveRoutines(List<Routine> routines) async {
+    final jsonList = routines.map((r) => r.toJson()).toList();
+    final jsonString = jsonEncode(jsonList);
+    await prefs.setString(_userKey(_routinesKey), jsonString);
+  }
+
+  List<Routine> loadRoutines() {
+    final jsonString = prefs.getString(_userKey(_routinesKey));
+    if (jsonString == null || jsonString.isEmpty) {
+      return [];
+    }
+    
+    try {
+      final jsonList = jsonDecode(jsonString) as List<dynamic>;
+      return jsonList
+          .map((json) => Routine.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print('Error loading routines: $e');
       return [];
     }
   }

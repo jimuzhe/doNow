@@ -250,6 +250,14 @@ class AppStrings {
       'quick_focus_title': 'Quick Focus',
       'coin_heads': 'Heads (Flower)', // Clarify for user understanding of "Face"
       'coin_tails': 'Tails (Badge)',
+      // Routines
+      'routines': 'Routines',
+      'save_as_routine': 'Save as Template',
+      'save_routine_success': 'Template saved!',
+      'routine_name': 'Template Name',
+      'start_routine': 'Start Template',
+      'delete_routine_confirm': 'Delete this template?',
+      'saved': 'Saved',
     },
     'zh': {
       'home': '首页',
@@ -451,6 +459,14 @@ class AppStrings {
       'quick_focus_title': '快速专注',
       'coin_heads': '花面',
       'coin_tails': '徽面',
+      // Routines
+      'routines': '流程库',
+      'save_as_routine': '存为模板',
+      'save_routine_success': '模板已保存！',
+      'routine_name': '模板名称',
+      'start_routine': '启用模板',
+      'delete_routine_confirm': '删除此模板？',
+      'saved': '已保存',
     }
   };
 

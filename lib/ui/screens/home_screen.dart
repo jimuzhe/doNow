@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/task.dart';
 import '../../data/models/subtask.dart';
+import '../../data/models/routine.dart';
 import '../../data/localization.dart';
 import '../../data/providers.dart';
 import '../../utils/haptic_helper.dart';
@@ -16,6 +18,7 @@ import 'quick_focus_screen.dart';
 import '../widgets/responsive_center.dart';
 import '../widgets/subtask_editor_sheet.dart';
 import '../widgets/habit_list.dart';
+import '../widgets/task_action_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -340,10 +343,39 @@ class _SlidableTaskCard extends ConsumerWidget {
             ),
           ],
         ),
-        // Swipe to left -> Show Delete
+        // Swipe to left -> Show Delete and Save Routine
         endActionPane: ActionPane(
           motion: const ScrollMotion(),
           children: [
+            // Save as Routine (Dynamic State)
+            Builder(
+              builder: (context) {
+                // Check if routine already exists
+                final routines = ref.watch(routineListProvider);
+                final isSaved = routines.any((r) => r.title == task.title && r.totalDuration == task.totalDuration);
+                
+                return SlidableAction(
+                  onPressed: isSaved ? null : (context) {
+                      // Save as Routine
+                      final routine = Routine(
+                        id: Uuid().v4(),
+                        title: task.title,
+                        totalDuration: task.totalDuration,
+                        subTasks: task.subTasks,
+                      );
+                      ref.read(routineListProvider.notifier).addRoutine(routine); 
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(t('save_routine_success'))),
+                      );
+                  },
+                  backgroundColor: isSaved ? Colors.grey : Colors.blue,
+                  foregroundColor: Colors.white,
+                  icon: isSaved ? Icons.bookmark_added : Icons.bookmark_add_outlined,
+                  label: isSaved ? t('saved') : t('save_as_routine'), 
+                );
+              }
+            ),
             SlidableAction(
               onPressed: (context) {
                 // Delete Logic with Provider
@@ -362,7 +394,15 @@ class _SlidableTaskCard extends ConsumerWidget {
           ],
         ),
         child: GestureDetector(
-          onLongPress: () => _showEditSubtasksSheet(context, task, ref),
+          onTap: () {
+             // Quick Focus / Execute directly
+             Navigator.of(context).push(
+               MaterialPageRoute(builder: (c) => TaskDetailScreen(task: task)),
+             );
+          },
+          onLongPress: (!task.isDecision && !task.isQuickFocus && task.subTasks.isNotEmpty) 
+              ? () => _showEditSubtasksSheet(context, task, ref) 
+              : null,
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(

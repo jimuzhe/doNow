@@ -11,6 +11,8 @@ import '../../utils/haptic_helper.dart';
 import '../../utils/snackbar_helper.dart';
 import '../widgets/custom_loading_overlay.dart';
 import '../widgets/subtask_editor_sheet.dart';
+import '../widgets/routine_selector_sheet.dart';
+import '../../data/models/routine.dart';
 import 'task_detail_screen.dart';
 
 class CreateTaskModal extends ConsumerStatefulWidget {
@@ -139,6 +141,21 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           ),
           
           const SizedBox(height: 24),
+
+          // Routines Button
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _showRoutineSelector,
+              icon: const Icon(Icons.inventory_2_outlined, size: 16),
+              label: Text(t('routines')),
+              style: TextButton.styleFrom(
+                 foregroundColor: Colors.orange,
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                 backgroundColor: Colors.orange.withOpacity(0.1),
+              ),
+            ),
+          ),
           
           // Duration section with AI button
           Row(
@@ -597,6 +614,34 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           // Close modal and navigate to task detail
           Navigator.pop(context); // Close CreateTaskModal
           Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(task: newTask)));
+        },
+      ),
+    );
+  }
+
+  void _showRoutineSelector() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RoutineSelectorSheet(
+        onSelect: (routine) {
+          Navigator.pop(context); // Close sheet
+          
+          setState(() {
+            _titleController.text = routine.title;
+            _selectedDuration = routine.totalDuration;
+            
+            // Treat routine subtasks as cached result
+            _cachedAIResult = AIEstimateResult(
+              estimatedDuration: routine.totalDuration,
+              subTasks: routine.subTasks,
+            );
+            _lastAITitle = routine.title;
+            _lastAIDuration = routine.totalDuration;
+          });
+          
+          HapticHelper(ref).mediumImpact();
         },
       ),
     );

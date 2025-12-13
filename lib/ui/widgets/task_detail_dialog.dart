@@ -127,7 +127,8 @@ class TaskDetailDialog extends StatelessWidget {
             
             const SizedBox(height: 24),
             
-            // 2. Stats Grid
+            // 2. Stats Grid (Only for regular tasks)
+            if (!task.isDecision && !task.isQuickFocus)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(
