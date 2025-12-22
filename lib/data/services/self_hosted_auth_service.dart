@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'package:mime/mime.dart';
 
 /// 自托管认证服务客户端
 /// 替代 Firebase Auth，连接您自己的 Python 后端
@@ -145,8 +148,12 @@ class SelfHostedAuthService {
       uid: user['uid'],
       email: user['email'],
       displayName: user['displayName'],
+      avatarUrl: user['avatar'],
       emailVerified: user['emailVerified'] ?? false,
       isAnonymous: user['isAnonymous'] ?? false,
+      xp: user['xp'] ?? 0,
+      level: user['level'] ?? 1,
+      achievements: user['achievements'] ?? [],
     );
     
     if (tokens != null) {
@@ -165,8 +172,12 @@ class SelfHostedAuthService {
       uid: user['uid'],
       email: user['email'],
       displayName: user['displayName'],
+      avatarUrl: user['avatar'],
       emailVerified: user['emailVerified'] ?? false,
       isAnonymous: user['isAnonymous'] ?? false,
+      xp: user['xp'] ?? 0,
+      level: user['level'] ?? 1,
+      achievements: user['achievements'] ?? [],
     );
     
     _notifyListeners();
@@ -253,23 +264,101 @@ class SelfHostedAuthService {
   }
   
   /// 更新用户资料
-  Future<void> updateProfile({String? displayName}) async {
-    await _request('PUT', '/update-profile', body: {
-      'displayName': displayName,
-    }, requireAuth: true);
+  Future<void> updateProfile({String? displayName, String? avatarUrl}) async {
+    final body = <String, dynamic>{};
+    if (displayName != null) body['nickname'] = displayName; // Backend expects 'nickname' or 'display_name'
+    if (avatarUrl != null) body['avatar'] = avatarUrl;
     
-    if (_currentUser != null) {
-      _currentUser = AuthUser(
-        uid: _currentUser!.uid,
-        email: _currentUser!.email,
-        displayName: displayName ?? _currentUser!.displayName,
-        emailVerified: _currentUser!.emailVerified,
-        isAnonymous: _currentUser!.isAnonymous,
-      );
-      _notifyListeners();
+    await _request('POST', '/profile', body: body, requireAuth: true);
+    
+    // Refresh user data from server to be sure
+    await _fetchCurrentUser();
+  }
+  
+  /// 上传头像
+  Future<String> uploadAvatar(List<int> bytes, String filename) async {
+    // Use the Auth Server's upload endpoint (to avoid CORS issues with external image hosts)
+    // Assumes baseUrl ends with '/api/auth', so we replace it with '/api/upload/avatar'
+    // If baseUrl is just the host, this logic adapts.
+    final uploadEndpoint = baseUrl.endsWith('/api/auth') 
+        ? baseUrl.replaceAll('/api/auth', '/api/upload/avatar')
+        : '$baseUrl/../upload/avatar'; // Fallback logic
+        
+    final uri = Uri.parse(uploadEndpoint);
+    
+    final request = http.MultipartRequest('POST', uri);
+    
+    // Add Authorization header
+    if (_accessToken != null) {
+      request.headers['Authorization'] = 'Bearer $_accessToken';
+    }
+    
+    // Detect mime type
+    final mimeType = lookupMimeType(filename) ?? 'image/jpeg';
+    final mimeSplit = mimeType.split('/');
+    
+    request.files.add(http.MultipartFile.fromBytes(
+      'file', 
+      bytes,
+      filename: filename,
+      contentType: MediaType(mimeSplit[0], mimeSplit[1]),
+    ));
+    
+    final response = await request.send();
+    final responseData = await http.Response.fromStream(response);
+    
+    if (response.statusCode != 200) {
+       throw AuthException(
+         code: 'upload_error',
+         message: 'Failed to upload avatar: ${responseData.body}',
+         statusCode: response.statusCode
+       );
+    }
+    
+    // Parse response: {'url': '...'}
+    final data = jsonDecode(responseData.body);
+    if (data is Map && data.containsKey('url')) {
+      return data['url'];
+    } else {
+       throw AuthException(
+         code: 'upload_error',
+         message: 'Invalid upload response format: ${responseData.body}',
+       );
     }
   }
   
+
+  
+  /// 同步游戏化数据
+  Future<void> syncGamification({
+    required int xp,
+    required int level,
+    required List<Map<String, dynamic>> achievements,
+  }) async {
+     await _request('POST', '/gamification/sync', body: {
+       'xp': xp,
+       'level': level,
+       'achievements': achievements,
+     }, requireAuth: true);
+     
+     // 可以在这里更新本地缓存的 _currentUser，但通常我们依赖 GamificationService 来管理状态
+     // 刷新 User 以保持一致性
+     if (_currentUser != null) {
+      _currentUser = AuthUser(
+        uid: _currentUser!.uid,
+        email: _currentUser!.email,
+        displayName: _currentUser!.displayName,
+        avatarUrl: _currentUser!.avatarUrl, 
+        emailVerified: _currentUser!.emailVerified,
+        isAnonymous: _currentUser!.isAnonymous,
+        xp: xp,
+        level: level,
+        achievements: achievements,
+      );
+       _notifyListeners();
+     }
+  }
+
   /// 登出
   Future<void> signOut() async {
     if (_accessToken != null && _refreshToken != null) {
@@ -300,16 +389,26 @@ class AuthUser {
   final String uid;
   final String? email;
   final String? displayName;
+  final String? avatarUrl;
   final bool emailVerified;
   final bool isAnonymous;
+  final int xp;
+  final int level;
+  final List<dynamic> achievements;
   
   AuthUser({
     required this.uid,
     this.email,
     this.displayName,
+    this.avatarUrl,
     required this.emailVerified,
     required this.isAnonymous,
+    this.xp = 0,
+    this.level = 1,
+    this.achievements = const [],
   });
+
+
 }
 
 

@@ -5,8 +5,20 @@ import '../../data/localization.dart';
 import '../../data/providers.dart';
 import '../../data/models/ai_persona.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/self_hosted_auth_service.dart';
 import '../../utils/haptic_helper.dart';
 import '../widgets/custom_dialog.dart';
+import '../../data/models/gamification_state.dart';
+import '../../data/services/gamification_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'dart:typed_data';
+import 'package:google_fonts/google_fonts.dart';
+import 'dart:typed_data';
+import 'achievements_screen.dart';
+import '../widgets/white_background_remover.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -57,8 +69,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Theme references
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    
+    // Providers
+    final gamificationState = ref.watch(gamificationServiceProvider);
+    final authService = ref.watch(authServiceProvider);
+    final user = authService.currentUser;
 
     String t(String key) => AppStrings.get(key, locale);
+    
+    // Section Header Style
+    final sectionHeaderStyle = TextStyle(
+      fontSize: 14, 
+      fontWeight: FontWeight.bold, 
+      color: isDark ? Colors.grey[400] : Colors.grey[600],
+      letterSpacing: 1.0,
+    );
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -67,198 +92,493 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
             child: ListView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
               children: [
-                Text(
-                  t('settings'),
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1.0,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                // Account Management (Top of settings)
-                _AccountTile(isDark: isDark),
-                
-                const Divider(height: 32),
-                
-                // Language
-                _SettingsTile(
-                  icon: Icons.language,
-                  title: t('language'),
-                  trailing: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12),
+                // === 1. Header & Profile ===
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      t('me_title') == 'me_title' ? 'Me' : t('me_title'), // Fallback if key missing
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.0,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _LanguageOption(
-                          text: "EN", 
-                          isSelected: !isChinese, 
-                          onTap: () {
-                             ref.read(localeProvider.notifier).setLocale('en');
-                             HapticHelper(ref).selectionClick();
-                          },
-                          isDark: isDark,
-                        ),
-                        _LanguageOption(
-                          text: "中文", 
-                          isSelected: isChinese, 
-                          onTap: () {
-                             ref.read(localeProvider.notifier).setLocale('zh');
-                             HapticHelper(ref).selectionClick();
-                          },
-                          isDark: isDark,
-                        ),
-                      ],
-                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                
+                // Minimal Profile Card + Gamification
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50], // Minimalist bg
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
                   ),
-                ),
-                
-                const Divider(height: 32),
-
-                // Theme Mode Toggle (now with System option)
-                _SettingsTile(
-                  icon: themeMode == ThemeMode.system 
-                      ? Icons.brightness_auto 
-                      : (isDark ? Icons.dark_mode : Icons.light_mode),
-                  title: t('theme'),
-                  trailing: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ThemeOption(
-                          icon: Icons.light_mode,
-                          isSelected: themeMode == ThemeMode.light,
-                          onTap: () {
-                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light);
-                            HapticHelper(ref).selectionClick();
-                          },
-                          isDark: isDark,
-                        ),
-                        _ThemeOption(
-                          icon: Icons.brightness_auto,
-                          isSelected: themeMode == ThemeMode.system,
-                          onTap: () {
-                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system);
-                            HapticHelper(ref).selectionClick();
-                          },
-                          isDark: isDark,
-                        ),
-                        _ThemeOption(
-                          icon: Icons.dark_mode,
-                          isSelected: themeMode == ThemeMode.dark,
-                          onTap: () {
-                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark);
-                            HapticHelper(ref).selectionClick();
-                          },
-                          isDark: isDark,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                const Divider(height: 32),
-                
-                // Vibration Intensity Slider
-                _VibrationIntensityTile(isDark: isDark),
-
-                const Divider(height: 32),
-
-                // AI Persona Selector (Collapsible)
-                _CollapsibleAIPersonaTile(isDark: isDark),
-
-                const Divider(height: 32),
-
-                 _SettingsTile(
-                  icon: Icons.delete_outline,
-                  title: t('clear_data'),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                  onTap: () => _showClearDataConfirmation(context, ref),
-                ),
-                
-                const Divider(height: 32),
-                
-                _SettingsTile(
-                  icon: Icons.feedback_outlined,
-                  title: t('feedback'),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                  onTap: () => _showFeedbackModal(context, ref),
-                ),
-                
-                // AI Configuration - only show if developer mode enabled
-                if (_showAIConfig) ...[
-                  _SettingsTile(
-                    icon: Icons.psychology_outlined,
-                    title: "AI Configuration",
-                    trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                    onTap: () => _showAiConfigModal(context, ref),
-                  ),
-                  
-                  const Divider(height: 32),
-                  
-                  // Debug Log Toggle
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final debugEnabled = ref.watch(debugLogEnabledProvider);
-                      return _SettingsTile(
-                        icon: Icons.bug_report,
-                        title: "Debug Logs",
-                        trailing: Switch(
-                          value: debugEnabled,
-                          onChanged: (value) {
-                            ref.read(debugLogEnabledProvider.notifier).state = value;
-                            HapticHelper(ref).selectionClick();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(value ? 'Debug logs enabled' : 'Debug logs disabled'),
-                                duration: const Duration(seconds: 1),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          // Avatar
+                          Container(
+                            width: 64, height: 64,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark ? Colors.grey[800] : Colors.grey[200],
+                              image: (user?.avatarUrl != null) 
+                                ? DecorationImage(
+                                    image: CachedNetworkImageProvider(
+                                      kIsWeb 
+                                        ? 'https://corsproxy.io/?${Uri.encodeComponent(user!.avatarUrl!)}'
+                                        : user!.avatarUrl!
+                                    ),
+                                    fit: BoxFit.cover
+                                  ) 
+                                : null,
+                            ),
+                            child: (user?.avatarUrl == null) 
+                              ? Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400])
+                              : null,
+                          ),
+                          const SizedBox(width: 20),
+                          
+                          // Info
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                      Text(
+                                        user?.displayName ?? t('traveler'),
+                                        style: GoogleFonts.dotGothic16(
+                                          fontSize: 24, // Adjusted size
+                                          fontWeight: FontWeight.bold,
+                                          // Removed italic for better pixel render
+                                          color: isDark ? Colors.white : Colors.black,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        "Lv.${gamificationState.level}",
+                                        style: GoogleFonts.dotGothic16(
+                                          fontSize: 14, 
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? Colors.white70 : Colors.black87
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      gamificationState.levelTitle, 
+                                      style: GoogleFonts.dotGothic16(
+                                        fontSize: 14, 
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const AchievementsScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(
+                                Icons.emoji_events_outlined, 
+                                color: isDark ? Colors.amber[300] : Colors.amber[600], // Make it golden/stand out more
+                                size: 36, // Larger size as requested
                               ),
-                            );
-                          },
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 12),
+                      
+                      // Achievements Preview (Moved Up & No Background)
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AchievementsScreen()),
+                          );
+                        },
+                        child: Container(
+                           width: double.infinity,
+                           padding: const EdgeInsets.only(bottom: 4), // Reduced spacing below
+                           // Removed decoration/background
+                           child: Row(
+                             crossAxisAlignment: CrossAxisAlignment.center, // Align icons vertically
+                             children: [
+                                Expanded(
+                                 child: Row(
+                                   children: [
+                                     // Only show unlocked badges here
+                                     if (gamificationState.achievements.where((a) => a.isUnlocked).isNotEmpty)
+                                       ...gamificationState.achievements
+                                           .where((a) => a.isUnlocked)
+                                           .take(5) // Show max 5
+                                           .map((a) {
+                                              final cleanIcon = a.icon.trim();
+                                              final isUrl = cleanIcon.toLowerCase().startsWith('http');
+                                              return Padding(
+                                                 padding: const EdgeInsets.only(right: 8),
+                                                 child: isUrl
+                                                   ? SizedBox(
+                                                       width: 32, height: 32,
+                                                       child: WhiteBackgroundRemover(
+                                                         child: Image.network(
+                                                           kIsWeb 
+                                                              ? 'https://corsproxy.io/?${Uri.encodeComponent(cleanIcon)}' 
+                                                              : cleanIcon,
+                                                           fit: BoxFit.contain,
+                                                           errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 16),
+                                                         ),
+                                                       ),
+                                                     )
+                                                   : Text(a.icon, style: const TextStyle(fontSize: 24)),
+                                               );
+                                           }),
+                                      
+                                      // If no achievements, maybe show a hint or empty state? 
+                                      // Or just nothing, as requested "badges display".
+                                   ],
+                                 ),
+                               ),
+                             ],
+                           ),
                         ),
-                      );
-                    },
+                      ),
+
+                      // Stats Row
+                      // XP Progress
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t('xp_progress'), 
+                            style: GoogleFonts.dotGothic16(
+                              fontSize: 12, 
+                              fontWeight: FontWeight.bold, 
+                              color: Colors.grey[500], 
+                              letterSpacing: 1
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: gamificationState.progressToNextLevel,
+                              minHeight: 6,
+                              backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                              valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "${gamificationState.currentXp} / ${gamificationState.xpToNextLevel} XP",
+                            style: GoogleFonts.dotGothic16(fontSize: 12, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  
-                  const Divider(height: 32),
+                ),
+                
+                const SizedBox(height: 16), // Reduced from 40
+                
+                // === 2. Preferences ===
+                const SizedBox(height: 32),
+
+                // === 2. Preferences Group ===
+                _buildSettingsGroup(
+                  context,
+                  title: t('preferences'),
+                  children: [
+                    _SettingsTile(
+                      icon: themeMode == ThemeMode.system 
+                          ? Icons.brightness_auto 
+                          : (isDark ? Icons.dark_mode : Icons.light_mode),
+                      title: t('theme'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                           _ThemeOption(icon: Icons.light_mode, isSelected: themeMode == ThemeMode.light, onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light), isDark: isDark),
+                           _ThemeOption(icon: Icons.brightness_auto, isSelected: themeMode == ThemeMode.system, onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system), isDark: isDark),
+                           _ThemeOption(icon: Icons.dark_mode, isSelected: themeMode == ThemeMode.dark, onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark), isDark: isDark),
+                        ],
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.language,
+                      title: t('language'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _LanguageOption(text: "EN", isSelected: !isChinese, onTap: () => ref.read(localeProvider.notifier).setLocale('en'), isDark: isDark),
+                          const SizedBox(width: 4),
+                          _LanguageOption(text: "中文", isSelected: isChinese, onTap: () => ref.read(localeProvider.notifier).setLocale('zh'), isDark: isDark),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _VibrationIntensityTile(isDark: isDark),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // === 3. Intelligence Group ===
+                _buildSettingsGroup(
+                  context,
+                  title: t('intelligence'),
+                  children: [
+                    _CollapsibleAIPersonaTile(isDark: isDark),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // === 4. Account Group ===
+                _buildSettingsGroup(
+                  context, 
+                  title: t('account_group'),
+                  children: [
+                     _SettingsTile(
+                      icon: Icons.edit_note,
+                      title: t('edit_profile'),
+                      onTap: () {
+                         if (user != null) _showEditProfileModal(context, ref, user);
+                      },
+                    ),
+                     _SettingsTile(
+                      icon: Icons.delete_outline,
+                      title: t('clear_data'),
+                      onTap: () => _showClearDataConfirmation(context, ref),
+                    ),
+                    _SettingsTile(
+                       icon: Icons.logout,
+                       title: t('sign_out'),
+                       textColor: Colors.red,
+                       iconColor: Colors.red,
+                       onTap: () async {
+                          final shouldLogout = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => CustomDialog(
+                              title: t('confirm_sign_out_title'),
+                              content: t('confirm_sign_out_content'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('cancel'))),
+                                TextButton(onPressed: () => Navigator.pop(context, true), child: Text(t('sign_out'), style: const TextStyle(color: Colors.red))),
+                              ],
+                            ),
+                          );
+                          if (shouldLogout == true) {
+                            await authService.signOut();
+                          }
+                       },
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+
+                // === 5. App Group ===
+                _buildSettingsGroup(
+                  context,
+                  title: t('app_group'),
+                  children: [
+                    _SettingsTile(
+                      icon: Icons.feedback_outlined,
+                      title: t('feedback'),
+                      onTap: () => _showFeedbackModal(context, ref),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.info_outline,
+                      title: t('about'),
+                      onTap: () => _showAboutModal(context, ref),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                 // Beta Features
+                 _buildSettingsGroup(
+                   context,
+                   title: "Beta Features",
+                   children: [
+                     Consumer(
+                        builder: (context, ref, _) {
+                          // We need to watch a provider, but we added it to providers.dart
+                          // Let's assume it's available as morningReportEnabledProvider
+                          final enabled = ref.watch(morningReportEnabledProvider);
+                          return _SettingsTile(
+                            icon: Icons.newspaper_outlined,
+                            title: "每日早报",
+                            trailing: Switch(
+                              value: enabled,
+                              onChanged: (value) {
+                                ref.read(morningReportEnabledProvider.notifier).toggle();
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                   ],
+                 ),
+
+                // Dev Options
+                if (_showAIConfig) ...[
+                   const SizedBox(height: 16),
+                   _buildSettingsGroup(
+                     context,
+                     title: t('developer_group'),
+                     children: [
+                        _SettingsTile(
+                        icon: Icons.psychology_outlined,
+                        title: t('ai_config'),
+                        onTap: () => _showAiConfigModal(context, ref),
+                      ),
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final debugEnabled = ref.watch(debugLogEnabledProvider);
+                          return _SettingsTile(
+                            icon: Icons.bug_report,
+                            title: t('debug_logs'),
+                            trailing: Switch(
+                              value: debugEnabled,
+                              onChanged: (value) => ref.read(debugLogEnabledProvider.notifier).state = value,
+                            ),
+                          );
+                        },
+                      ),
+                     ],
+                   ),
                 ],
 
-                _SettingsTile(
-                  icon: Icons.info_outline,
-                  title: t('about'),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                  onTap: () => _showAboutModal(context, ref),
-                ),
-                 
                  const SizedBox(height: 48),
                  Center(
                    child: GestureDetector(
                      onTap: _handleVersionTap,
                      child: Text(
-                       "${t('version')} 3.0.0", 
+                       "v4.0.0", 
                        style: TextStyle(color: Colors.grey[400], fontSize: 12)
                      ),
                    ),
                  ),
+                 const SizedBox(height: 32),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _showAchievementsList(BuildContext context, GamificationState state) {
+    // Minimalist achievement sheet
+     showModalBottomSheet(
+       context: context,
+       backgroundColor: Colors.transparent,
+       isScrollControlled: true,
+       builder: (context) {
+         final isDark = Theme.of(context).brightness == Brightness.dark;
+         return DraggableScrollableSheet(
+           initialChildSize: 0.7,
+           maxChildSize: 0.9,
+           builder: (context, controller) => Container(
+             decoration: BoxDecoration(
+               color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+             ),
+             child: Column(
+               children: [
+                 Container(
+                   margin: const EdgeInsets.symmetric(vertical: 16),
+                   width: 40, height: 4,
+                   decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                 ),
+                 Text(
+                   "Achievements",
+                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                 ),
+                 const SizedBox(height: 16),
+                 Expanded(
+                   child: ListView.separated(
+                     controller: controller,
+                     padding: const EdgeInsets.all(24),
+                     itemCount: state.achievements.length,
+                     separatorBuilder: (_,__) => const SizedBox(height: 24),
+                     itemBuilder: (context, index) {
+                       final a = state.achievements[index];
+                       final isUnlocked = a.isUnlocked;
+                       return Row(
+                         children: [
+                             Container(
+                               width: 50, height: 50,
+                               decoration: BoxDecoration(
+                                 color: Colors.transparent, // Removed background
+                                 shape: BoxShape.circle,
+                                 // Removed border that might imply container
+                               ),
+                               alignment: Alignment.center,
+                               child: Text(isUnlocked ? a.icon : "🔒", style: const TextStyle(fontSize: 24)),
+                             ),
+                           const SizedBox(width: 16),
+                           Expanded(
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                 children: [
+                                   Text(
+                                     a.title,
+                                     style: TextStyle(
+                                       fontWeight: FontWeight.bold,
+                                       color: isUnlocked ? (isDark ? Colors.white : Colors.black) : Colors.grey[400],
+                                     ),
+                                   ),
+                                   const SizedBox(height: 4),
+                                    Text(
+                                     a.description,
+                                     style: TextStyle(
+                                       fontSize: 12,
+                                       color: isDark ? Colors.grey[500] : Colors.grey[600],
+                                     ),
+                                   ),
+                                 ],
+                               ),
+                           ),
+                         ],
+                       );
+                     },
+                   ),
+                 ),
+               ],
+             ),
+           ),
+         );
+       },
+     );
   }
 
 
@@ -339,7 +659,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                ),
              ),
              const SizedBox(height: 16),
-             Text("Version 3.0.0", style: TextStyle(color: Colors.grey[600])),
+             Text("Version 4.0.0", style: TextStyle(color: Colors.grey[600])),
              const SizedBox(height: 32),
              Padding(
                padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -424,7 +744,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           left: 24, 
           right: 24, 
           top: 24, 
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24 // Keyboard padding
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16 // Reduced bottom padding
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -501,6 +821,260 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ],
     );
   }
+
+  Widget _buildSettingsGroup(BuildContext context, {required String title, required List<Widget> children}) {
+     final isDark = Theme.of(context).brightness == Brightness.dark;
+     final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
+     
+     return Theme(
+       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+       child: ExpansionTile(
+         tilePadding: const EdgeInsets.symmetric(horizontal: 0),
+         title: Text(
+           title,
+           style: TextStyle(
+             fontSize: 14, 
+             fontWeight: FontWeight.bold, 
+             color: isDark ? Colors.white : Colors.black,
+             letterSpacing: 1.0,
+           ),
+         ),
+         collapsedShape: Border(bottom: BorderSide(color: borderColor)),
+         shape: Border(bottom: BorderSide(color: borderColor)),
+         collapsedBackgroundColor: Colors.transparent,
+         backgroundColor: Colors.transparent,
+         childrenPadding: const EdgeInsets.only(bottom: 16),
+         initiallyExpanded: false,
+         children: children,
+       ),
+     );
+  }
+
+  void _showEditProfileModal(BuildContext context, WidgetRef ref, AppUser user) {
+    final locale = ref.read(localeProvider);
+    final nameController = TextEditingController(text: user.displayName);
+    
+    Uint8List? newImageBytes;
+    String? newImageFilename;
+    String? selectedPresetUrl;
+    bool isUploading = false;
+    
+    // Default preset avatars
+    final List<String> presetAvatars = [
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Felix',
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Aneka',
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Bella',
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Coco',
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Daisy',
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Jack',
+      'https://api.dicebear.com/7.x/adventurer/png?seed=Leo',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+               padding: EdgeInsets.only(
+                 bottom: MediaQuery.of(context).viewInsets.bottom,
+               ),
+               decoration: BoxDecoration(
+                 color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+               ),
+               child: SingleChildScrollView(
+                 child: Padding(
+                   padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                   child: Column(
+                     mainAxisSize: MainAxisSize.min,
+                     children: [
+                       Center(
+                         child: Container(
+                           width: 40, height: 4, 
+                           decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))
+                         ),
+                       ),
+                       const SizedBox(height: 24),
+                       Text(
+                         AppStrings.get('edit_profile', locale),
+                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                       ),
+                       const SizedBox(height: 24),
+                       
+                       // Main Avatar Display & Picker
+                       Center(
+                         child: GestureDetector(
+                           onTap: () async {
+                             final picker = ImagePicker();
+                             final pickedFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800, maxHeight: 800);
+                             if (pickedFile != null) {
+                               final bytes = await pickedFile.readAsBytes();
+                               setState(() {
+                                 newImageBytes = bytes;
+                                 newImageFilename = pickedFile.name;
+                                 selectedPresetUrl = null; // Clear preset if custom uploaded
+                               });
+                             }
+                           },
+                           child: Stack(
+                             children: [
+                               Container(
+                                 width: 100, height: 100,
+                                 decoration: BoxDecoration(
+                                   shape: BoxShape.circle,
+                                   color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                   image: newImageBytes != null
+                                       ? DecorationImage(
+                                           image: MemoryImage(newImageBytes!),
+                                           fit: BoxFit.cover,
+                                         )
+                                       : (selectedPresetUrl != null 
+                                          ? DecorationImage(
+                                              image: CachedNetworkImageProvider(selectedPresetUrl!),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : (user.avatarUrl != null
+                                               ? DecorationImage(
+                                                   image: CachedNetworkImageProvider(user.avatarUrl!),
+                                                   fit: BoxFit.cover,
+                                                 )
+                                               : null)),
+                                 ),
+                                 child: (newImageBytes == null && user.avatarUrl == null && selectedPresetUrl == null)
+                                     ? Icon(Icons.person, size: 50, color: Colors.grey[400])
+                                     : null,
+                               ),
+                               Positioned(
+                                 bottom: 0,
+                                 right: 0,
+                                 child: Container(
+                                   padding: const EdgeInsets.all(6),
+                                   decoration: BoxDecoration(
+                                     color: isDark ? Colors.blueAccent : Colors.blue,
+                                     shape: BoxShape.circle,
+                                     border: Border.all(color: isDark ? const Color(0xFF1C1C1E) : Colors.white, width: 2),
+                                   ),
+                                   child: const Icon(Icons.edit, size: 16, color: Colors.white),
+                                 ),
+                               ),
+                             ],
+                           ),
+                         ),
+                       ),
+                       const SizedBox(height: 24),
+
+                       // Preset Avatars
+                       SizedBox(
+                         height: 60,
+                         child: ListView.separated(
+                           scrollDirection: Axis.horizontal,
+                           itemCount: presetAvatars.length,
+                           separatorBuilder: (_, __) => const SizedBox(width: 16),
+                           itemBuilder: (context, index) {
+                             final url = presetAvatars[index];
+                             final isSelected = selectedPresetUrl == url;
+                             return GestureDetector(
+                               onTap: () {
+                                 setState(() {
+                                   selectedPresetUrl = url;
+                                   newImageBytes = null; // Clear upload if preset selected
+                                   newImageFilename = null;
+                                 });
+                               },
+                               child: Container(
+                                 width: 60, height: 60,
+                                 decoration: BoxDecoration(
+                                   shape: BoxShape.circle,
+                                   border: isSelected ? Border.all(color: Colors.blue, width: 3) : null,
+                                   image: DecorationImage(image: CachedNetworkImageProvider(url), fit: BoxFit.cover),
+                                 ),
+                               ),
+                             );
+                           },
+                         ),
+                       ),
+                       
+                       const SizedBox(height: 24),
+                       
+                       // Name Input
+                       _buildTextField(context, AppStrings.get('display_name', locale), nameController, isDark),
+                       const SizedBox(height: 32),
+                       
+                       // Save Button
+                       SizedBox(
+                         width: double.infinity,
+                         height: 50,
+                         child: ElevatedButton(
+                           onPressed: isUploading ? null : () async {
+                             final newName = nameController.text.trim();
+                             if (newName.isEmpty) return;
+                             
+                             setState(() => isUploading = true);
+                             
+                             try {
+                                 final authService = ref.read(authServiceProvider);
+                                 String? uploadedUrl;
+                                 
+                                  // 1. If custom image
+                                 if (newImageBytes != null && newImageFilename != null) {
+                                   // We need to use SelfHostedAuthService for upload if available.
+                                   final auth = ref.read(authServiceProvider);
+                                   if (auth is SelfHostedAuthService) {
+                                      uploadedUrl = await (auth as SelfHostedAuthService).uploadAvatar(newImageBytes!, newImageFilename!);
+                                   } else {
+                                      // Fallback: Try instantiating directly if we know we are in a context where it works
+                                      // Or throw error / show message that upload not supported on this backend
+                                      final service = SelfHostedAuthService(); 
+                                      uploadedUrl = await service.uploadAvatar(newImageBytes!, newImageFilename!);
+                                   }
+                                 } 
+                                 // 2. If preset selected
+                                 else if (selectedPresetUrl != null) {
+                                   uploadedUrl = selectedPresetUrl;
+                                 }
+                                 
+                                 await authService.updateProfile(
+                                   displayName: newName,
+                                   avatarUrl: uploadedUrl, 
+                                 );
+                                 
+                                 if (context.mounted) {
+                                   Navigator.pop(context);
+                                   HapticHelper(ref).mediumImpact();
+                                 }
+                             } catch (e) {
+                                 if (context.mounted) {
+                                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                                 }
+                             } finally {
+                                 if (context.mounted) setState(() => isUploading = false);
+                             }
+                           },
+                           style: ElevatedButton.styleFrom(
+                             backgroundColor: isDark ? Colors.white : Colors.black,
+                             foregroundColor: isDark ? Colors.black : Colors.white,
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                           ),
+                           child: isUploading 
+                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                             : Text(AppStrings.get('save_profile', locale), style: const TextStyle(fontWeight: FontWeight.bold)),
+                         ),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _SettingsTile extends StatelessWidget {
@@ -536,7 +1110,7 @@ class _SettingsTile extends StatelessWidget {
             Expanded(child: Text(title, style: TextStyle(
               fontSize: 16, 
               fontWeight: FontWeight.w500, 
-              color: textColor ?? (isDark ? Colors.white : Colors.black87)
+              color: textColor ?? (isDark ? Colors.grey[400] : Colors.grey[600])
             ))),
             if (trailing != null) trailing!,
           ],
@@ -615,7 +1189,7 @@ class _VibrationIntensityTile extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : Colors.black87,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
                 ),
               ),
@@ -815,7 +1389,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -830,7 +1404,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                             const SizedBox(width: 4),
                             Text(
                               _getPersonaName(currentPersona, locale),
-                              style: TextStyle(
+                              style: GoogleFonts.dotGothic16(
                                 fontSize: 12,
                                 color: personaColor,
                                 fontWeight: FontWeight.w500,
@@ -912,7 +1486,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                   children: [
                                     Text(
                                       _getPersonaName(persona, locale),
-                                      style: TextStyle(
+                                      style: GoogleFonts.dotGothic16(
                                         fontSize: 15,
                                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                                         color: isSelected 
@@ -923,7 +1497,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                     const SizedBox(height: 2),
                                     Text(
                                       _getPersonaDesc(persona, locale),
-                                      style: TextStyle(
+                                      style: GoogleFonts.dotGothic16(
                                         fontSize: 12,
                                         color: isDark ? Colors.grey[400] : Colors.grey[600],
                                       ),
@@ -953,123 +1527,5 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
   }
 }
 
-class _AccountTile extends ConsumerWidget {
-  final bool isDark;
+// _AccountTile removed as it's now integrated into the main view
 
-  const _AccountTile({required this.isDark});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final locale = ref.watch(localeProvider);
-    final isZh = locale == 'zh';
-    final authService = ref.watch(authServiceProvider);
-    final user = authService.currentUser;
-
-    if (user == null) {
-      return const SizedBox.shrink();
-    }
-
-    final isAnonymous = user.isAnonymous;
-    final email = user.email ?? (isZh ? '匿名用户' : 'Anonymous User');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          // Avatar
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isAnonymous ? Icons.person_outline : Icons.person,
-              color: isDark ? Colors.white70 : Colors.black54,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          
-          // User info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  email,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  isZh ? '数据仅存储在本地设备' : 'Data stored locally on device',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Logout button (compact, on the right)
-          TextButton(
-            onPressed: () async {
-              HapticHelper(ref).lightImpact();
-              
-              // Show confirmation dialog
-              final shouldLogout = await showDialog<bool>(
-                context: context,
-                builder: (context) => CustomDialog(
-                  title: isZh ? '确认登出？' : 'Sign Out?',
-                  content: isZh ? '您确定要退出当前账号吗？' : 'Are you sure you want to sign out?',
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: Text(isZh ? '取消' : 'Cancel', style: TextStyle(color: Colors.grey[600])),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: Text(
-                        isZh ? '登出' : 'Sign Out',
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-              
-              if (shouldLogout == true) {
-                await authService.signOut();
-                HapticHelper(ref).mediumImpact();
-              }
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey[600],
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.logout, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text(
-                  isZh ? '登出' : 'Sign Out',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

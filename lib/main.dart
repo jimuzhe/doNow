@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'ui/screens/main_screen.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/email_verification_screen.dart';
@@ -31,10 +29,12 @@ final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<v
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
+  // Initialize Firebase - REMOVED
+  /*
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  */
   
   // Initialize Storage Service before running app
   final storageService = StorageService();
@@ -531,7 +531,10 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
           }
           
           // Create onboarding task for first-time users (after login)
-          ref.read(taskListProvider.notifier).checkAndCreateOnboardingTask();
+          // Wrapped in Future to avoid modifying provider during build
+          Future(() {
+            ref.read(taskListProvider.notifier).checkAndCreateOnboardingTask();
+          });
           
           return const MainScreen();
         },

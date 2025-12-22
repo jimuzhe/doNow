@@ -16,6 +16,9 @@ import '../widgets/daily_summary_view.dart';
 import '../widgets/video_player_dialog.dart';
 import '../widgets/custom_dialog.dart';
 import '../widgets/task_detail_dialog.dart';
+import '../../data/models/gamification_state.dart';
+import '../../data/services/gamification_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key});
@@ -29,6 +32,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   DateTime? _selectedDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
   bool _showDailySummary = false; // Toggle for embedded summary
+  
+  // Search functionality
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -38,6 +47,25 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       ref.read(dailySummaryProvider.notifier).loadAll();
       ref.read(dailySummaryServiceProvider).checkAndGenerate(ref);
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+  
+  // Search tasks by title or note
+  List<Task> _searchTasks(String query, List<Task> allTasks) {
+    if (query.isEmpty) return [];
+    final lowerQuery = query.toLowerCase();
+    return allTasks.where((task) {
+      final titleMatch = task.title.toLowerCase().contains(lowerQuery);
+      final noteMatch = task.journalNote?.toLowerCase().contains(lowerQuery) ?? false;
+      return titleMatch || noteMatch;
+    }).toList()
+      ..sort((a, b) => (b.completedAt ?? b.scheduledStart).compareTo(a.completedAt ?? a.scheduledStart));
   }
 
 
@@ -98,28 +126,56 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     final focusHours = totalFocusMinutes ~/ 60;
     final focusMinutes = totalFocusMinutes % 60;
 
+    // Search results
+    final searchResults = _searchTasks(_searchQuery, allTasks);
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: _isSearching 
+          ? _buildSearchView(searchResults, t, isDark, locale)
+          : SingleChildScrollView(
         child: Column(
           children: [
-            // Header Title
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                child: Text(
-                  t('analysis_title'),
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1.0,
-                    color: isDark ? Colors.white : Colors.black,
+            // Header Title with Search Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 16, 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      t('analysis_title'),
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.0,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
                   ),
-                ),
+                  // Search Button
+                  IconButton(
+                    icon: Icon(
+                      Icons.search,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    tooltip: t('search'),
+                    onPressed: () {
+                      setState(() {
+                        _isSearching = true;
+                      });
+                      // Focus the search field
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        _searchFocusNode.requestFocus();
+                      });
+                    },
+                  ),
+                ],
               ),
             ),
+
+            // Gamification Card Removed
+
             
             // 1. Total Focus Time - Big Display
             _buildTotalFocusTime(focusHours, focusMinutes, t, isDark),
@@ -192,6 +248,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             
             const SizedBox(height: 16),
 
+            
             // 4. Timeline for Selected Day
             _buildSelectedDayTimeline(tasksForSelectedDay, t, isDark),
             
@@ -202,6 +259,11 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       ),
     );
   }
+
+  // _buildGamificationCard removed
+
+
+  // _showAchievementsList removed
 
   Widget _buildTotalFocusTime(int hours, int minutes, String Function(String) t, bool isDark) {
     return Container(
@@ -649,6 +711,143 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       MaterialPageRoute(
         builder: (_) => DailySummaryScreen(date: date),
       ),
+    );
+  }
+  
+  // Build search view
+  Widget _buildSearchView(List<Task> searchResults, String Function(String) t, bool isDark, String locale) {
+    return Column(
+      children: [
+        // Search Header
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              // Back button
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchQuery = '';
+                    _searchController.clear();
+                  });
+                },
+              ),
+              // Search TextField
+              Expanded(
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[900] : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    decoration: InputDecoration(
+                      hintText: t('search_hint'),
+                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
+                      prefixIcon: Icon(Icons.search, color: isDark ? Colors.white38 : Colors.grey),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear, color: isDark ? Colors.white38 : Colors.grey, size: 20),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    textInputAction: TextInputAction.search,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Results count
+        if (_searchQuery.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                locale == 'zh' 
+                    ? '找到 ${searchResults.length} 个结果' 
+                    : '${searchResults.length} result${searchResults.length == 1 ? '' : 's'} found',
+                style: TextStyle(
+                  color: isDark ? Colors.white54 : Colors.grey[600],
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        
+        // Search Results or Empty State
+        Expanded(
+          child: _searchQuery.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search,
+                        size: 64,
+                        color: isDark ? Colors.white24 : Colors.grey[300],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        locale == 'zh' ? '输入关键词搜索任务' : 'Enter keywords to search tasks',
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.grey,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : searchResults.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: isDark ? Colors.white24 : Colors.grey[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            locale == 'zh' ? '没有找到匹配的任务' : 'No matching tasks found',
+                            style: TextStyle(
+                              color: isDark ? Colors.white38 : Colors.grey,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: searchResults.length,
+                      itemBuilder: (context, index) {
+                        final task = searchResults[index];
+                        return _SearchResultCard(
+                          task: task,
+                          isDark: isDark,
+                          searchQuery: _searchQuery,
+                          onTap: () => _showTaskDetailCard(task, isDark),
+                        );
+                      },
+                    ),
+        ),
+      ],
     );
   }
 }
@@ -1535,3 +1734,233 @@ class _DetailStat extends StatelessWidget {
   }
 }
 
+// Search Result Card Widget
+class _SearchResultCard extends StatelessWidget {
+  final Task task;
+  final bool isDark;
+  final String searchQuery;
+  final VoidCallback onTap;
+
+  const _SearchResultCard({
+    required this.task,
+    required this.isDark,
+    required this.searchQuery,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Format date
+    final date = task.completedAt ?? task.scheduledStart;
+    final dateStr = DateFormat('MMM d, yyyy • HH:mm').format(date);
+    
+    // Status
+    final isCompleted = task.isCompleted;
+    final isAbandoned = task.isAbandoned;
+    
+    // Duration info
+    String durationText = '';
+    if (task.actualDuration != null && task.actualDuration!.inMinutes > 0) {
+      durationText = '${task.actualDuration!.inMinutes} min';
+    } else if (task.totalDuration.inMinutes > 0) {
+      durationText = '${task.totalDuration.inMinutes} min';
+    }
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[900] : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date and Status Row
+            Row(
+              children: [
+                Icon(
+                  Icons.access_time,
+                  size: 14,
+                  color: isDark ? Colors.white38 : Colors.grey,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white54 : Colors.grey[600],
+                  ),
+                ),
+                const Spacer(),
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isCompleted 
+                        ? Colors.green.withOpacity(0.15)
+                        : isAbandoned
+                            ? Colors.red.withOpacity(0.15)
+                            : Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isCompleted 
+                        ? '✓' 
+                        : isAbandoned 
+                            ? '✗' 
+                            : '•••',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isCompleted 
+                          ? Colors.green 
+                          : isAbandoned 
+                              ? Colors.red 
+                              : Colors.orange,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 10),
+            
+            // Title with highlight
+            _buildHighlightedText(
+              task.title,
+              searchQuery,
+              TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+              isDark,
+            ),
+            
+            // Show note preview if matches query
+            if (task.journalNote != null && 
+                task.journalNote!.toLowerCase().contains(searchQuery.toLowerCase())) ...[
+              const SizedBox(height: 8),
+              _buildHighlightedText(
+                task.journalNote!.length > 80 
+                    ? '${task.journalNote!.substring(0, 80)}...' 
+                    : task.journalNote!,
+                searchQuery,
+                TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white60 : Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+                isDark,
+              ),
+            ],
+            
+            // Duration and type info
+            if (durationText.isNotEmpty || task.isQuickFocus || task.isDecision) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  if (durationText.isNotEmpty) ...[
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: isDark ? Colors.white38 : Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      durationText,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white54 : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                  if (task.isQuickFocus) ...[
+                    if (durationText.isNotEmpty) const SizedBox(width: 12),
+                    Icon(
+                      Icons.hourglass_empty,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Quick Focus',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                  if (task.isDecision) ...[
+                    if (durationText.isNotEmpty || task.isQuickFocus) const SizedBox(width: 12),
+                    Icon(
+                      Icons.casino,
+                      size: 14,
+                      color: Colors.purple,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Decision',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.purple,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildHighlightedText(String text, String query, TextStyle baseStyle, bool isDark) {
+    if (query.isEmpty) {
+      return Text(text, style: baseStyle);
+    }
+    
+    final lowerText = text.toLowerCase();
+    final lowerQuery = query.toLowerCase();
+    final startIndex = lowerText.indexOf(lowerQuery);
+    
+    if (startIndex == -1) {
+      return Text(text, style: baseStyle);
+    }
+    
+    final endIndex = startIndex + query.length;
+    
+    return RichText(
+      text: TextSpan(
+        style: baseStyle,
+        children: [
+          TextSpan(text: text.substring(0, startIndex)),
+          TextSpan(
+            text: text.substring(startIndex, endIndex),
+            style: baseStyle.copyWith(
+              backgroundColor: isDark 
+                  ? Colors.yellow.withOpacity(0.3) 
+                  : Colors.yellow.withOpacity(0.5),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          TextSpan(text: text.substring(endIndex)),
+        ],
+      ),
+    );
+  }
+}

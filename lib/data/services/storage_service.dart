@@ -242,6 +242,41 @@ class StorageService {
     }
   }
 
+  // ============== GAMIFICATION (per-user) ==============
+  
+  static const String _gamificationKey = 'gamification';
+
+  Future<void> saveGamificationState(Map<String, dynamic> json) async {
+    final jsonString = jsonEncode(json);
+    await prefs.setString(_userKey(_gamificationKey), jsonString);
+  }
+
+  Map<String, dynamic>? loadGamificationState() {
+    final jsonString = prefs.getString(_userKey(_gamificationKey));
+    if (jsonString == null || jsonString.isEmpty) {
+      return null;
+    }
+    
+    try {
+      return jsonDecode(jsonString) as Map<String, dynamic>;
+    } catch (e) {
+      print('Error loading gamification state: $e');
+      return null;
+    }
+  }
+  
+  // ============== MORNING REPORT (global for now? or user? let's make it user) ==============
+  
+  static const String _morningReportEnabledKey = 'morning_report_enabled';
+
+  Future<void> saveMorningReportEnabled(bool enabled) async {
+    await prefs.setBool(_userKey(_morningReportEnabledKey), enabled);
+  }
+
+  bool loadMorningReportEnabled() {
+    return prefs.getBool(_userKey(_morningReportEnabledKey)) ?? false;
+  }
+
   // ============== CLEAR ALL ==============
 
   /// Clear all stored data for current user only
@@ -250,6 +285,7 @@ class StorageService {
       _userKey(_tasksKey),
       _userKey(_apiSettingsKey),
       _userKey(_aiPersonaKey),
+      _userKey(_gamificationKey),
     ];
     for (final key in keysToRemove) {
       await prefs.remove(key);

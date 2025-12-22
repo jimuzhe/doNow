@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
@@ -10,6 +11,12 @@ class HomeWidgetService {
 
   /// Update the Home Screen Widget with latest task data
   Future<void> updateWidget(List<Task> tasks) async {
+    // Skip on web platform - home_widget only works on iOS/Android
+    if (kIsWeb) {
+      debugPrint('📱 Home Widget: Skipping on web platform');
+      return;
+    }
+    
     try {
       final now = DateTime.now();
       
@@ -27,6 +34,9 @@ class HomeWidgetService {
       todayTasks.sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
       final nextTask = todayTasks.firstOrNull; // Requires Dart 3
 
+      // Set the App Group ID globally for iOS
+      await HomeWidget.setAppGroupId(appGroupId);
+
       // Save data for iOS Widget
       await HomeWidget.saveWidgetData<int>('pending_count', pendingCount);
       
@@ -42,6 +52,7 @@ class HomeWidgetService {
       // Force update the widget
       await HomeWidget.updateWidget(
         iOSName: iOSWidgetName,
+        androidName: iOSWidgetName, // Often helpful to set generic name or specific android name if setup
       );
       
       debugPrint('📱 Home Widget updated: $pendingCount pending');

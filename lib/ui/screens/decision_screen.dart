@@ -323,164 +323,186 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
       titleText = t('final_advice');
     }
     
+    // Build the coin widget separately
+    Widget coinWidget = AnimatedBuilder(
+      animation: Listenable.merge([_rotateAnimation, _heightAnimation]),
+      builder: (context, child) {
+        final angle = _rotateAnimation.value;
+        final isHeads = cos(angle) > 0;
+        
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001) // Perspective
+            ..translate(0.0, _heightAnimation.value, 0.0) // Moving up/down
+            ..scale(_scaleAnimation.value) // Scaling
+            ..rotateX(angle),
+          child: Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                )
+              ],
+            ),
+            child: isHeads 
+              ? Transform.scale(
+                  scale: 1.1,
+                  child: Image.asset('assets/coin/yuan_head.png', fit: BoxFit.contain)
+                )
+              : Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.rotationX(pi), 
+                  child: Image.asset('assets/coin/yuan_tail.png', fit: BoxFit.contain)
+                ),
+          ),
+        );
+      },
+    );
+    
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(titleText),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-             // Counters
-             Padding(
-               padding: const EdgeInsets.symmetric(vertical: 8),
-               child: Row(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                   Column(
-                     children: [
-                       Text(t('coin_heads'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                       Text('$_headsCount', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                     ],
-                   ),
-                   const SizedBox(width: 40),
-                   Column(
-                     children: [
-                       Text(t('coin_tails'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                       Text('$_tailsCount', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                     ],
-                   ),
-                 ],
-               ),
-             ),
+      body: Stack(
+        children: [
+          // Layer 1: Main content (below the coin)
+          SafeArea(
+            child: Column(
+              children: [
+                // Custom AppBar-like header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Expanded(
+                        child: Text(
+                          titleText,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 48), // Balance the close button
+                    ],
+                  ),
+                ),
+                
+                // Counters
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        children: [
+                          Text(t('coin_heads'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('$_headsCount', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                        ],
+                      ),
+                      const SizedBox(width: 40),
+                      Column(
+                        children: [
+                          Text(t('coin_tails'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('$_tailsCount', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
 
-             Padding(
-               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
-               child: TextField(
-                 controller: _decisionController,
-                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
-                 decoration: InputDecoration(
-                   hintText: t('decision_hint'),
-                   border: InputBorder.none,
-                   hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
-                 ),
-                 textAlign: TextAlign.center,
-               ),
-             ),
-             
-             Expanded(
-               child: Center(
-                 child: Stack(
-                   alignment: Alignment.center,
-                   children: [
-                     GestureDetector(
-                       onTap: () {
-                         if (!_isFlipping) _flipCoin();
-                       },
-                       child: AnimatedBuilder(
-                         animation: Listenable.merge([_rotateAnimation, _heightAnimation]),
-                         builder: (context, child) {
-                           final angle = _rotateAnimation.value;
-                           // Logic to show Head or Tail
-                           // Normalize angle to 0..2pi for easy checking, but Math.cos handles it.
-                           // cos(0) = 1 (Head), cos(pi) = -1 (Tail).
-                           final isHeads = cos(angle) > 0;
-                           
-                           return Transform(
-                             alignment: Alignment.center,
-                             transform: Matrix4.identity()
-                               ..setEntry(3, 2, 0.001) // Perspective
-                               ..translate(0.0, _heightAnimation.value, 0.0) // Moving up/down
-                               ..scale(_scaleAnimation.value) // Scaling
-                               ..rotateX(angle),
-                             child: Container(
-                               width: 200,
-                               height: 200,
-                               decoration: BoxDecoration(
-                                 shape: BoxShape.circle,
-                                 boxShadow: [
-                                   BoxShadow(
-                                     color: Colors.black.withOpacity(0.3),
-                                     blurRadius: 20,
-                                     offset: const Offset(0, 10),
-                                   )
-                                 ],
-                               ),
-                               child: isHeads 
-                                 ? Transform.scale(
-                                     scale: 1.1,
-                                     child: Image.asset('assets/coin/yuan_head.png', fit: BoxFit.contain)
-                                   )
-                                 : Transform(
-                                     // Rotate the tail image so it appears 'upright' relative to the coin's flip
-                                     // Reverted to rotateX for up-down flip
-                                     alignment: Alignment.center,
-                                     transform: Matrix4.rotationX(pi), 
-                                     child: Image.asset('assets/coin/yuan_tail.png', fit: BoxFit.contain)
-                                   ),
-                             ),
-                           );
-                         },
-                       ),
-                     ),
-                   ],
-                 ),
-               ),
-             ),
-             
-             Padding(
-               padding: const EdgeInsets.all(32.0),
-               child: Column(
-                 children: [
-                   if (_flipCount < 3)
-                     SizedBox(
-                       width: double.infinity,
-                       height: 56,
-                       child: ElevatedButton(
-                         onPressed: _isFlipping ? null : _flipCoin,
-                         style: ElevatedButton.styleFrom(
-                           backgroundColor: isDark ? Colors.white : Colors.black,
-                           foregroundColor: isDark ? Colors.black : Colors.white,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                         ),
-                         child: Text(_flipCount == 0 ? t('flip_coin') : t('flip_again')),
-                       ),
-                     ),
-                     
-                   const SizedBox(height: 16),
-                   
-                   if (_flipCount > 0 && _flipCount < 3)  
-                     TextButton(
-                       onPressed: _confirmDecision,
-                       child: Text(t('decision_made'), style: const TextStyle(fontSize: 16)),
-                     ),
-                     
-                   if (_flipCount == 3)
-                     SizedBox(
-                       width: double.infinity,
-                       height: 56,
-                       child: ElevatedButton(
-                         onPressed: _confirmDecision,
-                         style: ElevatedButton.styleFrom(
-                           backgroundColor: Colors.green,
-                           foregroundColor: Colors.white,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                         ),
-                         child: Text(t('accept_fate')),
-                       ),
-                     ),
-                 ],
-               ),
-             )
-          ],
-        ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+                  child: TextField(
+                    controller: _decisionController,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
+                    decoration: InputDecoration(
+                      hintText: t('decision_hint'),
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                
+                // Spacer to push coin area to center
+                const Expanded(flex: 1, child: SizedBox()),
+                
+                // Bottom buttons
+                Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    children: [
+                      if (_flipCount < 3)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isFlipping ? null : _flipCoin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? Colors.white : Colors.black,
+                              foregroundColor: isDark ? Colors.black : Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: Text(_flipCount == 0 ? t('flip_coin') : t('flip_again')),
+                          ),
+                        ),
+                        
+                      const SizedBox(height: 16),
+                      
+                      if (_flipCount > 0 && _flipCount < 3)  
+                        TextButton(
+                          onPressed: _confirmDecision,
+                          child: Text(t('decision_made'), style: const TextStyle(fontSize: 16)),
+                        ),
+                        
+                      if (_flipCount == 3)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _confirmDecision,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: Text(t('accept_fate')),
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              ],
+            ),
+          ),
+          
+          // Layer 2: Coin (on top of everything, can cover AppBar when flying up)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: !_isFlipping && _flipCount == 0 ? false : !_isFlipping,
+              child: GestureDetector(
+                onTap: () {
+                  if (!_isFlipping) _flipCoin();
+                },
+                behavior: HitTestBehavior.translucent,
+                child: Center(
+                  child: coinWidget,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

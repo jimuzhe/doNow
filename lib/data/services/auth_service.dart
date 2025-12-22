@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase;
-import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../models/app_user.dart';
 import 'self_hosted_auth_service.dart';
@@ -41,108 +39,23 @@ abstract class AuthService {
   /// 刷新用户状态
   Future<void> reloadUser();
   
+  /// 同步游戏化数据
+  Future<void> syncGamification({
+    required int xp,
+    required int level,
+    required List<Map<String, dynamic>> achievements,
+  });
+  
+  Future<void> updateProfile({
+    String? displayName,
+    String? avatarUrl,
+  });
+
   /// 获取错误信息
   String getErrorMessage(dynamic e, String locale);
 }
 
-/// Firebase 实现
-class FirebaseAuthService implements AuthService {
-  final firebase.FirebaseAuth _auth = firebase.FirebaseAuth.instance;
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
-
-  @override
-  Stream<AppUser?> get authStateChanges {
-    return _auth.authStateChanges().map(_firebaseUserToAppUser);
-  }
-
-  @override
-  AppUser? get currentUser => _firebaseUserToAppUser(_auth.currentUser);
-
-  AppUser? _firebaseUserToAppUser(firebase.User? user) {
-    if (user == null) return null;
-    return AppUser(
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      emailVerified: user.emailVerified,
-      isAnonymous: user.isAnonymous,
-    );
-  }
-
-  @override
-  bool get isSignedIn => _auth.currentUser != null;
-
-  @override
-  Future<void> signInWithEmail(String email, String password) async {
-    await _auth.signInWithEmailAndPassword(email: email, password: password);
-    await _analytics.logLogin(loginMethod: 'email');
-  }
-
-  @override
-  Future<void> registerWithEmail(String email, String password) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email, 
-      password: password
-    );
-    await credential.user?.sendEmailVerification();
-    await _analytics.logSignUp(signUpMethod: 'email');
-  }
-
-  @override
-  Future<void> signInAnonymously() async {
-    await _auth.signInAnonymously();
-    await _analytics.logLogin(loginMethod: 'anonymous');
-  }
-
-  @override
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
-
-  @override
-  Future<void> sendPasswordResetEmail(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
-  }
-
-  @override
-  Future<void> resendVerificationEmail() async {
-    await _auth.currentUser?.sendEmailVerification();
-  }
-
-  @override
-  Future<void> reloadUser() async {
-    await _auth.currentUser?.reload();
-  }
-
-  @override
-  String getErrorMessage(dynamic e, String locale) {
-    if (e is! firebase.FirebaseAuthException) {
-      return e.toString();
-    }
-    
-    final isZh = locale == 'zh';
-    switch (e.code) {
-      case 'user-not-found':
-        return isZh ? '用户不存在' : 'User not found';
-      case 'wrong-password':
-        return isZh ? '密码错误' : 'Wrong password';
-      case 'email-already-in-use':
-        return isZh ? '该邮箱已被注册' : 'Email already in use';
-      case 'invalid-email':
-        return isZh ? '邮箱格式不正确' : 'Invalid email format';
-      case 'weak-password':
-        return isZh ? '密码太弱，请使用至少6位字符' : 'Password is too weak (min 6 characters)';
-      case 'too-many-requests':
-        return isZh ? '请求过于频繁，请稍后再试' : 'Too many requests. Please try again later';
-      case 'network-request-failed':
-        return isZh ? '网络连接失败' : 'Network error';
-      case 'invalid-credential':
-        return isZh ? '邮箱或密码错误' : 'Invalid email or password';
-      default:
-        return isZh ? '登录失败：${e.message}' : 'Error: ${e.message}';
-    }
-  }
-}
+// Firebase Service Removed
 
 /// 自托管服务适配器
 class SelfHostedAuthAdapter implements AuthService {
@@ -162,8 +75,12 @@ class SelfHostedAuthAdapter implements AuthService {
       uid: user.uid,
       email: user.email,
       displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
       emailVerified: user.emailVerified,
       isAnonymous: user.isAnonymous,
+      xp: user.xp,
+      level: user.level,
+      achievements: user.achievements,
     );
   }
 
@@ -216,6 +133,16 @@ class SelfHostedAuthAdapter implements AuthService {
   }
 
   @override
+  Future<void> syncGamification({required int xp, required int level, required List<Map<String, dynamic>> achievements}) async {
+     await _service.syncGamification(xp: xp, level: level, achievements: achievements);
+  }
+
+  @override
+  Future<void> updateProfile({String? displayName, String? avatarUrl}) async {
+    await _service.updateProfile(displayName: displayName, avatarUrl: avatarUrl);
+  }
+
+  @override
   String getErrorMessage(dynamic e, String locale) {
     if (e is! AuthException) {
       return e.toString();
@@ -238,16 +165,8 @@ class SelfHostedAuthAdapter implements AuthService {
 
 /// 统一认证服务 Provider
 final authServiceProvider = Provider<AuthService>((ref) {
-  // 定义编译时常量：flutter run --dart-define=USE_SELF_HOSTED=false 切换回 Firebase
-  const bool useSelfHosted = bool.fromEnvironment('USE_SELF_HOSTED', defaultValue: true);
-  
-  if (useSelfHosted) {
-    debugPrint('🔐 Using Self-Hosted Authentication Service');
-    return SelfHostedAuthAdapter();
-  } else {
-    debugPrint('🔥 Using Firebase Authentication Service');
-    return FirebaseAuthService();
-  }
+  debugPrint('🔐 Using Self-Hosted Authentication Service');
+  return SelfHostedAuthAdapter();
 });
 
 /// 认证状态流 Provider

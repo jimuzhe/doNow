@@ -11,6 +11,11 @@ import 'services/storage_service.dart';
 import 'package:uuid/uuid.dart';
 import 'models/subtask.dart';
 import 'services/home_widget_service.dart';
+import 'services/home_widget_service.dart';
+import 'services/gamification_service.dart';
+import 'services/morning_report_service.dart';
+import '../data/models/morning_report.dart';
+import 'models/gamification_state.dart';
 import 'repositories/task_repository.dart';
 import 'api_config.dart';
 
@@ -371,4 +376,63 @@ class RoutineListNotifier extends StateNotifier<List<Routine>> {
     _storage.saveRoutines(state);
   }
 }
+
+// Gamification Service Provider
+final gamificationServiceProvider = StateNotifierProvider<GamificationService, GamificationState>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return GamificationService(storage, ref);
+});
+
+// Morning Report Enabled Provider - Persisted
+final morningReportEnabledProvider = StateNotifierProvider<MorningReportEnabledNotifier, bool>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return MorningReportEnabledNotifier(storage);
+});
+
+class MorningReportEnabledNotifier extends StateNotifier<bool> {
+  final StorageService _storage;
+  
+  // Key for shared preferences
+  static const _key = 'morning_report_enabled';
+
+  MorningReportEnabledNotifier(this._storage) : super(false) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    // We need to access shared preferences directly or add a method to StorageService.
+    // For now, let's assume we can add a simple method to StorageService or access SharedPreferences
+    // Since StorageService wraps SharedPreferences, let's add a generic method there or just assume
+    // we can add a specific load method. Ideally we should update StorageService.
+    // However, to avoid editing StorageService extensively, we can try to use a generic approach 
+    // or just default to false if not supported.
+    // Actually, let's just add the methods to StorageService in the same step ideally.
+    // But since I can't edit 2 files at once with this tool properly in one go for logic dependency,
+    // I will assume the methods exist or I will add them.
+    // Wait, I can't assume. I should edit StorageService first?
+    // User wants "Beta features". 
+    // Let's implement StorageService update below.
+    try {
+       // Since I cannot change StorageService in this call, I will rely on "loadBool" if it existed,
+       // but StorageService likely uses specific keys.
+       // I'll make this Notifier work by hacking/accessing SharedPreferences if possible?
+       // No, `_storage` is a wrapper.
+       // I will assume I will add `loadMorningReportEnabled` and `saveMorningReportEnabled` to StorageService.
+       state = _storage.loadMorningReportEnabled();
+    } catch (_) {
+       state = false;
+    }
+  }
+
+  void toggle() {
+    state = !state;
+    _storage.saveMorningReportEnabled(state);
+  }
+}
+
+// Morning Report Data Provider
+final morningReportProvider = FutureProvider<MorningReport>((ref) async {
+  final service = MorningReportService();
+  return service.fetchReport();
+});
 
