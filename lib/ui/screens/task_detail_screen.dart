@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/task.dart';
 import '../../data/models/subtask.dart';
+import '../../data/models/gamification_state.dart';
 import '../../data/providers.dart';
 import '../../data/services/notification_service.dart';
 import '../../data/services/task_scheduler_service.dart';
@@ -16,7 +18,9 @@ import 'camera_screen.dart';
 import '../widgets/custom_dialog.dart';
 import '../widgets/responsive_center.dart';
 import '../widgets/task_completion_sheet.dart';
+import '../widgets/task_completion_sheet.dart';
 import '../widgets/focus_sound_sheet.dart';
+import '../widgets/white_background_remover.dart';
 
 
 
@@ -351,14 +355,114 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
       return;
     }
 
-    // 4. Clear active task ID AFTER user finishes recording
+    // 4. Trigger Gamification
+    final completedTask = widget.task.copyWith(actualDuration: actualDuration); 
+    final unlocks = ref.read(gamificationServiceProvider.notifier).onTaskCompleted(completedTask);
+    final gamificationState = ref.read(gamificationServiceProvider);
+
+    // 5. Clear active task ID AFTER user finishes recording
     ref.read(activeTaskIdProvider.notifier).state = null;
 
     if (mounted) {
-      // Use popUntil to ensure we go all the way back to the main screen, 
-      // avoiding issues if multiple screens were pushed or pop failed.
       Navigator.of(context).popUntil((route) => route.isFirst);
+      
+      // Show Gamification Feedback (XP Gained & Unlocks)
+      if (unlocks.isNotEmpty) {
+         // Show big achievement dialog
+         _showAchievementDialog(unlocks.first);
+      } else {
+         // Show subtle XP toast
+         // Show subtle XP toast
+         // Removed as requested, moving to TaskCompletionSheet
+         /*
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text("✅ ${AppStrings.get('task_complete', ref.read(localeProvider))} +${10 + actualDuration.inMinutes} XP"),
+             behavior: SnackBarBehavior.floating,
+             // ...
+           ),
+         );
+         */
+      }
     }
+  }
+
+  void _showAchievementDialog(Achievement achievement) {
+    // Show top snackbar bubble instead of dialog
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final locale = ref.read(localeProvider);
+    String t(String key) => AppStrings.get(key, locale);
+    
+    // Attempt localized title/desc
+    final titleKey = 'ach_${achievement.id}_title';
+    final localizedTitle = t(titleKey) != titleKey ? t(titleKey) : achievement.title;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent, // Transparent base
+        elevation: 0, // No shadow on base
+        content: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF6C63FF) : Colors.black.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                 BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min, // Shrink wrap width
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent, 
+                    shape: BoxShape.circle,
+                  ),
+                  child: achievement.icon.startsWith('http') 
+                    ? WhiteBackgroundRemover(
+                        child: ClipOval(
+                          child: Image.network(
+                            kIsWeb 
+                              ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
+                              : achievement.icon,
+                            width: 24, height: 24, fit: BoxFit.cover, 
+                            errorBuilder: (_,__,___) => const Icon(Icons.star, color: Colors.amber),
+                          ),
+                        ),
+                      )
+                    : Text(achievement.icon, style: const TextStyle(fontSize: 24)),
+                ),
+                const SizedBox(width: 12),
+                Flexible( // Use Flexible to allow wrapping if text is super long, though min width is desired
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        t('achievement_unlocked'), 
+                        style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.9), letterSpacing: 0.5)
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        localizedTitle, 
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                        softWrap: true,
+                        maxLines: 2,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4), // Small end padding
+              ],
+            ),
+          ),
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   void _showTimeoutDialog() {

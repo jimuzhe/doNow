@@ -26,7 +26,8 @@ class QuickFocusScreen extends ConsumerStatefulWidget {
   ConsumerState<QuickFocusScreen> createState() => _QuickFocusScreenState();
 }
 
-class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with TickerProviderStateMixin {
+class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> 
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final TextEditingController _taskController = TextEditingController();
   
   // Settings
@@ -42,6 +43,12 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
   
   late Timer _timer;
   late AnimationController _sandAnimation; // For hourglass visual
+  
+  // Track if we've started (to keep state alive)
+  bool _hasStarted = false;
+  
+  @override
+  bool get wantKeepAlive => _hasStarted || _isRunning || _accumulatedTime.inSeconds > 0;
 
   @override
   void initState() {
@@ -62,6 +69,14 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
       // Reset Busy UI logic
       ref.read(isBusyUIProvider.notifier).state = false;
     } catch (_) {}
+    
+    // Restore orientation settings
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     
     _sandAnimation.dispose();
     _taskController.dispose();
@@ -91,6 +106,7 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
   void _startTimer() {
     setState(() {
       _isRunning = true;
+      _hasStarted = true; // Keep state alive during orientation changes
     });
     
     if (_isBreak && _breakTimeRemaining.inSeconds == 0) {
@@ -423,6 +439,8 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen> with Ticker
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);

@@ -23,6 +23,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+# Serve uploaded files from 'uploads' directory
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+from flask import send_from_directory
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 CORS(app)
 
 # 配置
@@ -186,10 +196,62 @@ def init_db():
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             ''')
+            # Auto-migration: Check if avatar_url exists, if not add it
+            try:
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'avatar_url'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)")
+                    print("✅ Added avatar_url column")
+                
+                # Auto-migration: Gamification fields
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'xp'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN xp INT DEFAULT 0")
+                    print("✅ Added xp column")
+                    
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'level'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN level INT DEFAULT 1")
+                    print("✅ Added level column")
+
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'achievements'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN achievements TEXT")
+                    print("✅ Added achievements column")
+                    
+            except Exception as e:
+                print(f"⚠️ Migration check failed: {e}")
+
         conn.commit()
         print("✅ Database initialized successfully")
     finally:
         conn.close()
+
+def _user_to_dict(user):
+    """Helper to convert database user row to API response dict"""
+    import json
+    
+    achievements_data = []
+    if user.get('achievements'):
+        try:
+            achievements_data = json.loads(user['achievements'])
+        except:
+            achievements_data = []
+
+    return {
+        'uid': user['id'],
+        'email': user['email'],
+        'displayName': user['display_name'],
+        'nickname': user['display_name'],
+        'avatar': user.get('avatar_url'),
+        'emailVerified': bool(user.get('email_verified', False)),
+        'isAnonymous': bool(user.get('is_anonymous', False)),
+        # Gamification
+        'xp': user.get('xp', 0),
+        'level': user.get('level', 1),
+        'achievements': achievements_data,
+        'createdAt': user['created_at'].isoformat() if user.get('created_at') else None
+    }
 
 # ==================== 辅助函数 ====================
 
@@ -327,7 +389,7 @@ def health_check():
     return jsonify({'status': 'ok', 'service': 'DoNow Auth Server', 'database': 'MySQL'})
 
 @app.route('/api/auth/register', methods=['POST'])
-@limiter.limit("10 per hour")
+@limiter.limit("5 per minute")
 def register():
     data = request.get_json()
     email = data.get('email', '').strip().lower()
@@ -335,7 +397,7 @@ def register():
     display_name = data.get('displayName', '')
     
     if not email or not password:
-        return jsonify({'error': 'Email and password are required'}), 400
+        return jsonify({'error': 'Email and password required'}), 400
     if len(password) < 6:
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
     if '@' not in email:
@@ -345,17 +407,20 @@ def register():
     with db.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE email = %s', (email,))
         if cursor.fetchone():
-            return jsonify({'error': 'Email already registered'}), 409
+            return jsonify({'error': 'Email already exists'}), 409
         
         user_id = str(uuid.uuid4())
         password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         verification_token = secrets.token_urlsafe(32)
         now = datetime.utcnow()
         
+        # Default avatar using DiceBear based on UID
+        default_avatar = f"https://api.dicebear.com/7.x/adventurer/png?seed={user_id}"
+
         cursor.execute(
-            '''INSERT INTO users (id, email, password_hash, display_name, verification_token, created_at, updated_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-            (user_id, email, password_hash, display_name, verification_token, now, now)
+            '''INSERT INTO users (id, email, password_hash, display_name, avatar_url, verification_token, created_at, updated_at, xp, level, achievements)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+            (user_id, email, password_hash, display_name, default_avatar, verification_token, now, now, 0, 1, '[]')
         )
     db.commit()
     
@@ -364,12 +429,16 @@ def register():
     html = render_template_string(HTML_VERIFY_EMAIL, link=link)
     send_email(email, "Verify your email for DoNow", html)
     
+    # Construct a temporary user dict for response since we just inserted it
+    new_user = {
+        'id': user_id, 'email': email, 'display_name': display_name,
+        'email_verified': 0, 'is_anonymous': 0, 'avatar_url': default_avatar,
+        'xp': 0, 'level': 1, 'achievements': '[]', 'created_at': now
+    }
+    
     tokens = generate_token(user_id, email)
     return jsonify({
-        'user': {
-            'uid': user_id, 'email': email, 'displayName': display_name,
-            'emailVerified': False, 'isAnonymous': False
-        },
+        'user': _user_to_dict(new_user),
         'tokens': tokens
     }), 201
 
@@ -393,10 +462,7 @@ def login():
     
     tokens = generate_token(user['id'], user['email'])
     return jsonify({
-        'user': {
-            'uid': user['id'], 'email': user['email'], 'displayName': user['display_name'],
-            'emailVerified': bool(user['email_verified']), 'isAnonymous': bool(user['is_anonymous'])
-        },
+        'user': _user_to_dict(user),
         'tokens': tokens
     })
 
@@ -409,20 +475,27 @@ def anonymous_login():
     password_hash = bcrypt.hashpw(secrets.token_bytes(32), bcrypt.gensalt()).decode()
     now = datetime.utcnow()
     
+    # Default avatar for anonymous user
+    default_avatar = f"https://api.dicebear.com/7.x/adventurer/png?seed={user_id}"
+
     with db.cursor() as cursor:
         cursor.execute(
-            '''INSERT INTO users (id, email, password_hash, is_anonymous, email_verified, created_at, updated_at)
-               VALUES (%s, %s, %s, 1, 1, %s, %s)''',
-            (user_id, email, password_hash, now, now)
+            '''INSERT INTO users (id, email, password_hash, is_anonymous, email_verified, created_at, updated_at, avatar_url)
+               VALUES (%s, %s, %s, 1, 1, %s, %s, %s)''',
+            (user_id, email, password_hash, now, now, default_avatar)
         )
     db.commit()
     
+    # Construct new anonymous user dict
+    new_user = {
+        'id': user_id, 'email': email, 'display_name': None,
+        'email_verified': 1, 'is_anonymous': 1, 'avatar_url': default_avatar,
+        'xp': 0, 'level': 1, 'achievements': None, 'created_at': now
+    }
+
     tokens = generate_token(user_id, email)
     return jsonify({
-        'user': {
-            'uid': user_id, 'email': email, 'displayName': None,
-            'emailVerified': True, 'isAnonymous': True
-        },
+        'user': _user_to_dict(new_user),
         'tokens': tokens
     })
 
@@ -460,10 +533,7 @@ def refresh_token():
         
     tokens = generate_token(user['id'], user['email'])
     return jsonify({
-        'user': {
-            'uid': user['id'], 'email': user['email'], 'displayName': user['display_name'],
-            'emailVerified': bool(user['email_verified']), 'isAnonymous': bool(user['is_anonymous'])
-        },
+        'user': _user_to_dict(user),
         'tokens': tokens
     })
 
@@ -506,14 +576,94 @@ def get_current_user():
     with db.cursor() as cursor:
         cursor.execute('SELECT * FROM users WHERE id = %s', (g.user_id,))
         user = cursor.fetchone()
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
     return jsonify({
-        'user': {
-            'uid': user['id'], 'email': user['email'], 'displayName': user['display_name'],
-            'emailVerified': bool(user['email_verified']), 'isAnonymous': bool(user['is_anonymous']),
-            'createdAt': user['created_at'].isoformat() if user['created_at'] else None
-        }
+        'user': _user_to_dict(user)
+    })
+
+@app.route('/api/auth/profile', methods=['POST'])
+@require_auth
+def update_profile():
+    data = request.get_json()
+    nickname = data.get('nickname')
+    avatar_url = data.get('avatar')
+    
+    updates = []
+    params = []
+    
+    if nickname is not None:
+        updates.append("display_name = %s")
+        params.append(nickname)
+        
+    if avatar_url is not None:
+        updates.append("avatar_url = %s")
+        params.append(avatar_url)
+        
+    if not updates:
+        return jsonify({'message': 'No changes provided'})
+        
+    params.append(g.user_id)
+    
+    db = get_db()
+    with db.cursor() as cursor:
+        sql = f"UPDATE users SET {', '.join(updates)}, updated_at = NOW() WHERE id = %s"
+        cursor.execute(sql, tuple(params))
+    db.commit()
+    
+    # Return updated user info
+    with db.cursor() as cursor:
+        cursor.execute('SELECT * FROM users WHERE id = %s', (g.user_id,))
+        user = cursor.fetchone()
+        
+    return jsonify({
+        'user': _user_to_dict(user)
+    })
+
+@app.route('/api/auth/gamification/sync', methods=['POST'])
+@require_auth
+def sync_gamification():
+    data = request.get_json()
+    xp = data.get('xp')
+    level = data.get('level')
+    achievements = data.get('achievements') # Expecting a JSON list or similar structure
+    
+    updates = []
+    params = []
+    
+    if xp is not None:
+        updates.append("xp = %s")
+        params.append(int(xp))
+        
+    if level is not None:
+        updates.append("level = %s")
+        params.append(int(level))
+        
+    if achievements is not None:
+        import json
+        updates.append("achievements = %s")
+        # Store as JSON string
+        if isinstance(achievements, list):
+            params.append(json.dumps(achievements))
+        else:
+            params.append(str(achievements))
+            
+    if not updates:
+        return jsonify({'message': 'No changes provided'})
+        
+    params.append(g.user_id)
+    
+    db = get_db()
+    with db.cursor() as cursor:
+        sql = f"UPDATE users SET {', '.join(updates)}, updated_at = NOW() WHERE id = %s"
+        cursor.execute(sql, tuple(params))
+    db.commit()
+    
+    # Return updated user info
+    with db.cursor() as cursor:
+        cursor.execute('SELECT * FROM users WHERE id = %s', (g.user_id,))
+        user = cursor.fetchone()
+        
+    return jsonify({
+        'user': _user_to_dict(user)
     })
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -547,8 +697,56 @@ try:
 except Exception as e:
     print(f"⚠️ Database initialization skipped or failed: {e}")
 
+@app.route('/api/upload/avatar', methods=['POST'])
+@require_auth
+def upload_avatar():
+    """Proxy avatar upload to external image host to avoid CORS issues on web."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+        
+    if file:
+        try:
+            import requests as http_requests
+            
+            # Read file bytes
+            file_bytes = file.read()
+            filename = file.filename
+            content_type = file.content_type or 'image/jpeg'
+            
+            # Forward to external image host
+            external_url = 'https://image.name666.top/upload'
+            files = {'file': (filename, file_bytes, content_type)}
+            
+            response = http_requests.post(external_url, files=files, timeout=30)
+            
+            if response.status_code != 200:
+                print(f"External upload failed: {response.status_code} - {response.text}")
+                return jsonify({'error': f'External upload failed: {response.status_code}'}), 500
+            
+            # Parse response: [{"src": "/file/xxx.png"}]
+            data = response.json()
+            if isinstance(data, list) and len(data) > 0 and 'src' in data[0]:
+                src = data[0]['src']
+                full_url = f'https://image.name666.top{src}'
+                return jsonify({'url': full_url}), 200
+            else:
+                print(f"Unexpected response format: {data}")
+                return jsonify({'error': 'Invalid response from image host'}), 500
+                
+        except Exception as e:
+            print(f"Upload Error: {e}")
+            return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
 if __name__ == '__main__':
+    # Initialize DB
+    init_db()
+    
     port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    print(f"🚀 Starting DoNow Auth Server on port {port}")
+    debug = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
+    
+    print(f"🚀 Auth Server running on http://localhost:{port}")
     app.run(host='0.0.0.0', port=port, debug=debug)
+

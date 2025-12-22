@@ -15,6 +15,7 @@ import 'video_player_dialog.dart';
 import '../../utils/snackbar_helper.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class TaskCompletionSheet extends ConsumerStatefulWidget {
   final Task task;
@@ -400,18 +401,33 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
             builder: (context, child) {
               return Transform.scale(
                 scale: _checkAnimation.value,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 48,
-                    color: Colors.green,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 36,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      "+${10 + widget.actualDuration.inMinutes} XP",
+                      style: GoogleFonts.vt323(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                  ],
                 ),
               );
             },

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:firebase_auth/firebase_auth.dart'; // Removed
 import '../../data/services/auth_service.dart';
 import '../../data/localization.dart';
 import 'dart:ui';
@@ -71,14 +71,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
         HapticHelper(ref).mediumImpact();
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = authService.getErrorMessage(e, locale);
-      });
-      HapticHelper(ref).lightImpact();
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        // Try getting specific error message first
+        _errorMessage = authService.getErrorMessage(e, locale);
       });
     } finally {
       if (mounted) {
@@ -98,7 +94,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await ref.read(authServiceProvider).signInAnonymously();
       HapticHelper(ref).mediumImpact();
-    } on FirebaseAuthException catch (e) {
+    } catch (e) {
       final locale = ref.read(localeProvider);
       setState(() {
         _errorMessage = ref.read(authServiceProvider).getErrorMessage(e, locale);
@@ -109,7 +105,138 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _isLoading = false;
         });
       }
+      }
     }
+
+
+  void _showTermsOfService(BuildContext context, bool isZh, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: ListView(
+            controller: scrollController,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Title
+              Text(
+                isZh ? '服务条款与隐私政策' : 'Terms of Service & Privacy Policy',
+                style: TextStyle(
+                  fontSize: 20, 
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              
+              // Content
+              _buildLegalSection(
+                isZh, isDark,
+                title: isZh ? '1. 服务说明' : '1. Service Description',
+                content: isZh 
+                    ? 'DoNow ("本应用") 是一款为您提供任务管理与专注计时的效率工具。我们致力于通过游戏化机制帮助您战胜拖延。' 
+                    : 'DoNow ("The App") is a productivity tool for task management and focus tracking designed to help you beat procrastination through gamification.',
+              ),
+              _buildLegalSection(
+                isZh, isDark,
+                title: isZh ? '2. 账号与安全' : '2. Account Security',
+                content: isZh 
+                    ? '您需要使用电子邮箱注册账号。您有责任妥善保管您的账号密码。如发现异常，请立即联系我们。我们建议您使用强密码以确保安全。' 
+                    : 'You must register with an email address. You are responsible for maintaining the security of your account credentials.',
+              ),
+              _buildLegalSection(
+                isZh, isDark,
+                title: isZh ? '3. 隐私与数据收集' : '3. Privacy & Data Collection',
+                content: isZh 
+                    ? '我们非常重视您的隐私。本应用采取"本地优先"的数据策略：\n• 您的任务数据、待办事项及详细记录均保存在您的本地设备上，我们不会收集。\n• 仅您的注册邮箱（用于账号识别）和游戏化成就数据（等级、XP）会同步至云端以保证进度不丢失。\n\n我们承诺遵守《中华人民共和国个人信息保护法》及相关法律法规，不会向任何第三方出售您的个人信息。' 
+                    : 'We value your privacy and adopt a "Local First" strategy:\n• Your tasks and detailed records are stored LOCALLY on your device. We do NOT collect them.\n• Only your email (for ID) and gamification progress (Level, XP) are synced to the cloud.\n\nWe comply with relevant data protection laws and will strictly never sell your data to third parties.',
+              ),
+              _buildLegalSection(
+                isZh, isDark,
+                title: isZh ? '4. 用户内容规范' : '4. User Content',
+                content: isZh 
+                    ? '本应用允许用户创建私人任务。您承诺不利用本应用制作、上传、存储违反国家法律法规的内容（包括但不限于色情、暴力、反动信息）。一旦发现，如果您使用的是公有云服务，我们有权封禁账号并配合有关部门调查。' 
+                    : 'You agree not to upload or store any illegal content using this App.',
+              ),
+               _buildLegalSection(
+                isZh, isDark,
+                title: isZh ? '5. 服务变更与终止' : '5. Service Termination',
+                content: isZh 
+                    ? '我们保留随时修改或中断服务而不需通知用户的权利。如遇系统维护或升级，我们将尽可能提前告知。' 
+                    : 'We reserve the right to modify or terminate the service at any time.',
+              ),
+              const SizedBox(height: 32),
+              
+              // Close Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? Colors.white : Colors.black,
+                    foregroundColor: isDark ? Colors.black : Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(isZh ? '我已阅读并同意' : 'I Understand & Agree'),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegalSection(bool isZh, bool isDark, {required String title, required String content}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showForgotPasswordDialog(BuildContext context, bool isZh, bool isDark) {
@@ -531,12 +658,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 48),
                   
                   // Footer
-                  Text(
-                    isZh ? '登录即表示您同意我们的服务条款' : 'By signing in, you agree to our Terms of Service',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 11,
+                  GestureDetector(
+                    onTap: () {
+                      _showTermsOfService(context, isZh, isDark);
+                    },
+                    child: Text(
+                      isZh 
+                          ? '登录即表示您同意我们的服务条款与隐私政策' 
+                          : 'By signing in, you agree to our Terms of Service & Privacy Policy',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 11,
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
                 ],
