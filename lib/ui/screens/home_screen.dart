@@ -74,7 +74,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       
       final endTime = t.scheduledStart.add(t.totalDuration);
       if (endTime.isBefore(now) && t.repeatDays.isEmpty) {
-        return false; // Expired and not repeating
+        // Only hide if it's very old (e.g. from yesterday)
+        if (t.scheduledStart.day != now.day) return false;
       }
       return true;
     }).toList()
@@ -501,16 +502,40 @@ class _SlidableTaskCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        task.title,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              task.title,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // Expired Badge
+                          if (task.scheduledStart.add(task.totalDuration).isBefore(DateTime.now()) && !task.isCompleted)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.red.withOpacity(0.2)),
+                              ),
+                              child: Text(
+                                locale == 'zh' ? '已过期' : 'EXPIRED',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Row(

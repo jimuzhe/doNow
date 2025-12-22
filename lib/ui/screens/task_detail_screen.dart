@@ -415,26 +415,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
             child: Row(
               mainAxisSize: MainAxisSize.min, // Shrink wrap width
               children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent, 
-                    shape: BoxShape.circle,
-                  ),
-                  child: achievement.icon.startsWith('http') 
-                    ? WhiteBackgroundRemover(
-                        child: ClipOval(
-                          child: Image.network(
-                            kIsWeb 
-                              ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                              : achievement.icon,
-                            width: 24, height: 24, fit: BoxFit.cover, 
-                            errorBuilder: (_,__,___) => const Icon(Icons.star, color: Colors.amber),
-                          ),
-                        ),
-                      )
-                    : Text(achievement.icon, style: const TextStyle(fontSize: 24)),
-                ),
+                achievement.icon.startsWith('http') 
+                  ? WhiteBackgroundRemover(
+                      child: Image.network(
+                        kIsWeb 
+                          ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
+                          : achievement.icon,
+                        width: 28, height: 28, fit: BoxFit.contain, 
+                        errorBuilder: (_,__,___) => const Icon(Icons.star, color: Colors.amber),
+                      ),
+                    )
+                  : Text(achievement.icon, style: const TextStyle(fontSize: 24)),
                 const SizedBox(width: 12),
                 Flexible( // Use Flexible to allow wrapping if text is super long, though min width is desired
                   child: Column(

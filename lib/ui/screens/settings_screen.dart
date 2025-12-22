@@ -226,51 +226,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                            width: double.infinity,
                            padding: const EdgeInsets.only(bottom: 4), // Reduced spacing below
                            // Removed decoration/background
-                           child: Row(
-                             crossAxisAlignment: CrossAxisAlignment.center, // Align icons vertically
+                           child: Wrap(
+                             spacing: 8,
+                             runSpacing: 8,
                              children: [
-                                Expanded(
-                                 child: Row(
-                                   children: [
-                                     // Only show unlocked badges here
-                                     if (gamificationState.achievements.where((a) => a.isUnlocked).isNotEmpty)
-                                       ...gamificationState.achievements
-                                           .where((a) => a.isUnlocked)
-                                           .take(5) // Show max 5
-                                           .map((a) {
-                                              final cleanIcon = a.icon.trim();
-                                              final isUrl = cleanIcon.toLowerCase().startsWith('http');
-                                              return Padding(
-                                                 padding: const EdgeInsets.only(right: 8),
-                                                 child: isUrl
-                                                   ? SizedBox(
-                                                       width: 32, height: 32,
-                                                       child: WhiteBackgroundRemover(
-                                                         child: CachedNetworkImage(
-                                                            imageUrl: kIsWeb 
-                                                               ? 'https://corsproxy.io/?${Uri.encodeComponent(cleanIcon)}' 
-                                                               : cleanIcon,
-                                                            fit: BoxFit.contain,
-                                                            placeholder: (context, url) => Container(
-                                                              width: 16, height: 16,
-                                                              decoration: BoxDecoration(
-                                                                color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                                                                shape: BoxShape.circle,
-                                                              ),
-                                                            ),
-                                                            errorWidget: (context, url, error) => const Icon(Icons.error, size: 16),
-                                                         ),
-                                                       ),
-                                                     )
-                                                   : Text(a.icon, style: const TextStyle(fontSize: 24)),
-                                               );
-                                           }),
-                                      
-                                      // If no achievements, maybe show a hint or empty state? 
-                                      // Or just nothing, as requested "badges display".
-                                   ],
-                                 ),
-                               ),
+                               // Only show unlocked badges here
+                               if (gamificationState.achievements.where((a) => a.isUnlocked).isNotEmpty)
+                                 ...gamificationState.achievements
+                                     .where((a) => a.isUnlocked)
+                                     .take(5) // Show max 5
+                                     .map((a) {
+                                        final cleanIcon = a.icon.trim();
+                                        final isUrl = cleanIcon.toLowerCase().startsWith('http');
+                                        return isUrl
+                                          ? SizedBox(
+                                              width: 32, height: 32,
+                                              child: WhiteBackgroundRemover(
+                                                child: CachedNetworkImage(
+                                                   imageUrl: kIsWeb 
+                                                      ? 'https://corsproxy.io/?${Uri.encodeComponent(cleanIcon)}' 
+                                                      : cleanIcon,
+                                                   fit: BoxFit.contain,
+                                                   placeholder: (context, url) => Container(
+                                                     width: 16, height: 16,
+                                                     decoration: BoxDecoration(
+                                                       color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                                                       shape: BoxShape.circle,
+                                                     ),
+                                                   ),
+                                                   errorWidget: (context, url, error) => const Icon(Icons.error, size: 16),
+                                                ),
+                                              ),
+                                            )
+                                          : Text(a.icon, style: const TextStyle(fontSize: 24));
+                                     }),
                              ],
                            ),
                         ),
@@ -342,10 +331,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _LanguageOption(text: "EN", isSelected: !isChinese, onTap: () => ref.read(localeProvider.notifier).setLocale('en'), isDark: isDark),
+                          _LanguageOption(
+                            text: "EN", 
+                            isSelected: !isChinese, 
+                            onTap: () {
+                              ref.read(localeProvider.notifier).setLocale('en');
+                              // Refresh home widget with new locale
+                              ref.read(taskListProvider.notifier).refreshWidget();
+                            }, 
+                            isDark: isDark
+                          ),
                           const SizedBox(width: 4),
-                          _LanguageOption(text: "中文", isSelected: isChinese, onTap: () => ref.read(localeProvider.notifier).setLocale('zh'), isDark: isDark),
+                          _LanguageOption(
+                            text: "中文", 
+                            isSelected: isChinese, 
+                            onTap: () {
+                              ref.read(localeProvider.notifier).setLocale('zh');
+                              // Refresh home widget with new locale
+                              ref.read(taskListProvider.notifier).refreshWidget();
+                            }, 
+                            isDark: isDark
+                          ),
                         ],
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.screen_rotation,
+                      title: t('auto_focus_landscape'),
+                      subtitle: t('auto_focus_landscape_desc'),
+                      trailing: Consumer(
+                        builder: (context, ref, _) {
+                          final enabled = ref.watch(autoLandscapeFocusProvider);
+                          return Switch(
+                            value: enabled,
+                            onChanged: (value) {
+                              ref.read(autoLandscapeFocusProvider.notifier).setEnabled(value);
+                            },
+                            activeColor: isDark ? Colors.white : Colors.black,
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1087,6 +1111,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
   final Color? iconColor;
@@ -1095,6 +1120,7 @@ class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
     required this.title,
+    this.subtitle,
     this.trailing,
     this.onTap,
     this.iconColor,
@@ -1114,11 +1140,24 @@ class _SettingsTile extends StatelessWidget {
           children: [
             Icon(icon, size: 22, color: iconColor ?? (isDark ? Colors.white70 : Colors.black87)),
             const SizedBox(width: 16),
-            Expanded(child: Text(title, style: TextStyle(
-              fontSize: 16, 
-              fontWeight: FontWeight.w500, 
-              color: textColor ?? (isDark ? Colors.grey[400] : Colors.grey[600])
-            ))),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: TextStyle(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.w500, 
+                  color: textColor ?? (isDark ? Colors.grey[400] : Colors.grey[600])
+                )),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(subtitle!, style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  )),
+                ],
+              ],
+            )),
             if (trailing != null) trailing!,
           ],
         ),

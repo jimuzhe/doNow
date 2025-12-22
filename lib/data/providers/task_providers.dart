@@ -68,7 +68,9 @@ class TaskListNotifier extends StateNotifier<List<Task>> {
 
   Future<void> _updateWidget() async {
     try {
-      await _homeWidgetService.updateWidget(state);
+      // Read locale from storage and pass to widget service
+      final locale = _storage.loadLocale() ?? 'en';
+      await _homeWidgetService.updateWidget(state, locale: locale);
     } catch (e) {
       debugPrint('Error updating home widget: $e');
     }
@@ -101,6 +103,11 @@ class TaskListNotifier extends StateNotifier<List<Task>> {
   void clear() {
     state = [];
     _storage.saveTasks(state);
+    _updateWidget();
+  }
+
+  /// Public method to refresh the home widget (e.g., after locale change)
+  void refreshWidget() {
     _updateWidget();
   }
 }

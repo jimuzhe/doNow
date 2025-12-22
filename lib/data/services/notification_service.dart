@@ -289,11 +289,24 @@ class NotificationService {
     // iOS
     if (_isIOS()) {
       try {
-        final String? action = await _liveActivityChannel.invokeMethod('checkPendingAction');
-        if (action != null) {
-          debugPrint('📲 iOS Pending Action found: $action');
+        final result = await _liveActivityChannel.invokeMethod('checkPendingAction');
+        if (result != null) {
+          debugPrint('📲 iOS Pending Action result: $result');
+          
+          String? action;
+          int count = 1;
+          
+          if (result is String) {
+            action = result;
+          } else if (result is Map) {
+            action = result['action'];
+            count = result['count'] ?? 1;
+          }
+          
           if (action == 'complete') {
-            triggerComplete();
+            for (int i = 0; i < count; i++) {
+              triggerComplete();
+            }
           } else if (action == 'cancel') {
             triggerCancel();
           }
@@ -306,9 +319,17 @@ class NotificationService {
     // Android
     if (_isAndroid()) {
       try {
-        final String? action = await _androidNotificationChannel.invokeMethod('checkPendingAction');
-        if (action != null) {
-          debugPrint('📲 Android Pending Action found: $action');
+        final result = await _androidNotificationChannel.invokeMethod('checkPendingAction');
+        if (result != null) {
+          debugPrint('📲 Android Pending Action Result: $result');
+          
+          String? action;
+          if (result is String) {
+            action = result;
+          } else if (result is Map) {
+            action = result['action'];
+          }
+          
           if (action == 'complete') {
             triggerComplete();
           } else if (action == 'cancel') {

@@ -5,6 +5,7 @@ import 'home_screen.dart';
 import 'analysis_screen.dart';
 import 'settings_screen.dart';
 import 'quick_focus_screen.dart';
+import '../../data/providers.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -16,6 +17,7 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   int _currentIndex = 0;
   bool _isInLandscapeFocus = false; // Track if we navigated to landscape focus
+  Orientation? _lastOrientation; // Track previous orientation to detect change
   
   final List<Widget> _screens = [
     const HomeScreen(), // 0
@@ -50,17 +52,33 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orientation = MediaQuery.of(context).orientation;
+    final autoFocusEnabled = ref.watch(autoLandscapeFocusProvider);
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
+    final isTablet = shortestSide >= 600;
     
-    // If landscape and not already in focus mode, navigate to Quick Focus
-    // Only trigger this once per landscape rotation
-    if (orientation == Orientation.landscape && !_isInLandscapeFocus) {
+    // Auto-Focus Navigation Logic:
+    // 1. Must be Landscape
+    // 2. Must not already be in focus screen
+    // 3. User must have the feature ENABLED
+    // 4. We SKIP this for tablets (iPad), as landscape is a primary orientation there
+    // 5. We only trigger if orientation actually CHANGED to landscape
+    if (orientation == Orientation.landscape && 
+        _lastOrientation == Orientation.portrait &&
+        !_isInLandscapeFocus && 
+        autoFocusEnabled && 
+        !isTablet) {
+      
       // Use post-frame callback to avoid building during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Double check mounted and still landscape
         if (mounted && MediaQuery.of(context).orientation == Orientation.landscape) {
           _navigateToQuickFocus();
         }
       });
     }
+    
+    // Update orientation tracker
+    _lastOrientation = orientation;
 
     // Portrait: Standard Tabbed View
     return Scaffold(

@@ -110,35 +110,49 @@ struct DoNowActivityWidget: Widget {
                 
                 DynamicIslandExpandedRegion(.bottom) {
                     if #available(iOS 17.0, *) {
-                        HStack {
-                            // Cancel Button
+                        let stepInfo = DynamicStepInfo.from(state: context.state)
+                        let isLastStep = (stepInfo?.index ?? 0) >= (stepInfo?.totalSteps ?? 1) - 1
+                        
+                        HStack(spacing: 12) {
+                            // Abandon Button (放弃)
                             Button(intent: CancelTaskIntent()) {
-                                HStack {
-                                    Image(systemName: "xmark")
-                                    Text("Abort")
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(Color.red.opacity(0.2))
-                                .cornerRadius(8)
+                                Label("放弃", systemImage: "trash.fill")
+                                    .font(.subheadline.bold())
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.red.opacity(0.15))
+                                    .foregroundColor(.red)
+                                    .cornerRadius(12)
                             }
                             .buttonStyle(PlainButtonStyle())
                             
                             Spacer()
                             
-                            // Complete Button - Prominent
-                            Button(intent: CompleteStepIntent()) {
-                                HStack {
-                                    Image(systemName: "checkmark")
-                                    Text("Done")
+                            // Complete Button (完成)
+                            if isLastStep {
+                                // Last Step - Use Link to open app for completion
+                                Link(destination: URL(string: "donow://complete")!) {
+                                    Label("完成", systemImage: "checkmark.seal.fill")
+                                        .font(.subheadline.bold())
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 10)
+                                        .background(Color.green)
+                                        .foregroundColor(.black)
+                                        .cornerRadius(20)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 6)
-                                .background(Color.green)
-                                .foregroundColor(.black)
-                                .cornerRadius(16)
+                            } else {
+                                // Background advancement
+                                Button(intent: CompleteStepIntent()) {
+                                    Label("完成", systemImage: "checkmark.circle.fill")
+                                        .font(.subheadline.bold())
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(Color.green.opacity(0.15))
+                                        .foregroundColor(.green)
+                                        .cornerRadius(12)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .buttonStyle(PlainButtonStyle())
                         }
                         .padding(.horizontal)
                         .padding(.bottom, 8)
@@ -396,23 +410,22 @@ struct DynamicCompactLeadingView: View {
         let stepInfo = DynamicStepInfo.from(state: state)
         let progress = stepInfo?.progress ?? state.progress
         
-        // Use HStack with Spacer to push content away from edge
+        // Push content to the far left (away from the camera island)
         HStack(spacing: 0) {
-            Spacer()
-                .frame(width: 8)
-            
-            // Use native ProgressView for better iOS 16 compatibility
             ZStack {
                 Circle()
                     .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                    .frame(width: 14, height: 14)
+                    .frame(width: 16, height: 16)
                 
                 Circle()
                     .trim(from: 0, to: progress)
                     .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 14, height: 14)
+                    .frame(width: 16, height: 16)
                     .rotationEffect(.degrees(-90))
             }
+            .padding(.leading, 2)
+            
+            Spacer(minLength: 4) // Keep space from the camera island
         }
     }
 }
@@ -444,44 +457,45 @@ struct DynamicCompactTrailingView: View {
     }
     
     var body: some View {
-        if let steps = state.steps, !steps.isEmpty {
-            let currentIndex = getCurrentStepIndex(steps: steps)
+        HStack(spacing: 0) {
+            Spacer(minLength: 4) // Keep space from the camera island
             
-            // Check if all steps are completed (past the last step's endTime)
-            if let lastStep = steps.last, currentDate >= lastStep.endTime {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.caption)
-            } else if currentIndex < steps.count {
-                // Show countdown for current step - only one timer, no ZStack overlap
-                let step = steps[currentIndex]
-                if step.endTime > currentDate {
-                    Text(timerInterval: currentDate...step.endTime, countsDown: true)
+            if let steps = state.steps, !steps.isEmpty {
+                let currentIndex = getCurrentStepIndex(steps: steps)
+                
+                if let lastStep = steps.last, currentDate >= lastStep.endTime {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                } else if currentIndex < steps.count {
+                    let step = steps[currentIndex]
+                    if step.endTime > currentDate {
+                        Text(timerInterval: currentDate...step.endTime, countsDown: true)
+                            .monospacedDigit()
+                            .font(.caption2.bold())
+                            .foregroundColor(.white)
+                            .id("timer-\(currentIndex)")
+                            .padding(.trailing, 2)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                    }
+                }
+            } else {
+                // Fallback
+                let stepInfo = DynamicStepInfo.from(state: state)
+                if let info = stepInfo, info.endTime > currentDate {
+                    Text(timerInterval: currentDate...info.endTime, countsDown: true)
                         .monospacedDigit()
                         .font(.caption2.bold())
                         .foregroundColor(.white)
-                        .frame(maxWidth: 45)
-                        .id("timer-\(currentIndex)")
+                        .padding(.trailing, 2)
                 } else {
-                    // Step time passed, show checkmark
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                         .font(.caption)
                 }
-            }
-        } else {
-            // Fallback
-            let stepInfo = DynamicStepInfo.from(state: state)
-            if let info = stepInfo, info.endTime > currentDate {
-                Text(timerInterval: currentDate...info.endTime, countsDown: true)
-                    .monospacedDigit()
-                    .font(.caption2.bold())
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 45)
-            } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.caption)
             }
         }
     }

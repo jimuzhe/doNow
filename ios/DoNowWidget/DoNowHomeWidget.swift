@@ -6,11 +6,27 @@ struct DoNowHomeProvider: TimelineProvider {
     let appGroupId = "group.com.donow.app"
     
     func placeholder(in context: Context) -> DoNowHomeEntry {
-        DoNowHomeEntry(date: Date(), pendingCount: 3, nextTaskTitle: "Review Design", nextTaskTime: "14:00")
+        DoNowHomeEntry(
+            date: Date(), 
+            pendingCount: 3, 
+            nextTaskTitle: "Review Design", 
+            nextTaskTime: "14:00",
+            labelPending: "Pending",
+            labelTasks: "Tasks",
+            labelUpNext: "UP NEXT"
+        )
     }
 
     func getSnapshot(in context: Context, completion: @escaping (DoNowHomeEntry) -> ()) {
-        let entry = DoNowHomeEntry(date: Date(), pendingCount: 3, nextTaskTitle: "Review Design", nextTaskTime: "14:00")
+        let entry = DoNowHomeEntry(
+            date: Date(), 
+            pendingCount: 3, 
+            nextTaskTitle: "Review Design", 
+            nextTaskTime: "14:00",
+            labelPending: "Pending",
+            labelTasks: "Tasks",
+            labelUpNext: "UP NEXT"
+        )
         completion(entry)
     }
 
@@ -22,11 +38,19 @@ struct DoNowHomeProvider: TimelineProvider {
         let nextTaskTitle = userDefaults?.string(forKey: "next_task_title") ?? "No Tasks"
         let nextTaskTime = userDefaults?.string(forKey: "next_task_time") ?? ""
         
+        // Read localized labels (with fallbacks)
+        let labelPending = userDefaults?.string(forKey: "label_pending") ?? "Pending"
+        let labelTasks = userDefaults?.string(forKey: "label_tasks") ?? "Tasks"
+        let labelUpNext = userDefaults?.string(forKey: "label_up_next") ?? "UP NEXT"
+        
         let entry = DoNowHomeEntry(
             date: Date(),
             pendingCount: pendingCount,
             nextTaskTitle: nextTaskTitle,
-            nextTaskTime: nextTaskTime
+            nextTaskTime: nextTaskTime,
+            labelPending: labelPending,
+            labelTasks: labelTasks,
+            labelUpNext: labelUpNext
         )
 
         // Refresh every 15 minutes by default, but Flutter will force reload when data changes
@@ -41,6 +65,9 @@ struct DoNowHomeEntry: TimelineEntry {
     let pendingCount: Int
     let nextTaskTitle: String
     let nextTaskTime: String
+    let labelPending: String
+    let labelTasks: String
+    let labelUpNext: String
 }
 
 struct DoNowHomeWidgetEntryView : View {
@@ -72,13 +99,13 @@ struct SmallView: View {
                 .font(.system(size: 48, weight: .bold, design: .rounded))
                 .foregroundColor(entry.pendingCount > 0 ? .primary : .gray)
             
-            Text("Pending")
+            Text(entry.labelPending)
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color("WidgetBackground"))
+        .widgetBackground(Color("WidgetBackground"))
     }
 }
 
@@ -99,7 +126,7 @@ struct MediumView: View {
                 Text("\(entry.pendingCount)")
                     .font(.system(size: 36, weight: .bold, design: .rounded))
                 
-                Text("Tasks")
+                Text(entry.labelTasks)
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -110,7 +137,7 @@ struct MediumView: View {
             
             // Right: Next Task
             VStack(alignment: .leading, spacing: 4) {
-                Text("UP NEXT")
+                Text(entry.labelUpNext)
                     .font(.caption2)
                     .fontWeight(.heavy)
                     .foregroundColor(.green)
@@ -139,7 +166,20 @@ struct MediumView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding()
-        .background(Color("WidgetBackground"))
+        .widgetBackground(Color("WidgetBackground"))
+    }
+}
+
+// MARK: - iOS 17 Container Background Compatibility
+extension View {
+    func widgetBackground(_ backgroundView: some View) -> some View {
+        if #available(iOS 17.0, *) {
+            return self.containerBackground(for: .widget) {
+                backgroundView
+            }
+        } else {
+            return self.background(backgroundView)
+        }
     }
 }
 

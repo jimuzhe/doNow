@@ -166,23 +166,42 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Basic lifecycle handling
-    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_controller == null || !_controller!.value.isInitialized) {
+       // If we are resumed but don't have a controller and are NOT in preview, re-init
+       if (state == AppLifecycleState.resumed && _capturedPath == null) {
+         _initCamera();
+       }
+       return;
+    }
 
-    if (state == AppLifecycleState.inactive) {
-      _controller?.dispose();
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      // Release camera immediately when app is not in focus
+      _disposeController();
     } else if (state == AppLifecycleState.resumed) {
-      _startCamera(_controller!.description);
+      // Re-init only if we are not in preview mode
+      if (_capturedPath == null) {
+        _initCamera();
+      }
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller?.dispose();
+    _disposeController();
     _recordBtnController.dispose();
     _videoTimer?.cancel();
     _focusTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _disposeController() async {
+    if (_controller != null) {
+      final c = _controller!;
+      _controller = null; 
+      await c.dispose();
+      if (mounted) setState(() => _isInit = false);
+    }
   }
 
   // Actions
@@ -316,6 +335,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         // If processing failed (or not front camera), we fall back to standard behavior
         _isVideoMirrored = _isFrontCamera && !processedMirrored; 
       });
+
+      // Release camera resources immediately for privacy and to clear indicators
+      _disposeController();
     } catch (e) {
       debugPrint('Error taking picture: $e');
     }
@@ -395,6 +417,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           _isProcessingVideo = false;
         });
         debugPrint('📹 Set _isVideoMirrored = $mirroredFlag');
+        
+        // Release camera resources immediately after stop recording
+        _disposeController();
       }
     } catch (e) {
       debugPrint('Error stopping video: $e');
@@ -411,7 +436,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       _isVideo = false;
       _videoThumbnailPath = null;
       _isVideoMirrored = false;
+      _isInit = false; // Trigger re-init check in build or manual call
     });
+    // Re-initialize camera for retake
+    _initCamera();
   }
 
   void _confirm() {

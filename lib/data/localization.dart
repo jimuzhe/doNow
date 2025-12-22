@@ -263,7 +263,19 @@ class AppStrings {
       'search_hint': 'Search tasks...',
       // Settings
       'me_title': 'Me',
-      'preferences': 'PREFERENCES',
+      'setting_landscape_focus': 'Landscape Focus',
+      'auto_focus_landscape_desc': 'When enabled, rotating your phone to landscape will enter Focus mode. iPad is not affected.',
+      
+      // Auth Errors
+      'error_generic': 'Something went wrong. Please try again later.',
+      'error_network': 'Connection failed. Please check your network.',
+      'error_timeout': 'Connection timed out. Please try again later.',
+      'error_invalid_email_password': 'Invalid email or password.',
+      'error_email_in_use': 'Email is already in use.',
+      'error_user_not_found': 'User account not found.',
+      'error_weak_password': 'Password is too weak.',
+      'error_invalid_email': 'Please enter a valid email address.',
+      'error_not_verified': 'Email not verified. Please check your inbox.',
       'intelligence': 'INTELLIGENCE',
       'account_group': 'ACCOUNT',
       'app_group': 'APP',
@@ -322,6 +334,8 @@ class AppStrings {
       'ach_weekend_warrior_title': 'Weekend Warrior',
       'ach_weekend_warrior_desc': 'Complete a task on Sat or Sun.',
       'achievement_unlocked': 'Achievement Unlocked!',
+      'achievement_details': 'Achievement Details',
+      'unlocked_at': 'Unlocked at',
       'task_complete': 'Task Complete!',
     },
     'zh': {
@@ -537,7 +551,19 @@ class AppStrings {
       'search_hint': '搜索任务...',
       // Settings
       'me_title': '我的',
-      'preferences': '偏好设置',
+      'setting_landscape_focus': '横屏专注',
+      'auto_focus_landscape_desc': '开启后，将手机横过来即进入专注模式。iPad 不受此项影响。',
+      
+      // Auth Errors
+      'error_generic': '出现了一些问题，请稍后再试',
+      'error_network': '网络连接失败，请检查您的网络',
+      'error_timeout': '服务器连接超时，请检查网络或稍后再试',
+      'error_invalid_email_password': '邮箱或密码错误',
+      'error_email_in_use': '该邮箱已被注册',
+      'error_user_not_found': '用户不存在',
+      'error_weak_password': '密码强度过低',
+      'error_invalid_email': '请输入有效的邮箱地址',
+      'error_not_verified': '邮箱尚未验证，请查收邮件',
       'intelligence': '智能',
       'account_group': '账号',
       'app_group': '应用',
@@ -596,6 +622,8 @@ class AppStrings {
       'ach_weekend_warrior_title': '周末战士',
       'ach_weekend_warrior_desc': '周六或周日完成任务',
       'achievement_unlocked': '解锁新成就！',
+      'achievement_details': '成就详情',
+      'unlocked_at': '解锁于',
       'task_complete': '任务完成！',
     }
   };
