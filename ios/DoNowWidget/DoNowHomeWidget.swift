@@ -2,8 +2,8 @@ import WidgetKit
 import SwiftUI
 
 struct DoNowHomeProvider: TimelineProvider {
-    // Should match the group ID used in Flutter
-    let appGroupId = "group.com.atomictask.donow"
+    // MUST match the App Group ID in Xcode Entitlements
+    let appGroupId = "group.com.donow.app"
     
     func placeholder(in context: Context) -> DoNowHomeEntry {
         DoNowHomeEntry(date: Date(), pendingCount: 3, nextTaskTitle: "Review Design", nextTaskTime: "14:00")

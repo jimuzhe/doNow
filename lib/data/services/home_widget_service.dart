@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import '../models/task.dart';
 
 class HomeWidgetService {
-  // MUST MATCH the App Group ID in Xcode
-  static const String appGroupId = 'group.com.atomictask.donow'; // User needs to verify this later
+  // MUST MATCH the App Group ID in Xcode Entitlements
+  static const String appGroupId = 'group.com.donow.app';
   static const String iOSWidgetName = 'DoNowHomeWidget';
 
   /// Update the Home Screen Widget with latest task data

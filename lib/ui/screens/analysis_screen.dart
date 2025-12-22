@@ -73,7 +73,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     // Only show completed tasks in timeline, not abandoned ones
     return allTasks.where((task) {
       return task.isCompleted && task.completedAt != null && isSameDay(task.completedAt, day);
-    }).toList();
+    }).toList()
+      ..sort((a, b) => a.completedAt!.compareTo(b.completedAt!)); // Sort by completion time ascending
   }
 
   // Check if a day has any completed tasks (for calendar markers)
