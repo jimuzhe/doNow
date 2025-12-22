@@ -263,7 +263,8 @@ class AppStrings {
       'search_hint': 'Search tasks...',
       // Settings
       'me_title': 'Me',
-      'setting_landscape_focus': 'Landscape Focus',
+      'preferences': 'Preferences',
+      'auto_focus_landscape': 'Auto Landscape Focus',
       'auto_focus_landscape_desc': 'When enabled, rotating your phone to landscape will enter Focus mode. iPad is not affected.',
       
       // Auth Errors
@@ -279,6 +280,8 @@ class AppStrings {
       'intelligence': 'INTELLIGENCE',
       'account_group': 'ACCOUNT',
       'app_group': 'APP',
+      'beta_features': 'Beta Features',
+      'morning_report': 'Morning Report',
       'developer_group': 'DEVELOPER',
       'edit_profile': 'Edit Profile',
       'sign_out': 'Sign Out',
@@ -551,7 +554,8 @@ class AppStrings {
       'search_hint': '搜索任务...',
       // Settings
       'me_title': '我的',
-      'setting_landscape_focus': '横屏专注',
+      'preferences': '偏好设置',
+      'auto_focus_landscape': '横屏自动进入专注',
       'auto_focus_landscape_desc': '开启后，将手机横过来即进入专注模式。iPad 不受此项影响。',
       
       // Auth Errors
@@ -567,6 +571,8 @@ class AppStrings {
       'intelligence': '智能',
       'account_group': '账号',
       'app_group': '应用',
+      'beta_features': '测试功能',
+      'morning_report': '每日早报',
       'developer_group': '开发者选项',
       'edit_profile': '个人资料',
       'sign_out': '退出登录',

@@ -114,7 +114,12 @@ class TaskSchedulerService {
       // A. Upcoming Warning (3 minutes before)
       if (diffSeconds >= -190 && diffSeconds <= -5) {
           final isForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-          final isBusy = _ref.read(isBusyUIProvider) || _ref.read(activeTaskIdProvider) != null;
+          final activeTaskId = _ref.read(activeTaskIdProvider);
+          
+          // Skip if this task is already being executed
+          if (activeTaskId == task.id) continue;
+          
+          final isBusy = _ref.read(isBusyUIProvider) || activeTaskId != null;
           
           if (!_notifiedTaskIds.contains('${task.id}_upcoming')) {
                // Send notification if:

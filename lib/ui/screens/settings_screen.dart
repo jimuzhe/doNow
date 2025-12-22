@@ -368,6 +368,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ref.read(autoLandscapeFocusProvider.notifier).setEnabled(value);
                             },
                             activeColor: isDark ? Colors.white : Colors.black,
+                            activeTrackColor: isDark ? Colors.white38 : Colors.black38,
                           );
                         },
                       ),
@@ -457,7 +458,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                  // Beta Features
                  _buildSettingsGroup(
                    context,
-                   title: "Beta Features",
+                   title: t('beta_features'),
                    children: [
                      Consumer(
                         builder: (context, ref, _) {
@@ -466,12 +467,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           final enabled = ref.watch(morningReportEnabledProvider);
                           return _SettingsTile(
                             icon: Icons.newspaper_outlined,
-                            title: "每日早报",
+                            title: t('morning_report'),
                             trailing: Switch(
                               value: enabled,
                               onChanged: (value) {
                                 ref.read(morningReportEnabledProvider.notifier).toggle();
                               },
+                              activeColor: isDark ? Colors.white : Colors.black,
+                              activeTrackColor: isDark ? Colors.white38 : Colors.black38,
                             ),
                           );
                         },
@@ -500,6 +503,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             trailing: Switch(
                               value: debugEnabled,
                               onChanged: (value) => ref.read(debugLogEnabledProvider.notifier).state = value,
+                              activeColor: isDark ? Colors.white : Colors.black,
+                              activeTrackColor: isDark ? Colors.white38 : Colors.black38,
                             ),
                           );
                         },

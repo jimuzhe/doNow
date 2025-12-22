@@ -63,18 +63,27 @@ class CustomDialog extends StatelessWidget {
                if (actions.length > 2)
                  Column(
                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                   children: actions.map((a) {
-                     // Style tweaks for buttons if they are TextButtons
+                   children: actions.asMap().entries.map((entry) {
+                     final index = entry.key;
+                     final action = entry.value;
                      return Padding(
-                       padding: const EdgeInsets.only(bottom: 8.0),
-                       child: _styleActionButton(a, isDark),
+                       padding: EdgeInsets.only(bottom: index < actions.length - 1 ? 12.0 : 0),
+                       child: action,
                      );
                    }).toList(),
                  )
                else
                  Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                   children: actions.map((a) => Expanded(child: _styleActionButton(a, isDark))).toList(),
+                   children: actions.asMap().entries.map((entry) {
+                     final index = entry.key;
+                     final action = entry.value;
+                     return Expanded(
+                       child: Padding(
+                         padding: EdgeInsets.only(left: index > 0 ? 12.0 : 0),
+                         child: action,
+                       ),
+                     );
+                   }).toList(),
                  ),
              ],
            ),
