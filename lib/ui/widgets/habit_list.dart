@@ -1,10 +1,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../data/models/habit.dart';
 import '../../data/providers.dart';
 import '../../utils/haptic_helper.dart';
 import 'create_habit_sheet.dart';
+import 'glass_container.dart';
+import '../theme/app_theme.dart';
 
 class HabitListWidget extends ConsumerWidget {
   const HabitListWidget({super.key});
@@ -16,15 +19,16 @@ class HabitListWidget extends ConsumerWidget {
 
     // Use a fixed height container for the horizontal list
     return SizedBox(
-      height: 100, 
+      height: 110, 
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 28),
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         itemCount: habits.length + 1, // +1 for Add button
-        separatorBuilder: (context, index) => const SizedBox(width: 16),
+        separatorBuilder: (context, index) => const SizedBox(width: 20),
         itemBuilder: (context, index) {
           if (index == habits.length) {
-            return _buildAddButton(context, isDark);
+            return _buildAddButton(context, isDark, ref);
           }
           return _HabitItem(habit: habits[index]);
         },
@@ -32,9 +36,10 @@ class HabitListWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildAddButton(BuildContext context, bool isDark) {
+  Widget _buildAddButton(BuildContext context, bool isDark, WidgetRef ref) {
     return GestureDetector(
       onTap: () {
+        HapticHelper(ref).selectionClick();
         showModalBottomSheet(
           context: context, 
           isScrollControlled: true,
@@ -50,22 +55,26 @@ class HabitListWidget extends ConsumerWidget {
             height: 56,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isDark ? Colors.grey[800] : Colors.grey[200],
+              color: isDark ? Colors.grey[800] : Colors.grey[100],
               border: Border.all(
-                color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
                 width: 1,
-                style: BorderStyle.solid
-              ) // Dashed border is hard in Flutter without package, solid is fine for MVP
+              ),
             ),
-            child: Icon(Icons.add, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+            child: Icon(
+              Icons.add, 
+              color: isDark ? Colors.white38 : Colors.black26,
+              size: 24,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
-            "New",
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
+            "NEW",
+            style: GoogleFonts.outfit(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+              color: isDark ? Colors.white24 : Colors.black26,
             ),
           )
         ],
@@ -91,7 +100,6 @@ class _HabitItem extends ConsumerWidget {
         ref.read(habitListProvider.notifier).toggleToday(habit.id);
       },
       onLongPress: () {
-         // Long press to delete
          HapticHelper(ref).heavyImpact();
          _showDeleteConfirm(context, ref);
       },
@@ -99,44 +107,57 @@ class _HabitItem extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutBack,
-            width: 56,
-            height: 56,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isCompleted ? color : Colors.transparent,
+              gradient: isCompleted 
+                ? LinearGradient(
+                    colors: [color, color.withOpacity(0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+              color: isCompleted ? null : Colors.transparent,
               border: Border.all(
-                color: isCompleted ? color : (isDark ? Colors.grey[700]! : Colors.grey[300]!),
+                color: isCompleted ? color.withOpacity(0.3) : (isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
                 width: 2,
               ),
               boxShadow: isCompleted ? [
-                BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))
+                BoxShadow(color: color.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 6))
               ] : [],
             ),
             child: Icon(
               IconData(habit.iconCode, fontFamily: 'MaterialIcons'),
-              color: isCompleted ? Colors.white : (isDark ? Colors.grey[500] : Colors.grey[400]),
-              size: 28,
+              color: isCompleted ? Colors.white : (isDark ? Colors.white24 : Colors.black26),
+              size: 26,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (habit.currentStreak > 0) ...[
-                const Icon(Icons.local_fire_department, size: 12, color: Colors.orange),
-                const SizedBox(width: 2),
+                Icon(Icons.local_fire_department, size: 12, color: isCompleted ? Colors.orange : Colors.grey),
+                const SizedBox(width: 4),
                 Text(
                   "${habit.currentStreak}",
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange),
+                  style: GoogleFonts.outfit(
+                    fontSize: 11, 
+                    fontWeight: FontWeight.w800, 
+                    color: isCompleted ? Colors.orange : Colors.grey
+                  ),
                 )
               ] else 
                 Text(
-                  habit.title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  habit.title.toUpperCase(),
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: isDark ? Colors.white38 : Colors.black38,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

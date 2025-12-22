@@ -60,13 +60,20 @@ class AchievementsScreen extends ConsumerWidget {
                 child: isUnlocked
                     ? (achievement.icon.startsWith('http')
                         ? WhiteBackgroundRemover(
-                            child: Image.network(
-                              kIsWeb 
+                            child: CachedNetworkImage(
+                              imageUrl: kIsWeb 
                                   ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
                                   : achievement.icon,
                               width: 64, height: 64,
                               fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline),
+                              placeholder: (context, url) => Container(
+                                width: 32, height: 32,
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => const Icon(Icons.error_outline),
                             ),
                           )
                         : Text(achievement.icon, style: const TextStyle(fontSize: 48)))  
@@ -81,13 +88,13 @@ class AchievementsScreen extends ConsumerWidget {
                           ? Opacity(
                               opacity: 0.5,
                               child: WhiteBackgroundRemover(
-                                child: Image.network(
-                                  kIsWeb 
+                                child: CachedNetworkImage(
+                                  imageUrl: kIsWeb 
                                       ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
                                       : achievement.icon,
                                   width: 64, height: 64,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                                  errorWidget: (context, url, error) => const SizedBox(),
                                 ),
                               ),
                             )

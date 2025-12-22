@@ -16,6 +16,7 @@ import 'data/services/storage_service.dart';
 import 'data/services/sound_effect_service.dart';
 import 'data/services/auth_service.dart';
 import 'ui/widgets/dynamic_island_simulation.dart';
+import 'ui/theme/app_theme.dart';
 
 // Global navigator key for navigation from services
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -405,92 +406,9 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       themeMode: themeMode,
-      theme: ThemeData(
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: const ColorScheme.light(
-          primary: Colors.black,
-          onPrimary: Colors.white,
-          secondary: Colors.black,
-          onSecondary: Colors.white,
-          surface: Colors.white,
-          onSurface: Colors.black,
-          outline: Colors.black,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-        dividerTheme: const DividerThemeData(color: Colors.black12),
-        switchTheme: SwitchThemeData(
-          thumbColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? Colors.white : Colors.black),
-          trackColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? Colors.black : Colors.grey[300]),
-          trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.black,
-          unselectedItemColor: Colors.grey,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          surfaceTintColor: Colors.transparent, 
-        ),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Colors.black87,
-          contentTextStyle: const TextStyle(color: Colors.white),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        ),
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black, // Pure black background
-        cardColor: const Color(0xFF1C1C1E), // Slightly lighter for cards
-        canvasColor: Colors.black,
-        dialogBackgroundColor: const Color(0xFF1C1C1E),
-        colorScheme: const ColorScheme.dark(
-          primary: Colors.white,
-          onPrimary: Colors.black,
-          secondary: Colors.white,
-          onSecondary: Colors.black,
-          surface: Color(0xFF1C1C1E),
-          onSurface: Colors.white,
-          outline: Colors.white54,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-        dividerTheme: const DividerThemeData(color: Colors.white12),
-        switchTheme: SwitchThemeData(
-          // Light Grey/White for active track in dark mode looks clean
-          thumbColor: WidgetStateProperty.resolveWith((states) => 
-            states.contains(WidgetState.selected) ? Colors.black : Colors.white
-          ),
-          trackColor: WidgetStateProperty.resolveWith((states) => 
-            states.contains(WidgetState.selected) ? Colors.white : Colors.grey[700]
-          ),
-          trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Colors.black, // Pure black
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.grey,
-          type: BottomNavigationBarType.fixed,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black, // Pure black
-          foregroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: const Color(0xFF333333),
-          contentTextStyle: const TextStyle(color: Colors.white),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        ),
-      ),
+      theme: AppTheme.lightTheme,
+
+      darkTheme: AppTheme.darkTheme,
       builder: (context, child) {
         // Only show simulated Dynamic Island on desktop/web platforms
         // iOS uses native Live Activity, Android uses Foreground Service Notification

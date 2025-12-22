@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../data/providers.dart';
+import '../widgets/glass_container.dart';
+import '../theme/app_theme.dart';
 
 class MorningReportScreen extends ConsumerWidget {
   const MorningReportScreen({super.key});
@@ -17,8 +19,12 @@ class MorningReportScreen extends ConsumerWidget {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
-          "晨报",
-          style: GoogleFonts.notoSans(fontWeight: FontWeight.bold),
+          "DAILY DIGEST",
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+            fontSize: 14,
+          ),
         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -28,93 +34,144 @@ class MorningReportScreen extends ConsumerWidget {
       body: reportAsync.when(
         data: (report) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Image
+                // Header Image with premium styling
                 if (report.headImage.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: kIsWeb 
-                    ? Image.network(
-                        'https://corsproxy.io/?${Uri.encodeComponent(report.headImage)}',
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 200,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.broken_image, size: 50),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: report.headImage,
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Container(
-                          height: 200,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.broken_image, size: 50),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: kIsWeb 
+                      ? Image.network(
+                          'https://corsproxy.io/?${Uri.encodeComponent(report.headImage)}',
+                          width: double.infinity,
+                          height: 240,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            height: 240,
+                            color: isDark ? Colors.grey[900] : Colors.grey[200],
+                            child: const Icon(Icons.broken_image, size: 50),
+                          ),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: report.headImage,
+                          width: double.infinity,
+                          height: 240,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            height: 240,
+                            color: isDark ? Colors.grey[900] : Colors.grey[200],
+                            child: const Center(child: CircularProgressIndicator()),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            height: 240,
+                            color: isDark ? Colors.grey[900] : Colors.grey[200],
+                            child: const Icon(Icons.broken_image, size: 50),
+                          ),
                         ),
-                      ),
+                    ),
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 32),
                 
                 // Date
                 Text(
                   report.date,
-                  style: GoogleFonts.notoSans(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                  style: GoogleFonts.outfit(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
                     color: isDark ? Colors.white : Colors.black,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 
-                // Weiyu (Quote)
+                // Weiyu (Quote) - Solid design
                 Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.grey[800] : Colors.blue[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    report.weiyu,
-                    style: GoogleFonts.notoSans(
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
-                      color: isDark ? Colors.grey[300] : Colors.blue[900],
-                    ),
+                   decoration: BoxDecoration(
+                     color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[100],
+                     borderRadius: BorderRadius.circular(20),
+                     border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+                   ),
+                   padding: const EdgeInsets.all(20),
+                   child: Row(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Icon(
+                         Icons.format_quote, 
+                         color: AppTheme.primaryBlue.withOpacity(0.5),
+                         size: 28,
+                       ),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: Text(
+                           report.weiyu,
+                           style: GoogleFonts.outfit(
+                             fontSize: 16,
+                             height: 1.6,
+                             fontWeight: FontWeight.w500,
+                             color: isDark ? Colors.white70 : Colors.black87,
+                           ),
+                         ),
+                       ),
+                     ],
+                   ),
+                ),
+                const SizedBox(height: 40),
+                
+                // News Section Title
+                Text(
+                  "LATEST UPDATES",
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                    color: AppTheme.primaryBlue,
                   ),
                 ),
-                const SizedBox(height: 24),
-                
+                const SizedBox(height: 20),
+
                 // News List
                 ...report.news.map((newsItem) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
+                  padding: const EdgeInsets.only(bottom: 24.0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(top: 6),
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
+                        margin: const EdgeInsets.only(top: 4),
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryBlue.withOpacity(0.5),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 18),
                       Expanded(
                         child: Text(
                           newsItem,
-                          style: GoogleFonts.notoSans(
-                            fontSize: 15,
-                            height: 1.5,
-                            color: isDark ? Colors.grey[300] : Colors.grey[800],
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            height: 1.6,
+                            fontWeight: FontWeight.w400,
+                            color: isDark ? Colors.white70 : Colors.black87,
                           ),
                         ),
                       ),
@@ -145,7 +202,13 @@ class MorningReportScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => ref.refresh(morningReportProvider),
-                child: const Text("重试"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: Text("RETRY", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
