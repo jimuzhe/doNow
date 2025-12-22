@@ -13,7 +13,7 @@ import '../../data/services/focus_audio_service.dart';
 import '../../utils/haptic_helper.dart';
 import '../widgets/task_completion_sheet.dart';
 import '../widgets/focus_sound_sheet.dart';
-import '../widgets/custom_dialog.dart';
+
 
 class QuickFocusScreen extends ConsumerStatefulWidget {
   final bool isAutoLandscape;
