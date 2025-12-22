@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/task.dart';
 import '../../data/localization.dart';
-import '../../data/providers.dart';
+
 
 /// A read-only bottom sheet for displaying subtasks of a completed/abandoned task
 class SubTaskDisplaySheet extends ConsumerWidget {

@@ -246,12 +246,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                    ? SizedBox(
                                                        width: 32, height: 32,
                                                        child: WhiteBackgroundRemover(
-                                                         child: Image.network(
-                                                           kIsWeb 
-                                                              ? 'https://corsproxy.io/?${Uri.encodeComponent(cleanIcon)}' 
-                                                              : cleanIcon,
-                                                           fit: BoxFit.contain,
-                                                           errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 16),
+                                                         child: CachedNetworkImage(
+                                                            imageUrl: kIsWeb 
+                                                               ? 'https://corsproxy.io/?${Uri.encodeComponent(cleanIcon)}' 
+                                                               : cleanIcon,
+                                                            fit: BoxFit.contain,
+                                                            placeholder: (context, url) => Container(
+                                                              width: 16, height: 16,
+                                                              decoration: BoxDecoration(
+                                                                color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                                                                shape: BoxShape.circle,
+                                                              ),
+                                                            ),
+                                                            errorWidget: (context, url, error) => const Icon(Icons.error, size: 16),
                                                          ),
                                                        ),
                                                      )

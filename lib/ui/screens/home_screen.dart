@@ -21,6 +21,10 @@ import '../widgets/subtask_editor_sheet.dart';
 import '../widgets/habit_list.dart';
 import '../widgets/task_action_sheet.dart';
 import 'morning_report_screen.dart';
+import '../widgets/glass_container.dart';
+import '../theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -84,53 +88,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        child: ResponsiveCenter(
-          child: Column(
-            children: [
-              // 1. Header with Slogan (No Clock)
-              Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                   Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Text(
-                         t('do_now'),
-                         style: TextStyle(
-                           fontSize: 28,
-                           fontWeight: FontWeight.w900,
-                           letterSpacing: -1.0,
-                           color: isDark ? Colors.white : Colors.black,
-                         ),
-                       ),
-                       const SizedBox(height: 4),
-                       Text(
-                         slogan.toUpperCase(),
-                         style: TextStyle(
-                           fontSize: 12,
-                           fontWeight: FontWeight.w600,
-                           letterSpacing: 2.0,
-                           color: isDark ? Colors.white54 : Colors.grey[400],
-                         ),
-                       ),
-                     ],
-                   ),
-                   // Animated Add Button with Expanding Menu
-                   _AnimatedAddButton(
-                     controller: _addButtonController,
-                     isDark: isDark,
-                     onTap: () => _showTaskModal(context),
-                     onCreateTask: () => _showTaskModal(context),
-                     onQuickFocus: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QuickFocusScreen())),
-                     onDecision: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DecisionScreen())),
-                     ref: ref,
-                   ),
-                ],
+      body: Stack(
+        children: [
+          // Background Aesthetic Elements
+          if (isDark)
+            Positioned(
+              top: -100,
+              right: -50,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppTheme.primaryBlue.withOpacity(0.15),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
               ),
             ),
+          
+          SafeArea(
+            child: ResponsiveCenter(
+              child: Column(
+                children: [
+                  // 1. Header with Slogan (No Clock)
+                  Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                       Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Text(
+                             t('do_now'),
+                             style: TextStyle(
+                               fontSize: 28,
+                               fontWeight: FontWeight.w900,
+                               letterSpacing: -1.0,
+                               color: isDark ? Colors.white : Colors.black,
+                             ),
+                           ),
+                           const SizedBox(height: 4),
+                           Text(
+                             slogan.toUpperCase(),
+                             style: TextStyle(
+                               fontSize: 12,
+                               fontWeight: FontWeight.w600,
+                               letterSpacing: 2.0,
+                               color: isDark ? Colors.white54 : Colors.grey[400],
+                             ),
+                           ),
+                         ],
+                       ),
+                       // Animated Add Button with Expanding Menu
+                       _AnimatedAddButton(
+                         controller: _addButtonController,
+                         isDark: isDark,
+                         onTap: () => _showTaskModal(context),
+                         onCreateTask: () => _showTaskModal(context),
+                         onQuickFocus: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QuickFocusScreen())),
+                         onDecision: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DecisionScreen())),
+                         ref: ref,
+                       ),
+                    ],
+                  ),
+                ),
             
             // Morning Report Banner (Conditional)
             Consumer(
@@ -203,29 +229,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                       },
                     ),
             ),
-          ],
-        ),
-        ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyState(String Function(String) t) {
-    return Center(
-      child: GestureDetector(
-        onTap: () => _showTaskModal(context),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add, size: 64, color: Colors.grey[200]),
-            const SizedBox(height: 16),
-            Text(
-              t('tap_to_start'),
-              style: TextStyle(color: Colors.grey[400], fontSize: 16),
-            ),
-          ],
-        ),
-      ),
+    return EmptyStateWidget(
+      icon: Icons.add_task_outlined,
+      title: t('tap_to_start'),
+      subtitle: t('no_tasks_today_hint') != 'no_tasks_today_hint' ? t('no_tasks_today_hint') : "今天还没有任务，点击下方按钮开始规划吧",
+      onAction: () => _showTaskModal(context),
+      actionLabel: t('create_task'),
     );
   }
 
@@ -300,24 +319,37 @@ class _SlidableTaskCard extends ConsumerWidget {
 
     if (task.isGenerating) {
        return Container(
-         margin: const EdgeInsets.only(bottom: 16),
-         padding: const EdgeInsets.all(24),
+         margin: const EdgeInsets.only(bottom: 20),
+         padding: const EdgeInsets.all(28),
          decoration: BoxDecoration(
-           color: Theme.of(context).cardColor,
-           borderRadius: BorderRadius.circular(16),
-           border: Border.all(color: isDark ? Colors.transparent : Colors.grey[100]!),
+           color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+           borderRadius: BorderRadius.circular(24),
+           boxShadow: [
+             BoxShadow(
+               color: Colors.black.withOpacity(0.04),
+               blurRadius: 20,
+               offset: const Offset(0, 10),
+             ),
+           ],
          ),
          child: Row(
            children: [
              SizedBox(
                width: 24, height: 24, 
-               child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white : Colors.black),
+               child: CircularProgressIndicator(
+                 strokeWidth: 3, 
+                 valueColor: AlwaysStoppedAnimation<Color>(isDark ? AppTheme.primaryBlue : Colors.black),
+               ),
              ),
-             const SizedBox(width: 16),
+             const SizedBox(width: 20),
              Expanded(
                child: Text(
                  "AI is crafting '${task.title}'...", 
-                 style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)
+                 style: TextStyle(
+                   color: isDark ? Colors.white54 : Colors.grey[600],
+                   fontStyle: FontStyle.italic,
+                   fontWeight: FontWeight.w500,
+                 )
                ),
              ),
            ],
@@ -326,9 +358,13 @@ class _SlidableTaskCard extends ConsumerWidget {
     }
     
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.only(bottom: 20.0),
+      child: GlassContainer(
+        borderRadius: 24,
+        padding: EdgeInsets.zero,
+        opacity: isDark ? 0.08 : 0.4,
+        blur: isDark ? 20 : 10,
+        color: isDark ? Colors.white : Colors.white,
         child: Slidable(
           key: ValueKey(task.id),
           // Swipe to right -> Shows Execute (Green)
@@ -417,35 +453,48 @@ class _SlidableTaskCard extends ConsumerWidget {
               ? () => _showEditSubtasksSheet(context, task, ref) 
               : null,
           child: Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(24),
             ),
             child: Row(
               children: [
                 // Big Time
-                Text(
-                  DateFormat('HH:mm').format(task.scheduledStart),
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w200,
-                    letterSpacing: -1,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('HH').format(task.scheduledStart),
+                      style: TextStyle(
+                        fontSize: 28,
+                        height: 1.0,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    Text(
+                      DateFormat('mm').format(task.scheduledStart),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 24),
+                const SizedBox(width: 28),
                 
                 // Divider
-                Container(width: 1, height: 40, color: isDark ? Colors.white24 : Colors.grey[200]),
-                const SizedBox(width: 24),
+                Container(
+                  width: 4, 
+                  height: 48, 
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 28),
                 
                 // Content
                 Expanded(
@@ -455,23 +504,54 @@ class _SlidableTaskCard extends ConsumerWidget {
                       Text(
                         task.title,
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
                           color: isDark ? Colors.white : Colors.black,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${task.totalDuration.inMinutes} min • ${task.subTasks.length} steps',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[500],
-                        ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.timer_outlined, 
+                            size: 14, 
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${task.totalDuration.inMinutes} min',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.list_alt_outlined, 
+                            size: 14, 
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${task.subTasks.length} steps',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: isDark ? Colors.white12 : Colors.black12,
                 ),
               ],
             ),
