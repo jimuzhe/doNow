@@ -120,3 +120,6 @@ class AutoLandscapeFocusNotifier extends StateNotifier<bool> {
     setEnabled(!state);
   }
 }
+
+// Global Main Screen Index Provider
+final mainTabIndexProvider = StateProvider<int>((ref) => 0);

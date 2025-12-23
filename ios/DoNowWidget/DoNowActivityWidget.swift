@@ -163,19 +163,13 @@ struct DoNowActivityWidget: Widget {
                 
             } compactLeading: {
                 // Compact Leading - Just circular progress
-                TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
-                    DynamicCompactLeadingView(state: context.state, currentDate: timeline.date)
-                }
+                DynamicCompactLeadingView(state: context.state)
             } compactTrailing: {
                 // Compact Trailing - Timer text
-                TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
-                    DynamicCompactTrailingView(state: context.state, currentDate: timeline.date)
-                }
+                DynamicCompactTrailingView(state: context.state)
             } minimal: {
                 // Minimal - Just progress circle
-                TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
-                    DynamicMinimalView(state: context.state, currentDate: timeline.date)
-                }
+                DynamicMinimalView(state: context.state)
             }
         }
     }
@@ -403,13 +397,11 @@ struct DynamicBottomFallbackView: View {
 @available(iOS 16.1, *)
 struct DynamicCompactLeadingView: View {
     let state: DoNowActivityAttributes.ContentState
-    let currentDate: Date
     
     var body: some View {
         let stepInfo = DynamicStepInfo.from(state: state)
         let progress = stepInfo?.progress ?? state.progress
         
-        // Minimal circular progress
         ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
@@ -419,15 +411,14 @@ struct DynamicCompactLeadingView: View {
                 .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
-        .frame(width: 12, height: 12)
-        .frame(maxWidth: 14)
+        .frame(width: 14, height: 14)
+        .fixedSize()
     }
 }
 
 @available(iOS 16.1, *)
 struct DynamicCompactTrailingView: View {
     let state: DoNowActivityAttributes.ContentState
-    let currentDate: Date
     
     // Helper to find current step index - prioritize state.currentStepIndex
     private func getCurrentStepIndex(steps: [StepInfo]) -> Int {
@@ -435,68 +426,70 @@ struct DynamicCompactTrailingView: View {
             return state.currentStepIndex
         }
         
+        let now = Date()
         for (index, step) in steps.enumerated() {
             let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
-            if currentDate >= stepStart && currentDate < step.endTime {
+            if now >= stepStart && now < step.endTime {
                 return index
             }
         }
-        if let lastStep = steps.last, currentDate >= lastStep.endTime {
+        if let lastStep = steps.last, now >= lastStep.endTime {
             return steps.count - 1
         }
         return 0
     }
     
     var body: some View {
-        if let steps = state.steps, !steps.isEmpty {
-            let currentIndex = getCurrentStepIndex(steps: steps)
-            
-            if let lastStep = steps.last, currentDate >= lastStep.endTime {
-                Image(systemName: "checkmark")
-                    .foregroundColor(.green)
-                    .font(.system(size: 10, weight: .bold))
-            } else if currentIndex < steps.count {
-                let step = steps[currentIndex]
-                if step.endTime > currentDate {
-                    Text(timerInterval: currentDate...step.endTime, countsDown: true)
+        Group {
+            if let steps = state.steps, !steps.isEmpty {
+                let currentIndex = getCurrentStepIndex(steps: steps)
+                let now = Date()
+                
+                if let lastStep = steps.last, now >= lastStep.endTime {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(.green)
+                        .font(.system(size: 10, weight: .bold))
+                } else if currentIndex < steps.count {
+                    let step = steps[currentIndex]
+                    if step.endTime > now {
+                        Text(timerInterval: now...step.endTime, countsDown: true)
+                            .monospacedDigit()
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.green)
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                }
+            } else {
+                let now = Date()
+                let stepInfo = DynamicStepInfo.from(state: state)
+                if let info = stepInfo, info.endTime > now {
+                    Text(timerInterval: now...info.endTime, countsDown: true)
                         .monospacedDigit()
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(maxWidth: 40)
                 } else {
                     Image(systemName: "checkmark")
                         .foregroundColor(.green)
                         .font(.system(size: 10, weight: .bold))
                 }
             }
-        } else {
-            let stepInfo = DynamicStepInfo.from(state: state)
-            if let info = stepInfo, info.endTime > currentDate {
-                Text(timerInterval: currentDate...info.endTime, countsDown: true)
-                    .monospacedDigit()
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 40)
-            } else {
-                Image(systemName: "checkmark")
-                    .foregroundColor(.green)
-                    .font(.system(size: 10, weight: .bold))
-            }
         }
+        .frame(width: 40, height: 14, alignment: .trailing)
+        .fixedSize()
     }
 }
 
 @available(iOS 16.1, *)
 struct DynamicMinimalView: View {
     let state: DoNowActivityAttributes.ContentState
-    let currentDate: Date
     
     var body: some View {
-        let stepInfo = DynamicStepInfo.from(state: state)
-        
         // Just circular progress (custom view)
         CircleProgressView(
-            progress: stepInfo?.progress ?? state.progress,
+            progress: DynamicStepInfo.from(state: state)?.progress ?? state.progress,
             tint: .green,
             lineWidth: 2.5
         )

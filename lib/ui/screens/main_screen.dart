@@ -15,7 +15,6 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
-  int _currentIndex = 0;
   bool _isInLandscapeFocus = false; // Track if we navigated to landscape focus
   Orientation? _lastOrientation; // Track previous orientation to detect change
   
@@ -27,9 +26,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   void _onTabTapped(int index) {
     HapticHelper(ref).lightImpact();
-    setState(() {
-      _currentIndex = index;
-    });
+    ref.read(mainTabIndexProvider.notifier).state = index;
   }
   
   void _navigateToQuickFocus() {
@@ -81,9 +78,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     _lastOrientation = orientation;
 
     // Portrait: Standard Tabbed View
+    final currentIndex = ref.watch(mainTabIndexProvider);
+
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: Theme(
@@ -92,7 +91,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           highlightColor: Colors.transparent,
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: currentIndex,
           onTap: _onTabTapped,
           backgroundColor: isDark ? Colors.black : Colors.white,
           elevation: 0, // Flat

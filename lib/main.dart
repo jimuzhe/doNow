@@ -124,31 +124,32 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
   
   /// Handle quick action from app icon long-press
   void _handleQuickAction(String actionType) {
+    debugPrint('[Main] Handling quick action: $actionType');
+    
     final context = navigatorKey.currentContext;
     if (context == null) {
-      // App not ready yet, store for later
       _pendingQuickAction = actionType;
       return;
     }
     
-    // Clear any pending action
     _pendingQuickAction = null;
+    
+    // 1. Ensure we go back to the Home tab and root screen
+    ref.read(mainTabIndexProvider.notifier).state = 0;
+    navigatorKey.currentState?.popUntil((route) => route.isFirst);
     
     switch (actionType) {
       case 'quick_focus':
-        navigatorKey.currentState?.popUntil((route) => route.isFirst);
         navigatorKey.currentState?.push(
           MaterialPageRoute(builder: (_) => const QuickFocusScreen()),
         );
         break;
       case 'decision':
-        navigatorKey.currentState?.popUntil((route) => route.isFirst);
         navigatorKey.currentState?.push(
           MaterialPageRoute(builder: (_) => const DecisionScreen()),
         );
         break;
       case 'create_task':
-        navigatorKey.currentState?.popUntil((route) => route.isFirst);
         final context = navigatorKey.currentContext;
         if (context != null) {
           _showGlobalCreateTask(context);

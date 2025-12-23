@@ -26,7 +26,8 @@ class QuickActionsService {
 
     const quickActions = QuickActions();
     
-    // items are now defined statically in Info.plist (iOS) to avoid duplication.
+    // Clear any existing dynamic shortcuts to avoid duplication with static ones defined in Info.plist
+    quickActions.setShortcutItems([]);
     
     // Handle when user taps a quick action
     quickActions.initialize((String shortcutType) {
