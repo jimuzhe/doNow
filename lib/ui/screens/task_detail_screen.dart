@@ -20,7 +20,7 @@ import '../widgets/responsive_center.dart';
 import '../widgets/task_completion_sheet.dart';
 import '../widgets/task_completion_sheet.dart';
 import '../widgets/focus_sound_sheet.dart';
-import '../widgets/white_background_remover.dart';
+import '../widgets/achievement_badge.dart';
 
 
 
@@ -406,7 +406,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF6C63FF) : Colors.black.withOpacity(0.9),
+              color: isDark ? const Color(0xFF2C2C2E) : Colors.black.withOpacity(0.9),
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))
@@ -415,17 +415,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
             child: Row(
               mainAxisSize: MainAxisSize.min, // Shrink wrap width
               children: [
-                achievement.icon.startsWith('http') 
-                  ? WhiteBackgroundRemover(
-                      child: Image.network(
-                        kIsWeb 
-                          ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                          : achievement.icon,
-                        width: 28, height: 28, fit: BoxFit.contain, 
-                        errorBuilder: (_,__,___) => const Icon(Icons.star, color: Colors.amber),
-                      ),
-                    )
-                  : Text(achievement.icon, style: const TextStyle(fontSize: 24)),
+                AchievementBadge(
+                  icon: achievement.icon,
+                  size: 28,
+                  showBackground: false,
+                ),
                 const SizedBox(width: 12),
                 Flexible( // Use Flexible to allow wrapping if text is super long, though min width is desired
                   child: Column(

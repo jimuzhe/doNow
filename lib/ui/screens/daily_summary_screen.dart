@@ -71,9 +71,10 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
 
     try {
       final aiService = ref.read(aiServiceProvider);
+      final locale = ref.read(localeProvider);
       
-      // Use generateDailySummary method
-      final result = await aiService.generateDailySummary(allTasks, widget.date);
+      // Use generateDailySummary method with locale
+      final result = await aiService.generateDailySummary(allTasks, widget.date, locale: locale);
       
       setState(() {
         _summary = result.summary;
@@ -99,7 +100,7 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
     
-    final dateStr = DateFormat('EEEE, MMM d, yyyy').format(widget.date);
+    final dateStr = DateFormat('EEEE, MMM d, yyyy', locale == 'zh' ? 'zh_CN' : 'en_US').format(widget.date);
     
     // Get tasks for this day
     final allTasks = ref.watch(taskListProvider);
@@ -161,7 +162,7 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
                   label: t('completed'),
                   value: '$completedCount',
                   icon: Icons.check_circle,
-                  color: Colors.green,
+                  color: isDark ? Colors.teal[300]! : Colors.teal[600]!,
                   isDark: isDark,
                 ),
                 const SizedBox(width: 12),
@@ -169,15 +170,15 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
                   label: t('abandoned'),
                   value: '$abandonedCount',
                   icon: Icons.cancel,
-                  color: Colors.red,
+                  color: isDark ? Colors.pink[300]! : Colors.pink[600]!,
                   isDark: isDark,
                 ),
                 const SizedBox(width: 12),
                 _QuickStat(
                   label: t('focus_time'),
-                  value: '${totalMinutes}m',
+                  value: '${totalMinutes}${t('minutes')}',
                   icon: Icons.timer,
-                  color: Colors.blue,
+                  color: isDark ? Colors.indigo[300]! : Colors.indigo[600]!,
                   isDark: isDark,
                 ),
               ],
@@ -196,12 +197,40 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              _FocusBreakdownChart(dayTasks: dayTasks, isDark: isDark),
+              _FocusBreakdownChart(dayTasks: dayTasks, isDark: isDark, locale: locale),
               const SizedBox(height: 32),
             ],
             
             // AI Summary Section
             _buildAISummarySection(isDark, t),
+
+            const SizedBox(height: 32),
+
+            // Task List Section
+            if (dayTasks.isNotEmpty) ...[
+               Row(
+                 children: [
+                   Icon(Icons.list_alt, color: isDark ? Colors.white38 : Colors.black38, size: 20),
+                   const SizedBox(width: 8),
+                   Text(
+                    locale == 'zh' ? '事项清单' : 'Tasks',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                 ],
+               ),
+              const SizedBox(height: 16),
+              ...dayTasks.map((task) => _TaskSummaryCard(
+                task: task,
+                isDark: isDark,
+                locale: locale,
+              )),
+              const SizedBox(height: 32),
+            ],
           ],
         ),
       ),
@@ -213,14 +242,9 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark 
-                ? [Colors.purple[900]!, Colors.blue[900]!]
-                : [Colors.purple[50]!, Colors.blue[50]!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
         ),
         child: Column(
           children: [
@@ -279,33 +303,36 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark 
-              ? [Colors.purple[900]!, Colors.blue[900]!]
-              : [Colors.purple[50]!, Colors.blue[50]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Colors.purple.withOpacity(0.2),
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
         ),
+        boxShadow: [
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 20),
+              Icon(Icons.auto_awesome, color: AppTheme.primaryBlue, size: 20),
               const SizedBox(width: 8),
               Text(
                 t('ai_insight'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.purpleAccent,
+                  color: AppTheme.primaryBlue,
                   fontSize: 14,
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
@@ -388,11 +415,13 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
 class _FocusBreakdownChart extends StatelessWidget {
   final List<Task> dayTasks;
   final bool isDark;
+  final String locale;
 
-  const _FocusBreakdownChart({required this.dayTasks, required this.isDark});
+  const _FocusBreakdownChart({required this.dayTasks, required this.isDark, required this.locale});
 
   @override
   Widget build(BuildContext context) {
+    String t(String key) => AppStrings.get(key, locale);
     final completedTasks = dayTasks.where((t) => t.isCompleted && t.actualDuration != null).toList();
     if (completedTasks.isEmpty) return const SizedBox();
 
@@ -410,14 +439,21 @@ class _FocusBreakdownChart extends StatelessWidget {
     // Sort by duration descending
     final sortedEntries = groupedMinutes.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     
-    // List of premium colors
-    final colors = [
-      AppTheme.primaryBlue,
-      Colors.purpleAccent,
-      Colors.tealAccent[400]!,
-      Colors.orangeAccent,
-      Colors.pinkAccent,
-      Colors.indigoAccent,
+    // List of premium, ultra-muted colors
+    final colors = isDark ? [
+      const Color(0xFF94A3B8), // Slate
+      const Color(0xFF818CF8), // Indigo
+      const Color(0xFF2DD4BF), // Teal
+      const Color(0xFFF472B6), // Pink
+      const Color(0xFFFB923C), // Orange
+      const Color(0xFFA78BFA), // Purple
+    ].map((c) => c.withOpacity(0.4)).toList() : [
+      const Color(0xFF64748B),
+      const Color(0xFF6366F1),
+      const Color(0xFF14B8A6),
+      const Color(0xFFEC4899),
+      const Color(0xFFF97316),
+      const Color(0xFF8B5CF6),
     ];
 
     final totalMinutes = groupedMinutes.values.fold(0, (sum, m) => sum + m);
@@ -425,7 +461,7 @@ class _FocusBreakdownChart extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[900] : Colors.white,
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
         boxShadow: [
@@ -490,7 +526,9 @@ class _FocusBreakdownChart extends StatelessWidget {
               sortedEntries.length > 5 ? 6 : sortedEntries.length,
               (index) {
                 final isOthers = index == 5 && sortedEntries.length > 6;
-                final label = isOthers ? "Others" : sortedEntries[index].key;
+                final label = isOthers 
+                    ? (Localizations.maybeLocaleOf(context)?.languageCode == 'zh' ? '其他' : "Others") 
+                    : sortedEntries[index].key;
                 final color = isOthers ? Colors.grey : colors[index % colors.length];
                 final mins = isOthers 
                   ? sortedEntries.skip(5).fold(0, (sum, e) => sum + e.value)
@@ -509,7 +547,7 @@ class _FocusBreakdownChart extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      "$label (${mins}m)",
+                      "$label (${mins}${t('minutes')})",
                       style: TextStyle(
                         fontSize: 12,
                         color: isDark ? Colors.white70 : Colors.black87,
@@ -548,10 +586,10 @@ class _QuickStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[900] : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.06),
           ),
         ),
         child: Column(
@@ -585,13 +623,16 @@ class _QuickStat extends StatelessWidget {
 class _TaskSummaryCard extends StatelessWidget {
   final Task task;
   final bool isDark;
+  final String locale;
 
-  const _TaskSummaryCard({required this.task, required this.isDark});
+  const _TaskSummaryCard({required this.task, required this.isDark, required this.locale});
 
   @override
   Widget build(BuildContext context) {
     final statusColor = task.isCompleted ? Colors.green : Colors.red;
-    final statusText = task.isCompleted ? 'Completed' : 'Abandoned';
+    final statusText = task.isCompleted 
+        ? AppStrings.get('completed', locale) 
+        : AppStrings.get('abandoned', locale);
     
     // Time difference
     String? timeDiff;
@@ -608,10 +649,10 @@ class _TaskSummaryCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[900] : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.06),
         ),
       ),
       child: Row(
@@ -658,7 +699,7 @@ class _TaskSummaryCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${task.totalDuration.inMinutes}m planned',
+                      '${task.totalDuration.inMinutes}m ${locale == 'zh' ? '计划' : 'planned'}',
                       style: TextStyle(
                         fontSize: 12,
                         color: isDark ? Colors.white54 : Colors.grey[600],

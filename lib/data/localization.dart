@@ -341,6 +341,15 @@ class AppStrings {
       'achievement_details': 'Achievement Details',
       'unlocked_at': 'Unlocked at',
       'task_complete': 'Task Complete!',
+      'today': 'Today',
+      'planning': 'Planning',
+      'venting': 'Venting',
+      'tree_hole_title': 'TREE HOLE',
+      'hold_to_speak': 'Hold to speak...',
+      'write_thoughts': 'What\'s on your mind?',
+      'venting_recorded': 'Your thoughts are now safe in the tree hole.',
+      'tap_to_write': 'Tap to write',
+      'release_to_send': 'Release to send',
     },
     'zh': {
       'home': '首页',
@@ -633,6 +642,15 @@ class AppStrings {
       'achievement_details': '成就详情',
       'unlocked_at': '解锁于',
       'task_complete': '任务完成！',
+      'today': '执行',
+      'planning': '规划',
+      'venting': '大声倾诉',
+      'tree_hole_title': '秘密树洞',
+      'hold_to_speak': '长按麦克风倾诉...',
+      'write_thoughts': '写下你的烦心事...',
+      'venting_recorded': '你的心事已寄存在树洞中',
+      'tap_to_write': '切换文本输入',
+      'release_to_send': '松开倾诉',
     }
   };
 

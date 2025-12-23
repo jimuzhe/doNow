@@ -257,13 +257,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             const SizedBox(height: 24),
 
             // 3. Calendar
-            _buildCalendar(allTasks, isDark, theme),
+            _buildCalendar(allTasks, isDark, theme, locale),
             
             const SizedBox(height: 16),
 
             
             // 4. Timeline for Selected Day
-            _buildSelectedDayTimeline(tasksForSelectedDay, t, isDark),
+            _buildSelectedDayTimeline(tasksForSelectedDay, t, isDark, locale),
             
             const SizedBox(height: 24),
           ],
@@ -350,7 +350,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     );
   }
 
-  Widget _buildCalendar(List<Task> allTasks, bool isDark, ThemeData theme) {
+  Widget _buildCalendar(List<Task> allTasks, bool isDark, ThemeData theme, String locale) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.only(bottom: 8),
@@ -373,6 +373,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         lastDay: DateTime.utc(2030, 12, 31),
         focusedDay: _focusedDay,
         currentDay: DateTime.now(),
+        locale: locale == 'zh' ? 'zh_CN' : 'en_US',
         calendarFormat: _calendarFormat,
         selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
         onDaySelected: (selectedDay, focusedDay) {
@@ -473,13 +474,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     );
   }
 
-  Widget _buildSelectedDayTimeline(List<Task> tasks, String Function(String) t, bool isDark) {
+  Widget _buildSelectedDayTimeline(List<Task> tasks, String Function(String) t, bool isDark, String locale) {
     // Removed conditional _showDailySummary display here as per instruction
     // The DailySummary is now accessed only via the AppBar icon.
 
-    final dateStr = DateFormat('MMM d, yyyy').format(_selectedDay!);
+    final dateStr = DateFormat('MMM d, yyyy', locale == 'zh' ? 'zh_CN' : 'en_US').format(_selectedDay!);
     final isToday = DateUtils.isSameDay(_selectedDay, DateTime.now());
-    final locale = ref.watch(localeProvider);
     
     return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -684,23 +684,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   void _openDailySummary(DateTime date) {
     HapticHelper(ref).mediumImpact();
 
-    // Check availability logic: Summary for 'date' is generated on 'date + 1' at 8:00 AM.
-    final now = DateTime.now();
-    final generationThreshold = DateTime(date.year, date.month, date.day + 1, 8, 0);
-
-    // If attempting to view summary before it's ready
-    if (now.isBefore(generationThreshold)) {
-      final locale = ref.read(localeProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppStrings.get('daily_summary_too_early', locale)),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.black87,
-        ),
-      );
-      return;
-    }
+    // Restriction removed as per user request to allow anytime access
 
     Navigator.push(
       context,

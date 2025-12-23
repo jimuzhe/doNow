@@ -16,7 +16,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:io';
 import 'achievements_screen.dart';
-import '../widgets/white_background_remover.dart';
+import '../widgets/achievement_badge.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -34,15 +34,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _handleVersionTap() {
     final now = DateTime.now();
-    
+
     // Reset count if more than 1 second between taps
-    if (_lastTapTime != null && now.difference(_lastTapTime!) > const Duration(seconds: 1)) {
+    if (_lastTapTime != null &&
+        now.difference(_lastTapTime!) > const Duration(seconds: 1)) {
       _versionTapCount = 0;
     }
-    
+
     _lastTapTime = now;
     _versionTapCount++;
-    
+
     if (_versionTapCount >= 3) {
       setState(() {
         _showAIConfig = !_showAIConfig;
@@ -51,7 +52,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       HapticHelper(ref).mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_showAIConfig ? 'Developer options enabled' : 'Developer options disabled'),
+          content: Text(
+            _showAIConfig
+                ? 'Developer options enabled'
+                : 'Developer options disabled',
+          ),
           duration: const Duration(seconds: 1),
         ),
       );
@@ -64,543 +69,613 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final locale = ref.watch(localeProvider);
     final isChinese = locale == 'zh';
     final themeMode = ref.watch(themeModeProvider);
-    
+
     // Theme references
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     // Providers
     final gamificationState = ref.watch(gamificationServiceProvider);
     final authService = ref.watch(authServiceProvider);
     final user = authService.currentUser;
 
     String t(String key) => AppStrings.get(key, locale);
-    
+
     // Section Header Style
     final sectionHeaderStyle = TextStyle(
-      fontSize: 14, 
-      fontWeight: FontWeight.bold, 
+      fontSize: 14,
+      fontWeight: FontWeight.bold,
       color: isDark ? Colors.grey[400] : Colors.grey[600],
       letterSpacing: 1.0,
     );
 
-    final displayNameStyle = isChinese
-        ? theme.textTheme.titleLarge?.copyWith(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black,
-              letterSpacing: 1.0,
-            ) ??
-            TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black,
-              letterSpacing: 1.0,
-            )
-        : GoogleFonts.dotGothic16(
+    final displayNameStyle = GoogleFonts.dotGothic16(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: isDark ? Colors.white : Colors.black,
             letterSpacing: 1.0,
           ).copyWith(
-            fontFamilyFallback: const ['Roboto', 'PingFang SC', 'Noto Sans CJK', 'sans-serif'],
+            fontFamilyFallback: const [
+              'Roboto',
+              'PingFang SC',
+              'Noto Sans CJK',
+              'sans-serif',
+            ],
           );
 
-    final levelBadgeStyle = isChinese
-        ? theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8),
-            ) ??
-            TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8),
-            )
-        : GoogleFonts.dotGothic16(
+    final levelBadgeStyle = GoogleFonts.dotGothic16(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8),
+            color: isDark
+                ? Colors.white.withOpacity(0.9)
+                : Colors.black.withOpacity(0.8),
           ).copyWith(
-            fontFamilyFallback: const ['Roboto', 'PingFang SC', 'Noto Sans CJK', 'sans-serif'],
+            fontFamilyFallback: const [
+              'Roboto',
+              'PingFang SC',
+              'Noto Sans CJK',
+              'sans-serif',
+            ],
           );
 
-    final levelTitleStyle = isChinese
-        ? theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ) ??
-            TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            )
-        : GoogleFonts.dotGothic16(
+    final levelTitleStyle = GoogleFonts.dotGothic16(
             fontSize: 14,
             color: Colors.grey[500],
           ).copyWith(
-            fontFamilyFallback: const ['Roboto', 'PingFang SC', 'Noto Sans CJK', 'sans-serif'],
+            fontFamilyFallback: const [
+              'Roboto',
+              'PingFang SC',
+              'Noto Sans CJK',
+              'sans-serif',
+            ],
           );
 
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 48.0),
-              child: Column(
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 48.0),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                // === 1. Header & Profile ===
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      t('me_title') == 'me_title' ? 'Me' : t('me_title'), // Fallback if key missing
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.0,
-                            color: isDark ? Colors.white : Colors.black,
-                          ) ??
-                          TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.0,
-                            color: isDark ? Colors.white : Colors.black,
-                          ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                
-                // Minimal Profile Card + Gamification
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: isDark ? Colors.white30 : Colors.black.withOpacity(0.05),
-                      width: 1,
-                    ),
-                    boxShadow: !isDark ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      )
-                    ] : null,
-                  ),
-                  child: Column(
+                  // === 1. Header & Profile ===
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          width: 64,
-                          height: 64,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDark ? Colors.grey[800] : Colors.grey[200],
-                          ),
-                          child: (user?.avatarUrl != null)
-                              ? (user!.avatarUrl!.startsWith('http')
-                                  ? CachedNetworkImage(
-                                      imageUrl: kIsWeb
-                                          ? 'https://corsproxy.io/?${Uri.encodeComponent(user.avatarUrl!)}'
-                                          : user.avatarUrl!,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Center(
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: isDark ? Colors.white24 : Colors.black12,
-                                            ),
-                                          ),
-                                      errorWidget: (context, url, error) => Icon(
-                                            Icons.person,
-                                            size: 32,
-                                            color: isDark ? Colors.white54 : Colors.grey[400],
-                                          ),
-                                    )
-                                  : Image.file(
-                                      File(user.avatarUrl!),
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                            Icons.person,
-                                            size: 32,
-                                            color: isDark ? Colors.white54 : Colors.grey[400],
-                                          ),
-                                    ))
-                              : Icon(
-                                  Icons.person,
-                                  size: 32,
-                                  color: isDark ? Colors.white54 : Colors.grey[400],
-                                ),
-                        ),
-                        title: Text(
-                          user?.displayName?.trim().isNotEmpty == true
-                              ? user!.displayName!
-                              : t('traveler'),
-                          style: displayNameStyle,
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  "Lv.${gamificationState.level}",
-                                  style: levelBadgeStyle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  gamificationState.levelTitle,
-                                  style: levelTitleStyle,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        trailing: IconButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const AchievementsScreen()),
-                            );
-                          },
-                          icon: Icon(
-                            Icons.emoji_events_outlined,
-                            color: isDark ? Colors.amber[300] : Colors.amber[600],
-                            size: 32,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-                      
-                      // Achievements Preview (Moved Up & No Background)
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AchievementsScreen()),
-                          );
-                        },
-                        child: Container(
-                           width: double.infinity,
-                           padding: const EdgeInsets.only(bottom: 4), // Reduced spacing below
-                           // Removed decoration/background
-                           child: Wrap(
-                             spacing: 8,
-                             runSpacing: 8,
-                             children: [
-                               // Only show unlocked badges here
-                               if (gamificationState.achievements.where((a) => a.isUnlocked).isNotEmpty)
-                                 ...gamificationState.achievements
-                                     .where((a) => a.isUnlocked)
-                                     .take(5) // Show max 5
-                                     .map((a) {
-                                        final cleanIcon = a.icon.trim();
-                                        final isUrl = cleanIcon.toLowerCase().startsWith('http');
-                                        return isUrl
-                                          ? SizedBox(
-                                              width: 32, height: 32,
-                                              child: WhiteBackgroundRemover(
-                                                child: CachedNetworkImage(
-                                                   imageUrl: kIsWeb 
-                                                      ? 'https://corsproxy.io/?${Uri.encodeComponent(cleanIcon)}' 
-                                                      : cleanIcon,
-                                                   fit: BoxFit.contain,
-                                                   placeholder: (context, url) => Container(
-                                                     width: 16, height: 16,
-                                                     decoration: BoxDecoration(
-                                                       color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                                                       shape: BoxShape.circle,
-                                                     ),
-                                                   ),
-                                                   errorWidget: (context, url, error) => const Icon(Icons.error, size: 16),
-                                                ),
-                                              ),
-                                            )
-                                          : Text(a.icon, style: const TextStyle(fontSize: 24));
-                                     }),
-                             ],
-                           ),
-                        ),
-                      ),
-
-                      // Stats Row
-                      // XP Progress
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t('xp_progress'), 
-                            style: TextStyle(
-                              fontSize: 12, 
-                              fontWeight: FontWeight.bold, 
-                              color: Colors.grey[500], 
-                              letterSpacing: 1
+                      Text(
+                        t('me_title') == 'me_title'
+                            ? 'Me'
+                            : t('me_title'), // Fallback if key missing
+                        style:
+                            theme.textTheme.headlineMedium?.copyWith(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1.0,
+                              color: isDark ? Colors.white : Colors.black,
+                            ) ??
+                            TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1.0,
+                              color: isDark ? Colors.white : Colors.black,
                             ),
-                          ),
-
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: gamificationState.progressToNextLevel,
-                              minHeight: 6,
-                              backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-                              valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "${gamificationState.currentXp} / ${gamificationState.xpToNextLevel} XP",
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                          ),
-                        ],
                       ),
                     ],
                   ),
-                ),
-                
-                const SizedBox(height: 16), // Reduced from 40
-                
-                // === 2. Preferences ===
-                const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                // === 2. Preferences Group ===
-                _buildSettingsGroup(
-                  context,
-                  title: t('preferences'),
-                  children: [
-                    _SettingsTile(
-                      icon: themeMode == ThemeMode.system 
-                          ? Icons.brightness_auto 
-                          : (isDark ? Icons.dark_mode : Icons.light_mode),
-                      title: t('theme'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                           _ThemeOption(icon: Icons.light_mode, isSelected: themeMode == ThemeMode.light, onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light), isDark: isDark),
-                           _ThemeOption(icon: Icons.brightness_auto, isSelected: themeMode == ThemeMode.system, onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system), isDark: isDark),
-                           _ThemeOption(icon: Icons.dark_mode, isSelected: themeMode == ThemeMode.dark, onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark), isDark: isDark),
-                        ],
+                  // Minimal Profile Card + Gamification
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white30
+                            : Colors.black.withOpacity(0.05),
+                        width: 1,
                       ),
+                      boxShadow: !isDark
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 20,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : null,
                     ),
-                    _SettingsTile(
-                      icon: Icons.language,
-                      title: t('language'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _LanguageOption(
-                            text: "EN", 
-                            isSelected: !isChinese, 
-                            onTap: () {
-                              ref.read(localeProvider.notifier).setLocale('en');
-                              // Refresh home widget with new locale
-                              ref.read(taskListProvider.notifier).refreshWidget();
-                            }, 
-                            isDark: isDark
+                    child: Column(
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Container(
+                            width: 64,
+                            height: 64,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark
+                                  ? Colors.grey[800]
+                                  : Colors.grey[200],
+                            ),
+                            child: (user?.avatarUrl != null)
+                                ? (user!.avatarUrl!.startsWith('http')
+                                      ? CachedNetworkImage(
+                                          imageUrl: kIsWeb
+                                              ? 'https://corsproxy.io/?${Uri.encodeComponent(user.avatarUrl!)}'
+                                              : user.avatarUrl!,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: isDark
+                                                  ? Colors.white24
+                                                  : Colors.black12,
+                                            ),
+                                          ),
+                                          errorWidget: (context, url, error) =>
+                                              Icon(
+                                                Icons.person,
+                                                size: 32,
+                                                color: isDark
+                                                    ? Colors.white54
+                                                    : Colors.grey[400],
+                                              ),
+                                        )
+                                      : Image.file(
+                                          File(user.avatarUrl!),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Icon(
+                                            Icons.person,
+                                            size: 32,
+                                            color: isDark
+                                                ? Colors.white54
+                                                : Colors.grey[400],
+                                          ),
+                                        ))
+                                : Icon(
+                                    Icons.person,
+                                    size: 32,
+                                    color: isDark
+                                        ? Colors.white54
+                                        : Colors.grey[400],
+                                  ),
                           ),
-                          const SizedBox(width: 4),
-                          _LanguageOption(
-                            text: "中文", 
-                            isSelected: isChinese, 
-                            onTap: () {
-                              ref.read(localeProvider.notifier).setLocale('zh');
-                              // Refresh home widget with new locale
-                              ref.read(taskListProvider.notifier).refreshWidget();
-                            }, 
-                            isDark: isDark
+                          title: Text(
+                            user?.displayName?.trim().isNotEmpty == true
+                                ? user!.displayName!
+                                : t('traveler'),
+                            style: displayNameStyle,
                           ),
-                        ],
-                      ),
-                    ),
-                    _SettingsTile(
-                      icon: Icons.screen_rotation,
-                      title: t('auto_focus_landscape'),
-                      subtitle: t('auto_focus_landscape_desc'),
-                      trailing: Consumer(
-                        builder: (context, ref, _) {
-                          final enabled = ref.watch(autoLandscapeFocusProvider);
-                          return Switch(
-                            value: enabled,
-                            onChanged: (value) {
-                              ref.read(autoLandscapeFocusProvider.notifier).setEnabled(value);
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        (isDark ? Colors.white : Colors.black)
+                                            .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    "Lv.${gamificationState.level}",
+                                    style: levelBadgeStyle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    gamificationState.levelTitle,
+                                    style: levelTitleStyle,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          trailing: IconButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AchievementsScreen(),
+                                ),
+                              );
                             },
-                            activeColor: isDark ? Colors.white : Colors.black,
-                            activeTrackColor: isDark ? Colors.white38 : Colors.black38,
-                          );
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: Icon(
+                              Icons.emoji_events_outlined,
+                              color: isDark
+                                  ? Colors.amber[300]
+                                  : Colors.amber[600],
+                              size: 44, // Increased from 32
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Achievements Preview (Moved Up & No Background)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AchievementsScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.only(
+                              bottom: 4,
+                            ), // Reduced spacing below
+                            // Removed decoration/background
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                // Only show unlocked badges here
+                                if (gamificationState.achievements.isNotEmpty)
+                                  ...gamificationState.achievements
+                                      .where((a) => a.isUnlocked && a.icon.isNotEmpty)
+                                      .take(5)
+                                      .map((a) {
+                                        return AchievementBadge(
+                                          icon: a.icon,
+                                          size: 32,
+                                          isUnlocked: true,
+                                        );
+                                      }),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Stats Row
+                        // XP Progress
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              t('xp_progress'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[500],
+                                letterSpacing: 1,
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: gamificationState.progressToNextLevel,
+                                minHeight: 6,
+                                backgroundColor: isDark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isDark ? Colors.white : Colors.black,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "${gamificationState.currentXp} / ${gamificationState.xpToNextLevel} XP",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16), // Reduced from 40
+                  // === 2. Preferences ===
+                  const SizedBox(height: 32),
+
+                  // === 2. Preferences Group ===
+                  _buildSettingsGroup(
+                    context,
+                    title: t('preferences'),
+                    children: [
+                      _SettingsTile(
+                        icon: themeMode == ThemeMode.system
+                            ? Icons.brightness_auto
+                            : (isDark ? Icons.dark_mode : Icons.light_mode),
+                        title: t('theme'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _ThemeOption(
+                              icon: Icons.light_mode,
+                              isSelected: themeMode == ThemeMode.light,
+                              onTap: () => ref
+                                  .read(themeModeProvider.notifier)
+                                  .setThemeMode(ThemeMode.light),
+                              isDark: isDark,
+                            ),
+                            _ThemeOption(
+                              icon: Icons.brightness_auto,
+                              isSelected: themeMode == ThemeMode.system,
+                              onTap: () => ref
+                                  .read(themeModeProvider.notifier)
+                                  .setThemeMode(ThemeMode.system),
+                              isDark: isDark,
+                            ),
+                            _ThemeOption(
+                              icon: Icons.dark_mode,
+                              isSelected: themeMode == ThemeMode.dark,
+                              onTap: () => ref
+                                  .read(themeModeProvider.notifier)
+                                  .setThemeMode(ThemeMode.dark),
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _SettingsTile(
+                        icon: Icons.language,
+                        title: t('language'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _LanguageOption(
+                              text: "EN",
+                              isSelected: !isChinese,
+                              onTap: () {
+                                ref
+                                    .read(localeProvider.notifier)
+                                    .setLocale('en');
+                                // Refresh home widget with new locale
+                                ref
+                                    .read(taskListProvider.notifier)
+                                    .refreshWidget();
+                              },
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 4),
+                            _LanguageOption(
+                              text: "中文",
+                              isSelected: isChinese,
+                              onTap: () {
+                                ref
+                                    .read(localeProvider.notifier)
+                                    .setLocale('zh');
+                                // Refresh home widget with new locale
+                                ref
+                                    .read(taskListProvider.notifier)
+                                    .refreshWidget();
+                              },
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _SettingsTile(
+                        icon: Icons.screen_rotation,
+                        title: t('auto_focus_landscape'),
+                        subtitle: t('auto_focus_landscape_desc'),
+                        trailing: Consumer(
+                          builder: (context, ref, _) {
+                            final enabled = ref.watch(
+                              autoLandscapeFocusProvider,
+                            );
+                            return Switch(
+                              value: enabled,
+                              onChanged: (value) {
+                                ref
+                                    .read(autoLandscapeFocusProvider.notifier)
+                                    .setEnabled(value);
+                              },
+                              activeColor: isDark ? Colors.white : Colors.black,
+                              activeTrackColor: isDark
+                                  ? Colors.white38
+                                  : Colors.black38,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _VibrationIntensityTile(isDark: isDark),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // === 3. Intelligence Group ===
+                  _buildSettingsGroup(
+                    context,
+                    title: t('intelligence'),
+                    children: [_CollapsibleAIPersonaTile(isDark: isDark)],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // === 4. Account Group ===
+                  _buildSettingsGroup(
+                    context,
+                    title: t('account_group'),
+                    children: [
+                      _SettingsTile(
+                        icon: Icons.edit_note,
+                        title: t('edit_profile'),
+                        onTap: () {
+                          if (user != null)
+                            _showEditProfileModal(context, ref, user);
                         },
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    _VibrationIntensityTile(isDark: isDark),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // === 3. Intelligence Group ===
-                _buildSettingsGroup(
-                  context,
-                  title: t('intelligence'),
-                  children: [
-                    _CollapsibleAIPersonaTile(isDark: isDark),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // === 4. Account Group ===
-                _buildSettingsGroup(
-                  context, 
-                  title: t('account_group'),
-                  children: [
-                     _SettingsTile(
-                      icon: Icons.edit_note,
-                      title: t('edit_profile'),
-                      onTap: () {
-                         if (user != null) _showEditProfileModal(context, ref, user);
-                      },
-                    ),
-                     _SettingsTile(
-                      icon: Icons.delete_outline,
-                      title: t('clear_data'),
-                      onTap: () => _showClearDataConfirmation(context, ref),
-                    ),
-                    _SettingsTile(
-                       icon: Icons.logout,
-                       title: t('sign_out'),
-                       textColor: Colors.red,
-                       iconColor: Colors.red,
-                       onTap: () async {
+                      _SettingsTile(
+                        icon: Icons.delete_outline,
+                        title: t('clear_data'),
+                        onTap: () => _showClearDataConfirmation(context, ref),
+                      ),
+                      _SettingsTile(
+                        icon: Icons.logout,
+                        title: t('sign_out'),
+                        textColor: Colors.red,
+                        iconColor: Colors.red,
+                        onTap: () async {
                           final shouldLogout = await showDialog<bool>(
                             context: context,
                             builder: (context) => CustomDialog(
                               title: t('confirm_sign_out_title'),
                               content: t('confirm_sign_out_content'),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('cancel'))),
-                                TextButton(onPressed: () => Navigator.pop(context, true), child: Text(t('sign_out'), style: const TextStyle(color: Colors.red))),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: Text(t('cancel')),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: Text(
+                                    t('sign_out'),
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                                ),
                               ],
                             ),
                           );
                           if (shouldLogout == true) {
                             await authService.signOut();
                           }
-                       },
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
+                        },
+                      ),
+                    ],
+                  ),
 
-                // === 5. App Group ===
-                _buildSettingsGroup(
-                  context,
-                  title: t('app_group'),
-                  children: [
-                    _SettingsTile(
-                      icon: Icons.feedback_outlined,
-                      title: t('feedback'),
-                      onTap: () => _showFeedbackModal(context, ref),
-                    ),
-                    _SettingsTile(
-                      icon: Icons.info_outline,
-                      title: t('about'),
-                      onTap: () => _showAboutModal(context, ref),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                 // Beta Features
-                 _buildSettingsGroup(
-                   context,
-                   title: t('beta_features'),
-                   children: [
-                     Consumer(
+                  const SizedBox(height: 16),
+
+                  // === 5. App Group ===
+                  _buildSettingsGroup(
+                    context,
+                    title: t('app_group'),
+                    children: [
+                      _SettingsTile(
+                        icon: Icons.feedback_outlined,
+                        title: t('feedback'),
+                        onTap: () => _showFeedbackModal(context, ref),
+                      ),
+                      _SettingsTile(
+                        icon: Icons.info_outline,
+                        title: t('about'),
+                        onTap: () => _showAboutModal(context, ref),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Beta Features
+                  _buildSettingsGroup(
+                    context,
+                    title: t('beta_features'),
+                    children: [
+                      Consumer(
                         builder: (context, ref, _) {
                           // We need to watch a provider, but we added it to providers.dart
                           // Let's assume it's available as morningReportEnabledProvider
-                          final enabled = ref.watch(morningReportEnabledProvider);
+                          final enabled = ref.watch(
+                            morningReportEnabledProvider,
+                          );
                           return _SettingsTile(
                             icon: Icons.newspaper_outlined,
                             title: t('morning_report'),
                             trailing: Switch(
                               value: enabled,
                               onChanged: (value) {
-                                ref.read(morningReportEnabledProvider.notifier).toggle();
+                                ref
+                                    .read(morningReportEnabledProvider.notifier)
+                                    .toggle();
                               },
                               activeColor: isDark ? Colors.white : Colors.black,
-                              activeTrackColor: isDark ? Colors.white38 : Colors.black38,
+                              activeTrackColor: isDark
+                                  ? Colors.white38
+                                  : Colors.black38,
                             ),
                           );
                         },
                       ),
-                   ],
-                 ),
+                    ],
+                  ),
 
-                // Dev Options
-                if (_showAIConfig) ...[
-                   const SizedBox(height: 16),
-                   _buildSettingsGroup(
-                     context,
-                     title: t('developer_group'),
-                     children: [
+                  // Dev Options
+                  if (_showAIConfig) ...[
+                    const SizedBox(height: 16),
+                    _buildSettingsGroup(
+                      context,
+                      title: t('developer_group'),
+                      children: [
                         _SettingsTile(
-                        icon: Icons.psychology_outlined,
-                        title: t('ai_config'),
-                        onTap: () => _showAiConfigModal(context, ref),
-                      ),
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final debugEnabled = ref.watch(debugLogEnabledProvider);
-                          return _SettingsTile(
-                            icon: Icons.bug_report,
-                            title: t('debug_logs'),
-                            trailing: Switch(
-                              value: debugEnabled,
-                              onChanged: (value) => ref.read(debugLogEnabledProvider.notifier).state = value,
-                              activeColor: isDark ? Colors.white : Colors.black,
-                              activeTrackColor: isDark ? Colors.white38 : Colors.black38,
-                            ),
-                          );
-                        },
-                      ),
-                     ],
-                   ),
-                ],
+                          icon: Icons.psychology_outlined,
+                          title: t('ai_config'),
+                          onTap: () => _showAiConfigModal(context, ref),
+                        ),
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final debugEnabled = ref.watch(
+                              debugLogEnabledProvider,
+                            );
+                            return _SettingsTile(
+                              icon: Icons.bug_report,
+                              title: t('debug_logs'),
+                              trailing: Switch(
+                                value: debugEnabled,
+                                onChanged: (value) =>
+                                    ref
+                                            .read(
+                                              debugLogEnabledProvider.notifier,
+                                            )
+                                            .state =
+                                        value,
+                                activeColor: isDark
+                                    ? Colors.white
+                                    : Colors.black,
+                                activeTrackColor: isDark
+                                    ? Colors.white38
+                                    : Colors.black38,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
 
-                 const SizedBox(height: 48),
-                 Center(
-                   child: GestureDetector(
-                     onTap: _handleVersionTap,
-                     child: Text(
-                       "v4.0.1", 
-                       style: TextStyle(color: Colors.grey[400], fontSize: 12)
-                     ),
-                   ),
-                 ),
+                  const SizedBox(height: 48),
+                  Center(
+                    child: GestureDetector(
+                      onTap: _handleVersionTap,
+                      child: Text(
+                        "v4.0.1",
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                 ],
+                ),
               ),
             ),
           ),
@@ -611,95 +686,112 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showAchievementsList(BuildContext context, GamificationState state) {
     // Minimalist achievement sheet
-     showModalBottomSheet(
-       context: context,
-       backgroundColor: Colors.transparent,
-       isScrollControlled: true,
-       builder: (context) {
-         final isDark = Theme.of(context).brightness == Brightness.dark;
-         return DraggableScrollableSheet(
-           initialChildSize: 0.7,
-           maxChildSize: 0.9,
-           builder: (context, controller) => Container(
-             decoration: BoxDecoration(
-               color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-             ),
-             child: Column(
-               children: [
-                 Container(
-                   margin: const EdgeInsets.symmetric(vertical: 16),
-                   width: 40, height: 4,
-                   decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-                 ),
-                 Text(
-                   "Achievements",
-                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
-                 ),
-                 const SizedBox(height: 16),
-                 Expanded(
-                   child: ListView.separated(
-                     controller: controller,
-                     padding: const EdgeInsets.all(24),
-                     itemCount: state.achievements.length,
-                     separatorBuilder: (_,__) => const SizedBox(height: 24),
-                     itemBuilder: (context, index) {
-                       final a = state.achievements[index];
-                       final isUnlocked = a.isUnlocked;
-                       return Row(
-                         children: [
-                             Container(
-                               width: 50, height: 50,
-                               decoration: BoxDecoration(
-                                 color: Colors.transparent, // Removed background
-                                 shape: BoxShape.circle,
-                                 // Removed border that might imply container
-                               ),
-                               alignment: Alignment.center,
-                               child: Text(isUnlocked ? a.icon : "🔒", style: const TextStyle(fontSize: 24)),
-                             ),
-                           const SizedBox(width: 16),
-                           Expanded(
-                               child: Column(
-                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                 children: [
-                                   Text(
-                                     a.title,
-                                     style: TextStyle(
-                                       fontWeight: FontWeight.bold,
-                                       color: isUnlocked ? (isDark ? Colors.white : Colors.black) : Colors.grey[400],
-                                     ),
-                                   ),
-                                   const SizedBox(height: 4),
-                                    Text(
-                                     a.description,
-                                     style: TextStyle(
-                                       fontSize: 12,
-                                       color: isDark ? Colors.grey[500] : Colors.grey[600],
-                                     ),
-                                   ),
-                                 ],
-                               ),
-                           ),
-                         ],
-                       );
-                     },
-                   ),
-                 ),
-               ],
-             ),
-           ),
-         );
-       },
-     );
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          maxChildSize: 0.9,
+          builder: (context, controller) => Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 16),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  "Achievements",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    controller: controller,
+                    padding: const EdgeInsets.all(24),
+                    itemCount: state.achievements.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 24),
+                    itemBuilder: (context, index) {
+                      final a = state.achievements[index];
+                      final isUnlocked = a.isUnlocked;
+                      return Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.transparent, // Removed background
+                              shape: BoxShape.circle,
+                              // Removed border that might imply container
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              isUnlocked ? a.icon : "🔒",
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  a.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isUnlocked
+                                        ? (isDark ? Colors.white : Colors.black)
+                                        : Colors.grey[400],
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  a.description,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? Colors.grey[500]
+                                        : Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
-
 
   void _showClearDataConfirmation(BuildContext context, WidgetRef ref) {
     HapticHelper(ref).lightImpact();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String t(String key) => AppStrings.get(key, ref.read(localeProvider));
-    
+
     showDialog(
       context: context,
       builder: (context) => CustomDialog(
@@ -724,9 +816,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: Text(t('confirm_clear'), style: const TextStyle(color: Colors.white)),
+            child: Text(
+              t('confirm_clear'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -736,11 +833,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showAboutModal(BuildContext context, WidgetRef ref) {
     HapticHelper(ref).lightImpact();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent, // Transparent for rounded corners effect
+      backgroundColor:
+          Colors.transparent, // Transparent for rounded corners effect
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
@@ -750,43 +848,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 24),
-            Text(AppStrings.get('about_title', ref.read(localeProvider)), style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+            Text(
+              AppStrings.get('about_title', ref.read(localeProvider)),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
             const SizedBox(height: 32),
-             Container(
-               width: 80, height: 80,
-               decoration: BoxDecoration(
-                 boxShadow: [
-                   BoxShadow(
-                     color: Colors.black.withOpacity(0.1),
-                     blurRadius: 10,
-                     offset: const Offset(0, 4),
-                   )
-                 ],
-                 borderRadius: BorderRadius.circular(20),
-               ),
-               child: ClipRRect(
-                 borderRadius: BorderRadius.circular(20),
-                 child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
-               ),
-             ),
-             const SizedBox(height: 16),
-             Text("Version 4.0.0", style: TextStyle(color: Colors.grey[600])),
-             const SizedBox(height: 32),
-             Padding(
-               padding: const EdgeInsets.symmetric(horizontal: 32),
-               child: Text(
-                 AppStrings.get('about_content', ref.read(localeProvider)),
-                 textAlign: TextAlign.center,
-                 style: TextStyle(fontSize: 16, height: 1.5, color: isDark ? Colors.white70 : Colors.black87),
-               ),
-             ),
-             const Spacer(),
-             Padding(
-               padding: const EdgeInsets.only(bottom: 32.0),
-               child: Text("Designed with ❤️ by LongDz", style: TextStyle(color: Colors.grey[600])),
-             )
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text("Version 4.0.0", style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                AppStrings.get('about_content', ref.read(localeProvider)),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  height: 1.5,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 32.0),
+              child: Text(
+                "Designed with ❤️ by LongDz",
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ),
           ],
         ),
       ),
@@ -794,31 +917,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showFeedbackModal(BuildContext context, WidgetRef ref) {
-     HapticHelper(ref).lightImpact();
-     final locale = ref.read(localeProvider);
-     final email = AppStrings.get('feedback_email', locale);
-     final isDark = Theme.of(context).brightness == Brightness.dark;
-     
-     showModalBottomSheet(
+    HapticHelper(ref).lightImpact();
+    final locale = ref.read(localeProvider);
+    final email = AppStrings.get('feedback_email', locale);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
       context: context,
       backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       isScrollControlled: true, // Allow full height if needed
       builder: (context) => Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(AppStrings.get('feedback', locale), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+            Text(
+              AppStrings.get('feedback', locale),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: isDark ? Colors.black38 : Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black38 : Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Row(
                 children: [
-                  Icon(Icons.email_outlined, color: isDark ? Colors.white : Colors.black),
+                  Icon(
+                    Icons.email_outlined,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
                   const SizedBox(width: 16),
-                  Expanded(child: Text(email, style: TextStyle(fontSize: 16, color: isDark ? Colors.white : Colors.black))),
+                  Expanded(
+                    child: Text(
+                      email,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.copy),
                     color: isDark ? Colors.white : Colors.black,
@@ -826,9 +972,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       Clipboard.setData(ClipboardData(text: email));
                       HapticHelper(ref).mediumImpact();
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.get('email_copied', locale))));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppStrings.get('email_copied', locale)),
+                        ),
+                      );
                     },
-                  )
+                  ),
                 ],
               ),
             ),
@@ -851,28 +1001,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
-          left: 24, 
-          right: 24, 
-          top: 24, 
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16 // Reduced bottom padding
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom:
+              MediaQuery.of(context).viewInsets.bottom +
+              16, // Reduced bottom padding
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "AI Configuration", 
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)
+              "AI Configuration",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
+              ),
             ),
             const SizedBox(height: 24),
-            
+
             // API Key
             _buildTextField(context, "API Key", keyController, isDark),
             const SizedBox(height: 16),
-            
+
             // Base URL
             _buildTextField(context, "Base URL", urlController, isDark),
             const SizedBox(height: 16),
@@ -888,11 +1046,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   // Update Provider
-                  ref.read(apiSettingsProvider.notifier).update(currentSettings.copyWith(
-                    apiKey: keyController.text.trim(),
-                    baseUrl: urlController.text.trim(),
-                    model: modelController.text.trim(),
-                  ));
+                  ref
+                      .read(apiSettingsProvider.notifier)
+                      .update(
+                        currentSettings.copyWith(
+                          apiKey: keyController.text.trim(),
+                          baseUrl: urlController.text.trim(),
+                          model: modelController.text.trim(),
+                        ),
+                      );
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("AI Settings Updated")),
@@ -901,9 +1063,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isDark ? Colors.white : Colors.black,
                   foregroundColor: isDark ? Colors.black : Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text("SAVE CHANGES", style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "SAVE CHANGES",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -912,11 +1079,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildTextField(BuildContext context, String label, TextEditingController controller, bool isDark) {
+  Widget _buildTextField(
+    BuildContext context,
+    String label,
+    TextEditingController controller,
+    bool isDark,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.grey[700])),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white70 : Colors.grey[700],
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -928,56 +1107,67 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSettingsGroup(BuildContext context, {required String title, required List<Widget> children}) {
-     final theme = Theme.of(context);
-     final isDark = theme.brightness == Brightness.dark;
-     final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
-     
-     return Column(
-       mainAxisSize: MainAxisSize.min,
-       children: [
-         ExpansionTile(
-           key: PageStorageKey<String>('settings-group-$title'),
-           tilePadding: EdgeInsets.zero,
-           title: Text(
-             title,
-             style: TextStyle(
-               fontSize: 14, 
-               fontWeight: FontWeight.bold, 
-               color: isDark ? Colors.white : Colors.black,
-               letterSpacing: 1.0,
-             ),
-           ),
-           iconColor: isDark ? Colors.white70 : Colors.black54,
-           collapsedIconColor: isDark ? Colors.white70 : Colors.black54,
-           collapsedBackgroundColor: Colors.transparent,
-           backgroundColor: Colors.transparent,
-           childrenPadding: const EdgeInsets.only(bottom: 16),
-           initiallyExpanded: false,
-           maintainState: true,
-           children: children,
-         ),
-         Divider(height: 1, thickness: 1, color: borderColor),
-       ],
-     );
-   }
+  Widget _buildSettingsGroup(
+    BuildContext context, {
+    required String title,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
 
-  void _showEditProfileModal(BuildContext context, WidgetRef ref, AppUser user) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ExpansionTile(
+          key: PageStorageKey<String>('settings-group-$title'),
+          tilePadding: EdgeInsets.zero,
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.0,
+            ),
+          ),
+          iconColor: isDark ? Colors.white70 : Colors.black54,
+          collapsedIconColor: isDark ? Colors.white70 : Colors.black54,
+          collapsedBackgroundColor: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          childrenPadding: const EdgeInsets.only(bottom: 16),
+          initiallyExpanded: false,
+          maintainState: true,
+          children: children,
+        ),
+        Divider(height: 1, thickness: 1, color: borderColor),
+      ],
+    );
+  }
+
+  void _showEditProfileModal(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) {
     final locale = ref.read(localeProvider);
     final nameController = TextEditingController(text: user.displayName);
-    
+
     Uint8List? newImageBytes;
     String? newImageFilename;
     String? selectedPresetUrl;
     bool isUploading = false;
-    
+
     // Default preset avatars
     final List<String> presetAvatars = [
       'https://api.dicebear.com/7.x/adventurer/png?seed=Felix',
@@ -995,204 +1185,330 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        
+
         return StatefulBuilder(
           builder: (context, setState) {
             return Container(
-               padding: EdgeInsets.only(
-                 bottom: MediaQuery.of(context).viewInsets.bottom,
-               ),
-               decoration: BoxDecoration(
-                 color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-               ),
-               child: SingleChildScrollView(
-                 child: Padding(
-                   padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                   child: Column(
-                     mainAxisSize: MainAxisSize.min,
-                     children: [
-                       Center(
-                         child: Container(
-                           width: 40, height: 4, 
-                           decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))
-                         ),
-                       ),
-                       const SizedBox(height: 24),
-                       Text(
-                         AppStrings.get('edit_profile', locale),
-                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
-                       ),
-                       const SizedBox(height: 24),
-                       
-                       // Main Avatar Display & Picker
-                       Center(
-                         child: GestureDetector(
-                           onTap: () async {
-                             final picker = ImagePicker();
-                             final pickedFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800, maxHeight: 800);
-                             if (pickedFile != null) {
-                               final bytes = await pickedFile.readAsBytes();
-                               setState(() {
-                                 newImageBytes = bytes;
-                                 newImageFilename = pickedFile.name;
-                                 selectedPresetUrl = null; // Clear preset if custom uploaded
-                               });
-                             }
-                           },
-                           child: Stack(
-                             children: [
-                               Container(
-                                 width: 100, height: 100,
-                                 clipBehavior: Clip.antiAlias,
-                                 decoration: BoxDecoration(
-                                   shape: BoxShape.circle,
-                                   color: isDark ? Colors.grey[800] : Colors.grey[200],
-                                 ),
-                                 child: newImageBytes != null
-                                     ? Image.memory(newImageBytes!, fit: BoxFit.cover)
-                                     : (selectedPresetUrl != null 
-                                        ? CachedNetworkImage(
-                                            imageUrl: selectedPresetUrl!,
-                                            fit: BoxFit.cover,
-                                            placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
-                                            errorWidget: (context, url, error) => Icon(Icons.person, size: 50, color: Colors.grey[400]),
-                                          )
-                                        : (user.avatarUrl != null
-                                             ? CachedNetworkImage(
-                                                 imageUrl: user.avatarUrl!,
-                                                 fit: BoxFit.cover,
-                                                 placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
-                                                 errorWidget: (context, url, error) => Icon(Icons.person, size: 50, color: Colors.grey[400]),
-                                               )
-                                             : Icon(Icons.person, size: 50, color: Colors.grey[400]))),
-                               ),
-                               Positioned(
-                                 bottom: 0,
-                                 right: 0,
-                                 child: Container(
-                                   padding: const EdgeInsets.all(6),
-                                   decoration: BoxDecoration(
-                                     color: isDark ? Colors.blueAccent : Colors.blue,
-                                     shape: BoxShape.circle,
-                                     border: Border.all(color: isDark ? const Color(0xFF1C1C1E) : Colors.white, width: 2),
-                                   ),
-                                   child: const Icon(Icons.edit, size: 16, color: Colors.white),
-                                 ),
-                               ),
-                             ],
-                           ),
-                         ),
-                       ),
-                       const SizedBox(height: 24),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[400],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        AppStrings.get('edit_profile', locale),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-                       // Preset Avatars
-                       SizedBox(
-                         height: 60,
-                         child: ListView.separated(
-                           scrollDirection: Axis.horizontal,
-                           itemCount: presetAvatars.length,
-                           separatorBuilder: (_, __) => const SizedBox(width: 16),
-                           itemBuilder: (context, index) {
-                             final url = presetAvatars[index];
-                             final isSelected = selectedPresetUrl == url;
-                             return GestureDetector(
-                               onTap: () {
-                                 setState(() {
-                                   selectedPresetUrl = url;
-                                   newImageBytes = null; // Clear upload if preset selected
-                                   newImageFilename = null;
-                                 });
-                               },
-                               child: Container(
-                                 width: 60, height: 60,
-                                 clipBehavior: Clip.antiAlias,
-                                 decoration: BoxDecoration(
-                                   shape: BoxShape.circle,
-                                   border: isSelected ? Border.all(color: Colors.blue, width: 3) : null,
-                                 ),
-                                 child: CachedNetworkImage(
-                                   imageUrl: url,
-                                   fit: BoxFit.cover,
-                                   placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
-                                   errorWidget: (context, url, error) => const Icon(Icons.error, size: 20),
-                                 ),
-                               ),
-                             );
-                           },
-                         ),
-                       ),
-                       
-                       const SizedBox(height: 24),
-                       
-                       // Name Input
-                       _buildTextField(context, AppStrings.get('display_name', locale), nameController, isDark),
-                       const SizedBox(height: 32),
-                       
-                       // Save Button
-                       SizedBox(
-                         width: double.infinity,
-                         height: 50,
-                         child: ElevatedButton(
-                           onPressed: isUploading ? null : () async {
-                             final newName = nameController.text.trim();
-                             if (newName.isEmpty) return;
-                             
-                             setState(() => isUploading = true);
-                             
-                             try {
-                                 final authService = ref.read(authServiceProvider);
-                                 String? uploadedUrl;
-                                 
-                                  // 1. If custom image
-                                 if (newImageBytes != null && newImageFilename != null) {
-                                   // We need to use SelfHostedAuthService for upload if available.
-                                   final auth = ref.read(authServiceProvider);
-                                   if (auth is SelfHostedAuthService) {
-                                      uploadedUrl = await (auth as SelfHostedAuthService).uploadAvatar(newImageBytes!, newImageFilename!);
-                                   } else {
-                                      // Fallback: Try instantiating directly if we know we are in a context where it works
-                                      // Or throw error / show message that upload not supported on this backend
-                                      final service = SelfHostedAuthService(); 
-                                      uploadedUrl = await service.uploadAvatar(newImageBytes!, newImageFilename!);
-                                   }
-                                 } 
-                                 // 2. If preset selected
-                                 else if (selectedPresetUrl != null) {
-                                   uploadedUrl = selectedPresetUrl;
-                                 }
-                                 
-                                 await authService.updateProfile(
-                                   displayName: newName,
-                                   avatarUrl: uploadedUrl, 
-                                 );
-                                 
-                                 if (context.mounted) {
-                                   Navigator.pop(context);
-                                   HapticHelper(ref).mediumImpact();
-                                 }
-                             } catch (e) {
-                                 if (context.mounted) {
-                                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                                 }
-                             } finally {
-                                 if (context.mounted) setState(() => isUploading = false);
-                             }
-                           },
-                           style: ElevatedButton.styleFrom(
-                             backgroundColor: isDark ? Colors.white : Colors.black,
-                             foregroundColor: isDark ? Colors.black : Colors.white,
-                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                           ),
-                           child: isUploading 
-                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                             : Text(AppStrings.get('save_profile', locale), style: const TextStyle(fontWeight: FontWeight.bold)),
-                         ),
-                       ),
-                     ],
-                   ),
-                 ),
-               ),
+                      // Main Avatar Display & Picker
+                      Center(
+                        child: GestureDetector(
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final pickedFile = await picker.pickImage(
+                              source: ImageSource.gallery,
+                              maxWidth: 800,
+                              maxHeight: 800,
+                            );
+                            if (pickedFile != null) {
+                              final bytes = await pickedFile.readAsBytes();
+                              setState(() {
+                                newImageBytes = bytes;
+                                newImageFilename = pickedFile.name;
+                                selectedPresetUrl =
+                                    null; // Clear preset if custom uploaded
+                              });
+                            }
+                          },
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isDark
+                                      ? Colors.grey[800]
+                                      : Colors.grey[200],
+                                ),
+                                child: newImageBytes != null
+                                    ? Image.memory(
+                                        newImageBytes!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : (selectedPresetUrl != null
+                                          ? CachedNetworkImage(
+                                              imageUrl: selectedPresetUrl!,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) =>
+                                                  Center(
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: isDark
+                                                              ? Colors.white24
+                                                              : Colors.black12,
+                                                        ),
+                                                  ),
+                                              errorWidget:
+                                                  (context, url, error) => Icon(
+                                                    Icons.person,
+                                                    size: 50,
+                                                    color: Colors.grey[400],
+                                                  ),
+                                            )
+                                          : (user.avatarUrl != null
+                                                ? CachedNetworkImage(
+                                                    imageUrl: user.avatarUrl!,
+                                                    fit: BoxFit.cover,
+                                                    placeholder:
+                                                        (
+                                                          context,
+                                                          url,
+                                                        ) => Center(
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: isDark
+                                                                ? Colors.white24
+                                                                : Colors
+                                                                      .black12,
+                                                          ),
+                                                        ),
+                                                    errorWidget:
+                                                        (context, url, error) =>
+                                                            Icon(
+                                                              Icons.person,
+                                                              size: 50,
+                                                              color: Colors
+                                                                  .grey[400],
+                                                            ),
+                                                  )
+                                                : Icon(
+                                                    Icons.person,
+                                                    size: 50,
+                                                    color: Colors.grey[400],
+                                                  ))),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.blueAccent
+                                        : Colors.blue,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark
+                                          ? const Color(0xFF1C1C1E)
+                                          : Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Preset Avatars
+                      SizedBox(
+                        height: 60,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: presetAvatars.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            final url = presetAvatars[index];
+                            final isSelected = selectedPresetUrl == url;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  selectedPresetUrl = url;
+                                  newImageBytes =
+                                      null; // Clear upload if preset selected
+                                  newImageFilename = null;
+                                });
+                              },
+                              child: Container(
+                                width: 60,
+                                height: 60,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: isSelected
+                                      ? Border.all(color: Colors.blue, width: 3)
+                                      : null,
+                                ),
+                                child: CachedNetworkImage(
+                                  imageUrl: url,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: isDark
+                                          ? Colors.white24
+                                          : Colors.black12,
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(Icons.error, size: 20),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Name Input
+                      _buildTextField(
+                        context,
+                        AppStrings.get('display_name', locale),
+                        nameController,
+                        isDark,
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Save Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: isUploading
+                              ? null
+                              : () async {
+                                  final newName = nameController.text.trim();
+                                  if (newName.isEmpty) return;
+
+                                  setState(() => isUploading = true);
+
+                                  try {
+                                    final authService = ref.read(
+                                      authServiceProvider,
+                                    );
+                                    String? uploadedUrl;
+
+                                    // 1. If custom image
+                                    if (newImageBytes != null &&
+                                        newImageFilename != null) {
+                                      // We need to use SelfHostedAuthService for upload if available.
+                                      final auth = ref.read(
+                                        authServiceProvider,
+                                      );
+                                      if (auth is SelfHostedAuthService) {
+                                        uploadedUrl =
+                                            await (auth
+                                                    as SelfHostedAuthService)
+                                                .uploadAvatar(
+                                                  newImageBytes!,
+                                                  newImageFilename!,
+                                                );
+                                      } else {
+                                        // Fallback: Try instantiating directly if we know we are in a context where it works
+                                        // Or throw error / show message that upload not supported on this backend
+                                        final service = SelfHostedAuthService();
+                                        uploadedUrl = await service
+                                            .uploadAvatar(
+                                              newImageBytes!,
+                                              newImageFilename!,
+                                            );
+                                      }
+                                    }
+                                    // 2. If preset selected
+                                    else if (selectedPresetUrl != null) {
+                                      uploadedUrl = selectedPresetUrl;
+                                    }
+
+                                    await authService.updateProfile(
+                                      displayName: newName,
+                                      avatarUrl: uploadedUrl,
+                                    );
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      HapticHelper(ref).mediumImpact();
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text("Error: $e")),
+                                      );
+                                    }
+                                  } finally {
+                                    if (context.mounted)
+                                      setState(() => isUploading = false);
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark
+                                ? Colors.white
+                                : Colors.black,
+                            foregroundColor: isDark
+                                ? Colors.black
+                                : Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: isUploading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  AppStrings.get('save_profile', locale),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
           },
         );
@@ -1224,7 +1540,7 @@ class _SettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -1232,26 +1548,42 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: iconColor ?? (isDark ? Colors.white70 : Colors.black54)),
+            Icon(
+              icon,
+              size: 22,
+              color: iconColor ?? (isDark ? Colors.white70 : Colors.black54),
+            ),
             const SizedBox(width: 16),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, style: TextStyle(
-                  fontSize: 16, 
-                  fontWeight: FontWeight.w500, 
-                  color: textColor ?? (isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8))
-                )),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(subtitle!, style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.white38 : Colors.black38,
-                  )),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color:
+                          textColor ??
+                          (isDark
+                              ? Colors.white.withOpacity(0.9)
+                              : Colors.black.withOpacity(0.8)),
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            )),
+              ),
+            ),
             if (trailing != null) trailing!,
           ],
         ),
@@ -1266,7 +1598,13 @@ class _LanguageOption extends StatelessWidget {
   final VoidCallback onTap;
   final bool isDark;
 
-  const _LanguageOption({required this.text, required this.isSelected, required this.onTap, required this.isDark, super.key});
+  const _LanguageOption({
+    required this.text,
+    required this.isSelected,
+    required this.onTap,
+    required this.isDark,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1276,7 +1614,9 @@ class _LanguageOption extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
+          color: isSelected
+              ? (isDark ? Colors.white : Colors.black)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -1284,7 +1624,9 @@ class _LanguageOption extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: isSelected ? (isDark ? Colors.black : Colors.white) : Colors.grey[500],
+            color: isSelected
+                ? (isDark ? Colors.black : Colors.white)
+                : Colors.grey[500],
           ),
         ),
       ),
@@ -1321,7 +1663,11 @@ class _VibrationIntensityTile extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.vibration, size: 22, color: isDark ? Colors.white70 : Colors.black87),
+              Icon(
+                Icons.vibration,
+                size: 22,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -1334,7 +1680,10 @@ class _VibrationIntensityTile extends ConsumerWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? Colors.grey[800] : Colors.grey[200],
                   borderRadius: BorderRadius.circular(12),
@@ -1344,7 +1693,9 @@ class _VibrationIntensityTile extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: intensity <= 0 ? Colors.grey : (isDark ? Colors.white : Colors.black),
+                    color: intensity <= 0
+                        ? Colors.grey
+                        : (isDark ? Colors.white : Colors.black),
                   ),
                 ),
               ),
@@ -1356,7 +1707,9 @@ class _VibrationIntensityTile extends ConsumerWidget {
               activeTrackColor: isDark ? Colors.white : Colors.black,
               inactiveTrackColor: isDark ? Colors.grey[700] : Colors.grey[300],
               thumbColor: isDark ? Colors.white : Colors.black,
-              overlayColor: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+              overlayColor: (isDark ? Colors.white : Colors.black).withOpacity(
+                0.1,
+              ),
               trackHeight: 4,
             ),
             child: Slider(
@@ -1365,10 +1718,12 @@ class _VibrationIntensityTile extends ConsumerWidget {
               max: 1.0,
               divisions: 10,
               onChanged: (value) {
-                ref.read(vibrationIntensityProvider.notifier).setIntensity(value);
+                ref
+                    .read(vibrationIntensityProvider.notifier)
+                    .setIntensity(value);
                 // Give feedback with new intensity
                 if (value > 0) {
-                   HapticHelper(ref).mediumImpact();
+                  HapticHelper(ref).mediumImpact();
                 }
               },
             ),
@@ -1400,13 +1755,17 @@ class _ThemeOption extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
+          color: isSelected
+              ? (isDark ? Colors.white : Colors.black)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(
           icon,
           size: 18,
-          color: isSelected ? (isDark ? Colors.black : Colors.white) : Colors.grey[500],
+          color: isSelected
+              ? (isDark ? Colors.black : Colors.white)
+              : Colors.grey[500],
         ),
       ),
     );
@@ -1419,10 +1778,12 @@ class _CollapsibleAIPersonaTile extends ConsumerStatefulWidget {
   const _CollapsibleAIPersonaTile({required this.isDark});
 
   @override
-  ConsumerState<_CollapsibleAIPersonaTile> createState() => _CollapsibleAIPersonaTileState();
+  ConsumerState<_CollapsibleAIPersonaTile> createState() =>
+      _CollapsibleAIPersonaTileState();
 }
 
-class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersonaTile> 
+class _CollapsibleAIPersonaTileState
+    extends ConsumerState<_CollapsibleAIPersonaTile>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   late AnimationController _controller;
@@ -1518,7 +1879,11 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
                 children: [
-                  Icon(Icons.psychology, size: 22, color: isDark ? Colors.white70 : Colors.black87),
+                  Icon(
+                    Icons.psychology,
+                    size: 22,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -1567,10 +1932,13 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
               ),
             ),
           ),
-          
+
           // Expandable Content
           SizeTransition(
-            sizeFactor: CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+            sizeFactor: CurvedAnimation(
+              parent: _controller,
+              curve: Curves.easeInOut,
+            ),
             child: Column(
               children: [
                 const SizedBox(height: 8),
@@ -1583,23 +1951,33 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                     children: AIPersona.values.map((persona) {
                       final isSelected = persona == currentPersona;
                       final pColor = _getPersonaColor(persona);
-                      
+
                       return InkWell(
                         onTap: () {
-                          ref.read(aiPersonaProvider.notifier).setPersona(persona);
+                          ref
+                              .read(aiPersonaProvider.notifier)
+                              .setPersona(persona);
                           HapticHelper(ref).selectionClick();
                         },
                         borderRadius: BorderRadius.circular(12),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           decoration: BoxDecoration(
-                            color: isSelected 
-                                ? (isDark ? pColor.withOpacity(0.2) : pColor.withOpacity(0.1))
+                            color: isSelected
+                                ? (isDark
+                                      ? pColor.withOpacity(0.2)
+                                      : pColor.withOpacity(0.1))
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
-                            border: isSelected 
-                                ? Border.all(color: pColor.withOpacity(0.5), width: 1.5)
+                            border: isSelected
+                                ? Border.all(
+                                    color: pColor.withOpacity(0.5),
+                                    width: 1.5,
+                                  )
                                 : null,
                           ),
                           child: Row(
@@ -1608,9 +1986,11 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: isSelected 
+                                  color: isSelected
                                       ? pColor.withOpacity(0.2)
-                                      : (isDark ? Colors.grey[800] : Colors.grey[200]),
+                                      : (isDark
+                                            ? Colors.grey[800]
+                                            : Colors.grey[200]),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
@@ -1628,10 +2008,14 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                       _getPersonaName(persona, locale),
                                       style: TextStyle(
                                         fontSize: 15,
-                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                        color: isSelected 
-                                            ? pColor 
-                                            : (isDark ? Colors.white : Colors.black87),
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
+                                        color: isSelected
+                                            ? pColor
+                                            : (isDark
+                                                  ? Colors.white
+                                                  : Colors.black87),
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -1639,7 +2023,9 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                       _getPersonaDesc(persona, locale),
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                        color: isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[600],
                                       ),
                                     ),
                                   ],
@@ -1668,4 +2054,3 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
 }
 
 // _AccountTile removed as it's now integrated into the main view
-

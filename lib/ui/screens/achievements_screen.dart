@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; // Add this
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../widgets/achievement_badge.dart';
 import '../../data/providers.dart';
 import '../../data/models/gamification_state.dart';
-import '../../data/models/gamification_state.dart';
 import '../../data/localization.dart';
-import '../widgets/white_background_remover.dart';
 
 class AchievementsScreen extends ConsumerWidget {
   const AchievementsScreen({super.key});
@@ -53,57 +51,10 @@ class AchievementsScreen extends ConsumerWidget {
             onTap: () => _showAchievementDetails(context, achievement, t, isDark, locale),
             child: Column(
               children: [
-                // Icon Container
-                Container(
-                  width: 80, 
-                  height: 80,
-                  alignment: Alignment.center,
-                  child: isUnlocked
-                      ? (achievement.icon.startsWith('http')
-                          ? WhiteBackgroundRemover(
-                              child: CachedNetworkImage(
-                                imageUrl: kIsWeb 
-                                    ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                                    : achievement.icon,
-                                width: 64, height: 64,
-                                fit: BoxFit.contain,
-                                placeholder: (context, url) => Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                errorWidget: (context, url, error) => const Icon(Icons.error_outline),
-                              ),
-                            )
-                          : Text(achievement.icon, style: const TextStyle(fontSize: 48)))  
-                      : ColorFiltered(
-                          colorFilter: const ColorFilter.matrix(<double>[
-                            0.2126, 0.7152, 0.0722, 0, 0,
-                            0.2126, 0.7152, 0.0722, 0, 0,
-                            0.2126, 0.7152, 0.0722, 0, 0,
-                            0,      0,      0,      1, 0,
-                          ]),
-                          child: achievement.icon.startsWith('http')
-                            ? Opacity(
-                                opacity: 0.5,
-                                child: WhiteBackgroundRemover(
-                                  child: CachedNetworkImage(
-                                      imageUrl: kIsWeb 
-                                          ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                                          : achievement.icon,
-                                      width: 64, height: 64,
-                                      fit: BoxFit.contain,
-                                      errorWidget: (context, url, error) => const SizedBox(),
-                                    ),
-                                ),
-                              )
-                            : Opacity(
-                                opacity: 0.5,
-                                child: Text(achievement.icon, style: const TextStyle(fontSize: 48)),
-                              ),
-                        ),
+                AchievementBadge(
+                  icon: achievement.icon,
+                  size: 64,
+                  isUnlocked: isUnlocked,
                 ),
                 const SizedBox(height: 8),
                 
@@ -129,20 +80,24 @@ class AchievementsScreen extends ConsumerWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: Text(
-                       t('ach_${achievement.id}_desc') != 'ach_${achievement.id}_desc' 
-                          ? t('ach_${achievement.id}_desc') 
-                          : achievement.description, // Fallback
-                      textAlign: TextAlign.center,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.2,
-                        color: isUnlocked 
-                            ? (isDark ? Colors.grey[400] : Colors.grey[600]) 
-                            : Colors.grey[400], // Visible but dim
-                      ),
+                    child: Column(
+                      children: [
+                        Text(
+                          t('ach_${achievement.id}_desc') != 'ach_${achievement.id}_desc' 
+                              ? t('ach_${achievement.id}_desc') 
+                              : achievement.description,
+                          textAlign: TextAlign.center,
+                          maxLines: 3, 
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.2,
+                            color: isUnlocked 
+                                ? (isDark ? Colors.grey[400] : Colors.grey[600]) 
+                                : Colors.grey[400],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -187,49 +142,10 @@ class AchievementsScreen extends ConsumerWidget {
                 ),
               ),
               
-              // Enlarged Icon (No circular background)
-              SizedBox(
-                width: 120,
-                height: 120,
-                child: Center(
-                  child: achievement.isUnlocked
-                      ? (achievement.icon.startsWith('http')
-                          ? WhiteBackgroundRemover(
-                              child: CachedNetworkImage(
-                                imageUrl: kIsWeb 
-                                    ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                                    : achievement.icon,
-                                width: 100, height: 100,
-                                fit: BoxFit.contain,
-                              ),
-                            )
-                          : Text(achievement.icon, style: const TextStyle(fontSize: 72)))
-                      : ColorFiltered(
-                          colorFilter: const ColorFilter.matrix(<double>[
-                            0.2126, 0.7152, 0.0722, 0, 0,
-                            0.2126, 0.7152, 0.0722, 0, 0,
-                            0.2126, 0.7152, 0.0722, 0, 0,
-                            0,      0,      0,      1, 0,
-                          ]),
-                          child: achievement.icon.startsWith('http')
-                            ? Opacity(
-                                opacity: 0.5,
-                                child: WhiteBackgroundRemover(
-                                  child: CachedNetworkImage(
-                                    imageUrl: kIsWeb 
-                                        ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                                        : achievement.icon,
-                                    width: 100, height: 100,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              )
-                            : Opacity(
-                                opacity: 0.5,
-                                child: Text(achievement.icon, style: const TextStyle(fontSize: 72)),
-                              ),
-                        ),
-                ),
+              AchievementBadge(
+                icon: achievement.icon,
+                size: 100,
+                isUnlocked: achievement.isUnlocked,
               ),
               
               const SizedBox(height: 24),

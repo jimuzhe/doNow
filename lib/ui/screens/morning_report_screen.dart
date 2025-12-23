@@ -110,7 +110,7 @@ class MorningReportScreen extends ConsumerWidget {
                      children: [
                        Icon(
                          Icons.format_quote, 
-                         color: AppTheme.primaryBlue.withOpacity(0.5),
+                         color: isDark ? Colors.white38 : Colors.black26,
                          size: 28,
                        ),
                        const SizedBox(width: 12),
@@ -137,7 +137,7 @@ class MorningReportScreen extends ConsumerWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2,
-                    color: AppTheme.primaryBlue,
+                    color: isDark ? Colors.white38 : Colors.black38,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -149,18 +149,12 @@ class MorningReportScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        width: 8,
-                        height: 8,
+                        margin: const EdgeInsets.only(top: 8),
+                        width: 6,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue,
+                          color: isDark ? Colors.white24 : Colors.black26,
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryBlue.withOpacity(0.5),
-                              blurRadius: 4,
-                            ),
-                          ],
                         ),
                       ),
                       const SizedBox(width: 18),
@@ -203,8 +197,8 @@ class MorningReportScreen extends ConsumerWidget {
               ElevatedButton(
                 onPressed: () => ref.refresh(morningReportProvider),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                  foregroundColor: Colors.white,
+                  backgroundColor: isDark ? Colors.white12 : Colors.black87,
+                  foregroundColor: isDark ? Colors.white : Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),

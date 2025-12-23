@@ -62,26 +62,42 @@ class ZhipuAIService implements AIService {
         ).timeout(const Duration(seconds: 30));
 
         if (response.statusCode == 200) {
-          final data = jsonDecode(utf8.decode(response.bodyBytes));
-          
-          if (data['error'] != null) {
-              final error = data['error'];
-              if (error['code'] == 'security_audit_fail') {
-                  throw Exception('security_audit_fail'); 
-              }
-              throw Exception("AI Error: ${error['message']}");
-          }
-
-          final content = data['choices'][0]['message']['content'];
-          final result = _parseAndValidate(content, totalDuration.inMinutes);
-          
-          if (result != null) {
-            return result; 
-          }
-          
-          print('Attempt $attempts: Invalid format, retrying...');
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        
+        if (data == null) {
+          print('Attempt $attempts: data is null');
           continue;
-        } else {
+        }
+
+        if (data['error'] != null) {
+            final error = data['error'];
+            if (error != null && error is Map && error['code'] == 'security_audit_fail') {
+                throw Exception('security_audit_fail'); 
+            }
+            throw Exception("AI Error: ${error != null && error is Map ? error['message'] : 'Unknown error'}");
+        }
+
+        final choices = data['choices'];
+        if (choices == null || choices is! List || choices.isEmpty) {
+          print('Attempt $attempts: Invalid choices structure');
+          continue;
+        }
+
+        final content = choices[0]['message']?['content'];
+        if (content == null) {
+          print('Attempt $attempts: content is null');
+          continue;
+        }
+
+        final result = _parseAndValidate(content, totalDuration.inMinutes);
+        
+        if (result != null) {
+          return result; 
+        }
+        
+        print('Attempt $attempts: Invalid format or validation failed, retrying...');
+        continue;
+      } else {
           if (attempts == maxAttempts) throw Exception("AI Error: ${response.statusCode}");
         }
       } on TimeoutException {
@@ -232,13 +248,19 @@ Before outputting, perform these steps mentally:
         return null;
       }
       
-      final List<dynamic> jsonList = jsonDecode(jsonStr);
-      
-      // Must have at least 2 items
-      if (jsonList.length < 2) {
-        print('Validation failed: Less than 2 subtasks');
-        return null;
-      }
+      final decoded = jsonDecode(jsonStr);
+    if (decoded == null || decoded is! List) {
+      print('Validation failed: Not a JSON array or null');
+      return null;
+    }
+    
+    final List<dynamic> jsonList = decoded;
+    
+    // Must have at least 2 items
+    if (jsonList.length < 2) {
+      print('Validation failed: Less than 2 subtasks (got ${jsonList.length})');
+      return null;
+    }
       
       // Validate each item has required fields
       int totalDuration = 0;
@@ -343,27 +365,42 @@ Before outputting, perform these steps mentally:
         ).timeout(const Duration(seconds: 30));
 
         if (response.statusCode == 200) {
-          final data = jsonDecode(utf8.decode(response.bodyBytes));
-          
-          if (data['error'] != null) {
-              final error = data['error'];
-              if (error['code'] == 'security_audit_fail') {
-                  throw Exception('security_audit_fail'); 
-              }
-              throw Exception("AI Error: ${error['message']}");
-          }
-          
-          final content = data['choices'][0]['message']['content'];
-          
-          final result = _parseEstimateResult(content);
-          
-          if (result != null) {
-            return result;
-          }
-          
-          print('Attempt $attempts: Invalid format, retrying...');
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        
+        if (data == null) {
+          print('Attempt $attempts: data is null');
           continue;
-        } else {
+        }
+
+        if (data['error'] != null) {
+            final error = data['error'];
+            if (error != null && error is Map && error['code'] == 'security_audit_fail') {
+                throw Exception('security_audit_fail'); 
+            }
+            throw Exception("AI Error: ${error != null && error is Map ? error['message'] : 'Unknown error'}");
+        }
+        
+        final choices = data['choices'];
+        if (choices == null || choices is! List || choices.isEmpty) {
+          print('Attempt $attempts: Invalid choices structure');
+          continue;
+        }
+
+        final content = choices[0]['message']?['content'];
+        if (content == null) {
+          print('Attempt $attempts: content is null');
+          continue;
+        }
+        
+        final result = _parseEstimateResult(content);
+        
+        if (result != null) {
+          return result;
+        }
+        
+        print('Attempt $attempts: Invalid format or estimation failed, retrying...');
+        continue;
+      } else {
           if (attempts == maxAttempts) throw Exception("AI Error: ${response.statusCode}");
         }
       } on TimeoutException {
@@ -486,14 +523,20 @@ $personaPrompt
         return null;
       }
       
-      final Map<String, dynamic> jsonData = jsonDecode(jsonStr);
-      
-      // Extract total_minutes (minimum 1 minute for any valid task)
-      final totalMinutes = jsonData['total_minutes'];
-      if (totalMinutes == null || totalMinutes is! num || totalMinutes < 1) {
-        print('Estimate parse failed: Invalid total_minutes (got: $totalMinutes)');
-        return null;
-      }
+      final decoded = jsonDecode(jsonStr);
+    if (decoded == null || decoded is! Map<String, dynamic>) {
+      print('Estimate parse failed: Not a JSON object or null');
+      return null;
+    }
+    
+    final Map<String, dynamic> jsonData = decoded;
+    
+    // Extract total_minutes (minimum 1 minute for any valid task)
+    final totalMinutes = jsonData['total_minutes'];
+    if (totalMinutes == null || totalMinutes is! num || totalMinutes.toDouble() < 1) {
+      print('Estimate parse failed: Invalid total_minutes (got: $totalMinutes)');
+      return null;
+    }
       
       // Extract steps
       final stepsData = jsonData['steps'];
@@ -658,9 +701,14 @@ $personaPrompt
     
     // Build summary stats
     final totalDiff = totalActualMinutes - totalPlannedMinutes;
-    final overallPerformance = totalDiff > 0 
-        ? '整体慢了${totalDiff}分钟' 
-        : (totalDiff < 0 ? '整体快了${totalDiff.abs()}分钟' : '整体准时完成');
+    final isZh = locale != 'en';
+    final overallPerformance = isZh
+        ? (totalDiff > 0 
+            ? '整体慢了${totalDiff}分钟' 
+            : (totalDiff < 0 ? '整体快了${totalDiff.abs()}分钟' : '整体准时完成'))
+        : (totalDiff > 0 
+            ? 'Overall ${totalDiff} minutes slower' 
+            : (totalDiff < 0 ? 'Overall ${totalDiff.abs()} minutes faster' : 'Completed perfectly on time'));
     
     // Build prompt based on locale
     final String prompt = (locale == 'en') 
@@ -696,15 +744,28 @@ $personaPrompt
         }
         jsonStr = jsonStr.trim();
         
-        final Map<String, dynamic> res = jsonDecode(jsonStr);
+        final decoded = jsonDecode(jsonStr);
+        if (decoded == null || decoded is! Map<String, dynamic>) {
+          throw Exception("Invalid summary JSON");
+        }
+        
+        final Map<String, dynamic> res = decoded;
         return DailySummary(
           date: date,
-          summary: res['summary'] ?? "Good job!",
-          encouragement: res['encouragement'] ?? "Keep it up!",
-          improvement: res['improvement'] ?? "Stay focused.",
+          summary: res['summary']?.toString() ?? "Good job!",
+          encouragement: res['encouragement']?.toString() ?? "Keep it up!",
+          improvement: res['improvement']?.toString() ?? "Stay focused.",
         );
       } catch (e) {
         // Fallback
+        if (locale == 'en') {
+          return DailySummary(
+            date: date,
+            summary: "You completed ${dayTasks.length} tasks today, with ${totalPlannedMinutes} minutes planned and ${totalActualMinutes} minutes spent. $overallPerformance",
+            encouragement: "Persistence pays off. Keep maintaining this momentum!",
+            improvement: "Try to spend 1 minute reviewing your time estimates before starting a task.",
+          );
+        }
         return DailySummary(
           date: date,
           summary: "你今天完成了${dayTasks.length}个任务，计划用时${totalPlannedMinutes}分钟，实际用时${totalActualMinutes}分钟。$overallPerformance",

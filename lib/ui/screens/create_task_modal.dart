@@ -425,11 +425,17 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
       _selectedTime.minute,
     );
     
+    // Check if today is included in repeat days
+    // Empty means it's a one-time task for today
+    final isTodayIncluded = _selectedDays.isEmpty || _selectedDays.contains(now.weekday);
+    
     // Calculate time difference in minutes
     final diffInMinutes = scheduledDateTime.difference(now).inMinutes;
     
-    // If scheduled time is within 1 minute of now (or in the past), treat as "start now"
-    final isImmediate = diffInMinutes <= 1 && diffInMinutes >= -2;
+    // Treat as "start now" only if:
+    // 1. Today is an execution day
+    // 2. Scheduled time is within 1 minute of now (or very recent past)
+    final isImmediate = isTodayIncluded && (diffInMinutes <= 1 && diffInMinutes >= -2);
     
     _finish(now: isImmediate);
   }

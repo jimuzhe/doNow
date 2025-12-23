@@ -54,7 +54,12 @@ dependencies:
   # amap_flutter_location removed - using native Android SDK via platform channel
   just_audio: ^0.9.36
   audio_session: ^0.1.18
+  record: ^5.2.1
   path_provider: ^2.1.5
+
+dependency_overrides:
+  record_linux: ^1.2.0
+
   
   # Firebase removed
   # firebase_core: ^3.8.1

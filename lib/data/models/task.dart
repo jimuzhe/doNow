@@ -15,11 +15,13 @@ class Task {
   final Duration? actualDuration; 
   final String? journalImagePath;
   final String? journalVideoPath;
+  final String? journalAudioPath;
   final String? journalLocation;
   final String? journalNote; // Text note 
   final bool journalMediaMirrored; // True if media from front camera (needs mirror display)
   final bool isDecision; 
   final bool isQuickFocus; // New field for Quick Focus type tasks
+  final bool isVenting; // New field for Venting/Tree Hole entries
 
   Task({
     required this.id,
@@ -36,11 +38,13 @@ class Task {
     this.actualDuration,
     this.journalImagePath,
     this.journalVideoPath,
+    this.journalAudioPath,
     this.journalLocation,
     this.journalNote,
     this.journalMediaMirrored = false,
     this.isDecision = false,
     this.isQuickFocus = false,
+    this.isVenting = false,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Task copyWith({
@@ -57,11 +61,13 @@ class Task {
     Duration? actualDuration,
     String? journalImagePath,
     String? journalVideoPath,
+    String? journalAudioPath,
     String? journalLocation,
     String? journalNote,
     bool? journalMediaMirrored,
     bool? isDecision,
     bool? isQuickFocus,
+    bool? isVenting,
   }) {
     return Task(
       id: id ?? this.id,
@@ -78,11 +84,13 @@ class Task {
       actualDuration: actualDuration ?? this.actualDuration,
       journalImagePath: journalImagePath ?? this.journalImagePath,
       journalVideoPath: journalVideoPath ?? this.journalVideoPath,
+      journalAudioPath: journalAudioPath ?? this.journalAudioPath,
       journalLocation: journalLocation ?? this.journalLocation,
       journalNote: journalNote ?? this.journalNote,
       journalMediaMirrored: journalMediaMirrored ?? this.journalMediaMirrored,
       isDecision: isDecision ?? this.isDecision,
       isQuickFocus: isQuickFocus ?? this.isQuickFocus,
+      isVenting: isVenting ?? this.isVenting,
     );
   }
 
@@ -103,11 +111,13 @@ class Task {
       'actualDurationSeconds': actualDuration?.inSeconds,
       'journalImagePath': journalImagePath,
       'journalVideoPath': journalVideoPath,
+      'journalAudioPath': journalAudioPath,
       'journalLocation': journalLocation,
       'journalNote': journalNote,
       'journalMediaMirrored': journalMediaMirrored,
       'isDecision': isDecision,
       'isQuickFocus': isQuickFocus,
+      'isVenting': isVenting,
     };
   }
 
@@ -137,11 +147,13 @@ class Task {
           : null,
       journalImagePath: json['journalImagePath'] as String?,
       journalVideoPath: json['journalVideoPath'] as String?,
+      journalAudioPath: json['journalAudioPath'] as String?,
       journalLocation: json['journalLocation'] as String?,
       journalNote: json['journalNote'] as String?,
       journalMediaMirrored: json['journalMediaMirrored'] as bool? ?? false,
       isDecision: json['isDecision'] as bool? ?? false,
       isQuickFocus: json['isQuickFocus'] as bool? ?? false,
+      isVenting: json['isVenting'] as bool? ?? false,
     );
   }
 }

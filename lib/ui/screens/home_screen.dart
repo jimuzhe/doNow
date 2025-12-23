@@ -16,6 +16,7 @@ import 'task_detail_screen.dart';
 import 'create_task_modal.dart';
 import 'decision_screen.dart';
 import 'quick_focus_screen.dart';
+import 'venting_screen.dart';
 import '../widgets/responsive_center.dart';
 import '../widgets/subtask_editor_sheet.dart';
 import '../widgets/habit_list.dart';
@@ -39,8 +40,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   
   // Animation for the add button
   late AnimationController _addButtonController;
-  bool _isMenuOpen = false;
   OverlayEntry? _menuOverlay;
+  bool _isPlanningMode = false;
   
   @override
   void initState() {
@@ -64,20 +65,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     final allTasks = ref.watch(taskListProvider);
     final now = DateTime.now();
 
-    // Filter logic:
-    // 1. Not Completed
-    // 2. Not Abandoned
-    // 3. If Time Passed (e.g. 12h past start) AND Not Repeating -> Hide
-    final tasks = allTasks.where((t) {
-      if (t.isCompleted) return false;
-      if (t.isAbandoned) return false; // Hide abandoned tasks
-      
-      final endTime = t.scheduledStart.add(t.totalDuration);
-      if (endTime.isBefore(now) && t.repeatDays.isEmpty) {
-        // Only hide if it's very old (e.g. from yesterday)
-        if (t.scheduledStart.day != now.day) return false;
+    // Start of today
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final tomorrowStart = todayStart.add(const Duration(days: 1));
+
+    final filteredTasks = allTasks.where((t) {
+      if (t.isCompleted || t.isAbandoned) return false;
+
+      if (_isPlanningMode) {
+        // Planning Mode: Show all future one-time tasks AND all recurring tasks
+        final isFutureOneTime = t.repeatDays.isEmpty && t.scheduledStart.isAfter(todayStart);
+        final isRecurring = t.repeatDays.isNotEmpty;
+        return isFutureOneTime || isRecurring;
+      } else {
+        // Execution Mode (Today): 
+        // 1. One-time tasks scheduled for today
+        final isOneTimeToday = t.repeatDays.isEmpty && 
+            t.scheduledStart.year == now.year && 
+            t.scheduledStart.month == now.month && 
+            t.scheduledStart.day == now.day;
+            
+        // 2. Recurring tasks that fall on today's weekday
+        final isRecurringToday = t.repeatDays.isNotEmpty && t.repeatDays.contains(now.weekday);
+        
+        // 3. Keep showing if it started today but didn't finish (already handled by idCompleted check above)
+        
+        return isOneTimeToday || isRecurringToday;
       }
-      return true;
     }).toList()
     ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
 
@@ -92,24 +106,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       body: Stack(
         children: [
           // Background Aesthetic Elements
-          if (isDark)
-            Positioned(
-              top: -100,
-              right: -50,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppTheme.primaryBlue.withOpacity(0.15),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
           
           SafeArea(
             child: ResponsiveCenter(
@@ -153,11 +149,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                          onCreateTask: () => _showTaskModal(context),
                          onQuickFocus: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QuickFocusScreen())),
                          onDecision: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DecisionScreen())),
+                         onVenting: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VentingScreen())),
                          ref: ref,
                        ),
                     ],
                   ),
                 ),
+            
+            // Mode Toggle (Today vs Plan)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                children: [
+                  _buildModeChip(
+                    label: t('today'),
+                    isActive: !_isPlanningMode,
+                    icon: Icons.today,
+                    onTap: () => setState(() => _isPlanningMode = false),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 12),
+                  _buildModeChip(
+                    label: t('planning'),
+                    isActive: _isPlanningMode,
+                    icon: Icons.event_repeat,
+                    onTap: () => setState(() => _isPlanningMode = true),
+                    isDark: isDark,
+                  ),
+                ],
+              ),
+            ),
             
             // Morning Report Banner (Conditional)
             Consumer(
@@ -175,17 +196,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark ? [Colors.blue.shade900, Colors.purple.shade900] : [Colors.blue.shade50, Colors.purple.shade50],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.blue.withOpacity(0.1)),
+                        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+                        boxShadow: [
+                          if (!isDark)
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                        ],
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.newspaper, color: isDark ? Colors.blue[100] : Colors.blue[700]),
+                          Icon(Icons.newspaper, color: isDark ? Colors.white38 : Colors.black45),
                           const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,7 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                             ],
                           ),
                           const Spacer(),
-                          Icon(Icons.arrow_forward_ios, size: 16, color: isDark ? Colors.white54 : Colors.black26),
+                          Icon(Icons.arrow_forward_ios, size: 14, color: isDark ? Colors.white24 : Colors.black26),
                         ],
                       ),
                     ),
@@ -219,14 +244,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
 
             // 2. Task List with Slides
             Expanded(
-              child: tasks.isEmpty
-                  ? _buildEmptyState(t)
+              child: filteredTasks.isEmpty
+                  ? _buildEmptyState(t, locale)
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: tasks.length,
+                      itemCount: filteredTasks.length,
                       itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return _SlidableTaskCard(task: task);
+                        final task = filteredTasks[index];
+                        return _SlidableTaskCard(task: task, isPlanningMode: _isPlanningMode);
                       },
                     ),
             ),
@@ -239,13 +264,74 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildEmptyState(String Function(String) t) {
+  Widget _buildEmptyState(String Function(String) t, String locale) {
+    if (_isPlanningMode) {
+      return EmptyStateWidget(
+        icon: Icons.calendar_month_outlined,
+        title: locale == 'zh' ? '暂无计划' : 'No Plans',
+        subtitle: locale == 'zh' ? '点击下方按钮规划你的周期性任务' : "Tap the button to plan your recurring cycles",
+        onAction: () => _showTaskModal(context),
+        actionLabel: t('create_task'),
+      );
+    }
     return EmptyStateWidget(
       icon: Icons.add_task_outlined,
       title: t('tap_to_start'),
       subtitle: t('no_tasks_today_hint') != 'no_tasks_today_hint' ? t('no_tasks_today_hint') : "今天还没有任务，点击下方按钮开始规划吧",
       onAction: () => _showTaskModal(context),
       actionLabel: t('create_task'),
+    );
+  }
+
+  Widget _buildModeChip({
+    required String label,
+    required bool isActive,
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticHelper(ref).lightImpact();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive 
+              ? (isDark ? Colors.white : Colors.black) 
+              : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive 
+                ? (isDark ? Colors.white : Colors.black)
+                : (isDark ? Colors.white12 : Colors.black12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon, 
+              size: 16, 
+              color: isActive 
+                  ? (isDark ? Colors.black : Colors.white) 
+                  : (isDark ? Colors.white38 : Colors.black38),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isActive 
+                    ? (isDark ? Colors.black : Colors.white) 
+                    : (isDark ? Colors.white38 : Colors.black38),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -309,8 +395,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
 
 class _SlidableTaskCard extends ConsumerWidget {
   final Task task;
+  final bool isPlanningMode;
 
-  const _SlidableTaskCard({required this.task});
+  const _SlidableTaskCard({required this.task, this.isPlanningMode = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -517,8 +604,35 @@ class _SlidableTaskCard extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          // Repeat Info
+                          if (task.repeatDays.isNotEmpty)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.repeat, size: 10, color: isDark ? Colors.white38 : Colors.black38),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    task.repeatDays.length == 7 
+                                      ? (locale == 'zh' ? '每天' : 'Daily')
+                                      : task.repeatDays.map((d) => AppStrings.get('day_$d', locale)).join(','),
+                                    style: TextStyle(
+                                      fontSize: 9, 
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white38 : Colors.black38,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           // Expired Badge
-                          if (task.scheduledStart.add(task.totalDuration).isBefore(DateTime.now()) && !task.isCompleted)
+                          if (!isPlanningMode && task.scheduledStart.add(task.totalDuration).isBefore(DateTime.now()) && !task.isCompleted)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
@@ -627,6 +741,7 @@ class _AnimatedAddButton extends StatefulWidget {
   final VoidCallback onCreateTask;
   final VoidCallback onQuickFocus;
   final VoidCallback onDecision;
+  final VoidCallback onVenting;
   final WidgetRef ref;
 
   const _AnimatedAddButton({
@@ -636,6 +751,7 @@ class _AnimatedAddButton extends StatefulWidget {
     required this.onCreateTask,
     required this.onQuickFocus,
     required this.onDecision,
+    required this.onVenting,
     required this.ref,
   });
 
@@ -740,6 +856,17 @@ class _AnimatedAddButtonState extends State<_AnimatedAddButton> {
                           onTap: () {
                             _closeMenu();
                             widget.onDecision();
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        // Venting
+                        _buildMenuItem(
+                          icon: Icons.favorite_border,
+                          label: t('venting'),
+                          delay: 0.3,
+                          onTap: () {
+                            _closeMenu();
+                            widget.onVenting();
                           },
                         ),
                       ],
