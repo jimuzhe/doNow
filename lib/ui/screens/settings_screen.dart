@@ -17,6 +17,7 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'achievements_screen.dart';
 import '../widgets/white_background_remover.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -155,7 +156,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               children: [
                                       Text(
                                         user?.displayName ?? t('traveler'),
-                                        style: TextStyle(
+                                        style: GoogleFonts.dotGothic16(
                                           fontSize: 24,
                                           fontWeight: FontWeight.bold,
                                           color: theme.colorScheme.onSurface,
@@ -173,7 +174,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       ),
                                       child: Text(
                                         "Lv.${gamificationState.level}",
-                                        style: TextStyle(
+                                        style: GoogleFonts.dotGothic16(
                                           fontSize: 14, 
                                           fontWeight: FontWeight.bold,
                                           color: theme.colorScheme.onSurface.withOpacity(0.7)
@@ -183,7 +184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     const SizedBox(width: 8),
                                     Text(
                                       gamificationState.levelTitle, 
-                                      style: TextStyle(
+                                      style: GoogleFonts.dotGothic16(
                                         fontSize: 14, 
                                         color: Colors.grey[500],
                                       ),
@@ -886,7 +887,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
          children: children,
        ),
      );
-  }
+   }
 
   void _showEditProfileModal(BuildContext context, WidgetRef ref, AppUser user) {
     final locale = ref.read(localeProvider);

@@ -113,16 +113,16 @@ struct DoNowActivityWidget: Widget {
                         let stepInfo = DynamicStepInfo.from(state: context.state)
                         let isLastStep = (stepInfo?.index ?? 0) >= (stepInfo?.totalSteps ?? 1) - 1
                         
-                        HStack(spacing: 12) {
+                        HStack(spacing: 8) {
                             // Abandon Button (放弃)
                             Button(intent: CancelTaskIntent()) {
-                                Label("放弃", systemImage: "trash.fill")
-                                    .font(.subheadline.bold())
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
+                                Label("放弃", systemImage: "xmark")
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
                                     .background(Color.red.opacity(0.15))
                                     .foregroundColor(.red)
-                                    .cornerRadius(12)
+                                    .cornerRadius(8)
                             }
                             .buttonStyle(PlainButtonStyle())
                             
@@ -132,30 +132,29 @@ struct DoNowActivityWidget: Widget {
                             if isLastStep {
                                 // Last Step - Use Link to open app for completion
                                 Link(destination: URL(string: "donow://complete")!) {
-                                    Label("完成", systemImage: "checkmark.seal.fill")
-                                        .font(.subheadline.bold())
-                                        .padding(.horizontal, 24)
-                                        .padding(.vertical, 10)
+                                    Label("完成", systemImage: "checkmark")
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 6)
                                         .background(Color.green)
                                         .foregroundColor(.black)
-                                        .cornerRadius(20)
+                                        .cornerRadius(12)
                                 }
                             } else {
                                 // Background advancement
                                 Button(intent: CompleteStepIntent()) {
-                                    Label("完成", systemImage: "checkmark.circle.fill")
-                                        .font(.subheadline.bold())
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 10)
+                                    Label("完成", systemImage: "checkmark")
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
                                         .background(Color.green.opacity(0.15))
                                         .foregroundColor(.green)
-                                        .cornerRadius(12)
+                                        .cornerRadius(8)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
                         }
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, 4)
                     } else {
                         // iOS 16 Compatibility
                         DynamicBottomFallbackView(state: context.state)

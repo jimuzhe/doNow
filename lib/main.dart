@@ -21,6 +21,8 @@ import 'data/services/auth_service.dart';
 import 'data/services/quick_actions_service.dart';
 import 'ui/widgets/dynamic_island_simulation.dart';
 import 'ui/theme/app_theme.dart';
+import 'ui/widgets/subtask_editor_sheet.dart';
+import 'data/models/subtask.dart';
 
 // Global navigator key for navigation from services
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -134,20 +136,67 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     
     switch (actionType) {
       case 'quick_focus':
+        navigatorKey.currentState?.popUntil((route) => route.isFirst);
         navigatorKey.currentState?.push(
           MaterialPageRoute(builder: (_) => const QuickFocusScreen()),
         );
         break;
       case 'decision':
+        navigatorKey.currentState?.popUntil((route) => route.isFirst);
         navigatorKey.currentState?.push(
           MaterialPageRoute(builder: (_) => const DecisionScreen()),
         );
         break;
       case 'create_task':
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(builder: (_) => const CreateTaskModal()),
-        );
+        navigatorKey.currentState?.popUntil((route) => route.isFirst);
+        final context = navigatorKey.currentContext;
+        if (context != null) {
+          _showGlobalCreateTask(context);
+        }
         break;
+    }
+  }
+
+  void _showGlobalCreateTask(BuildContext context) async {
+    final result = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CreateTaskModal(),
+    );
+
+    if (result != null && result is Map && result['action'] == 'confirm_subtasks') {
+      if (!context.mounted) return;
+      
+      final taskId = result['taskId'];
+      final title = result['title'];
+      final subTasks = result['subTasks'] as List<SubTask>;
+      final totalDuration = Duration(minutes: subTasks.fold(0, (sum, st) => sum + st.estimatedDuration.inMinutes));
+      
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => SubTaskEditorSheet(
+          initialSubTasks: subTasks,
+          totalDuration: totalDuration,
+          showStartButton: true,
+          onSave: (editedSubTasks) {
+             final newTask = Task(
+               id: taskId,
+               title: title,
+               totalDuration: totalDuration,
+               scheduledStart: DateTime.now(),
+               subTasks: editedSubTasks,
+               isGenerating: false,
+             );
+             ref.read(taskRepositoryProvider).addTask(newTask);
+             navigatorKey.currentState?.push(
+                MaterialPageRoute(builder: (c) => TaskDetailScreen(task: newTask)),
+             );
+          },
+        ),
+      );
     }
   }
 
