@@ -84,6 +84,63 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       letterSpacing: 1.0,
     );
 
+    final displayNameStyle = isChinese
+        ? theme.textTheme.titleLarge?.copyWith(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.0,
+            ) ??
+            TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.0,
+            )
+        : GoogleFonts.dotGothic16(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black,
+            letterSpacing: 1.0,
+          ).copyWith(
+            fontFamilyFallback: const ['Roboto', 'PingFang SC', 'Noto Sans CJK', 'sans-serif'],
+          );
+
+    final levelBadgeStyle = isChinese
+        ? theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8),
+            ) ??
+            TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8),
+            )
+        : GoogleFonts.dotGothic16(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8),
+          ).copyWith(
+            fontFamilyFallback: const ['Roboto', 'PingFang SC', 'Noto Sans CJK', 'sans-serif'],
+          );
+
+    final levelTitleStyle = isChinese
+        ? theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ) ??
+            TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            )
+        : GoogleFonts.dotGothic16(
+            fontSize: 14,
+            color: Colors.grey[500],
+          ).copyWith(
+            fontFamilyFallback: const ['Roboto', 'PingFang SC', 'Noto Sans CJK', 'sans-serif'],
+          );
+
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       body: SafeArea(
@@ -102,12 +159,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     Text(
                       t('me_title') == 'me_title' ? 'Me' : t('me_title'), // Fallback if key missing
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1.0,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1.0,
+                            color: isDark ? Colors.white : Colors.black,
+                          ) ??
+                          TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1.0,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
                     ),
                   ],
                 ),
@@ -117,7 +180,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF38383A) : Colors.white,
+                    color: theme.cardColor,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: isDark ? Colors.white30 : Colors.black.withOpacity(0.05),
@@ -133,100 +196,98 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          // Avatar
-                          Container(
-                            width: 64, height: 64,
-                            clipBehavior: Clip.antiAlias,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isDark ? Colors.grey[800] : Colors.grey[200],
-                            ),
-                            child: (user?.avatarUrl != null) 
-                              ? (user!.avatarUrl!.startsWith('http') 
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          width: 64,
+                          height: 64,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDark ? Colors.grey[800] : Colors.grey[200],
+                          ),
+                          child: (user?.avatarUrl != null)
+                              ? (user!.avatarUrl!.startsWith('http')
                                   ? CachedNetworkImage(
-                                      imageUrl: kIsWeb 
-                                        ? 'https://corsproxy.io/?${Uri.encodeComponent(user.avatarUrl!)}'
-                                        : user.avatarUrl!,
+                                      imageUrl: kIsWeb
+                                          ? 'https://corsproxy.io/?${Uri.encodeComponent(user.avatarUrl!)}'
+                                          : user.avatarUrl!,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
-                                      errorWidget: (context, url, error) => Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400]),
+                                      placeholder: (context, url) => Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: isDark ? Colors.white24 : Colors.black12,
+                                            ),
+                                          ),
+                                      errorWidget: (context, url, error) => Icon(
+                                            Icons.person,
+                                            size: 32,
+                                            color: isDark ? Colors.white54 : Colors.grey[400],
+                                          ),
                                     )
                                   : Image.file(
-                                      File(user.avatarUrl!), 
+                                      File(user.avatarUrl!),
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400]),
+                                      errorBuilder: (_, __, ___) => Icon(
+                                            Icons.person,
+                                            size: 32,
+                                            color: isDark ? Colors.white54 : Colors.grey[400],
+                                          ),
                                     ))
-                              : Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400]),
-                          ),
-                          const SizedBox(width: 20),
-                          
-                          // Info
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  user?.displayName ?? t('traveler'),
-                                  style: GoogleFonts.dotGothic16(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white : Colors.black,
-                                    letterSpacing: 1.0,
-                                  ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
+                              : Icon(
+                                  Icons.person,
+                                  size: 32,
+                                  color: isDark ? Colors.white54 : Colors.grey[400],
                                 ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        "Lv.${gamificationState.level}",
-                                        style: GoogleFonts.dotGothic16(
-                                          fontSize: 14, 
-                                          fontWeight: FontWeight.bold,
-                                          color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8)
-                                        ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      gamificationState.levelTitle,
-                                      style: GoogleFonts.dotGothic16(
-                                        fontSize: 14, 
-                                        color: Colors.grey[500],
-                                      ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
-                                    ),
-                                  ],
+                        ),
+                        title: Text(
+                          user?.displayName?.trim().isNotEmpty == true
+                              ? user!.displayName!
+                              : t('traveler'),
+                          style: displayNameStyle,
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const AchievementsScreen()),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              child: Icon(
-                                Icons.emoji_events_outlined, 
-                                color: isDark ? Colors.amber[300] : Colors.amber[600],
-                                size: 36,
+                                child: Text(
+                                  "Lv.${gamificationState.level}",
+                                  style: levelBadgeStyle,
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  gamificationState.levelTitle,
+                                  style: levelTitleStyle,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                        trailing: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const AchievementsScreen()),
+                            );
+                          },
+                          icon: Icon(
+                            Icons.emoji_events_outlined,
+                            color: isDark ? Colors.amber[300] : Colors.amber[600],
+                            size: 32,
+                          ),
+                        ),
                       ),
-                      
+
                       const SizedBox(height: 12),
                       
                       // Achievements Preview (Moved Up & No Background)
@@ -883,6 +944,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
        mainAxisSize: MainAxisSize.min,
        children: [
          ExpansionTile(
+           key: PageStorageKey<String>('settings-group-$title'),
            tilePadding: EdgeInsets.zero,
            title: Text(
              title,
@@ -899,6 +961,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
            backgroundColor: Colors.transparent,
            childrenPadding: const EdgeInsets.only(bottom: 16),
            initiallyExpanded: false,
+           maintainState: true,
            children: children,
          ),
          Divider(height: 1, thickness: 1, color: borderColor),
