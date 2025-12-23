@@ -85,7 +85,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: isDark ? Colors.black : Colors.white,
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -889,12 +889,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
              style: TextStyle(
                fontSize: 14, 
                fontWeight: FontWeight.bold, 
-               color: theme.colorScheme.onSurface,
+               color: isDark ? Colors.white : Colors.black,
                letterSpacing: 1.0,
              ),
            ),
-           iconColor: theme.colorScheme.onSurface.withOpacity(0.6),
-           collapsedIconColor: theme.colorScheme.onSurface.withOpacity(0.6),
+           iconColor: isDark ? Colors.white70 : Colors.black54,
+           collapsedIconColor: isDark ? Colors.white70 : Colors.black54,
            collapsedBackgroundColor: Colors.transparent,
            backgroundColor: Colors.transparent,
            childrenPadding: const EdgeInsets.only(bottom: 16),
@@ -1169,7 +1169,7 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: iconColor ?? theme.colorScheme.onSurface.withOpacity(0.7)),
+            Icon(icon, size: 22, color: iconColor ?? (isDark ? Colors.white70 : Colors.black54)),
             const SizedBox(width: 16),
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1178,13 +1178,13 @@ class _SettingsTile extends StatelessWidget {
                 Text(title, style: TextStyle(
                   fontSize: 16, 
                   fontWeight: FontWeight.w500, 
-                  color: textColor ?? theme.colorScheme.onSurface.withOpacity(0.6)
+                  color: textColor ?? (isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8))
                 )),
                 if (subtitle != null) ...[
                   const SizedBox(height: 2),
                   Text(subtitle!, style: TextStyle(
                     fontSize: 12,
-                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    color: isDark ? Colors.white38 : Colors.black38,
                   )),
                 ],
               ],
