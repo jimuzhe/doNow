@@ -89,3 +89,34 @@ final morningReportProvider = FutureProvider<MorningReport>((ref) async {
   final service = MorningReportService();
   return service.fetchReport();
 });
+
+// Auto Landscape Focus Provider - Persisted
+final autoLandscapeFocusProvider = StateNotifierProvider<AutoLandscapeFocusNotifier, bool>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return AutoLandscapeFocusNotifier(storage);
+});
+
+class AutoLandscapeFocusNotifier extends StateNotifier<bool> {
+  final _storage;
+
+  AutoLandscapeFocusNotifier(this._storage) : super(true) {
+    _load();
+  }
+
+  void _load() {
+    try {
+       state = _storage.loadAutoLandscapeFocus();
+    } catch (_) {
+       state = true;
+    }
+  }
+
+  void setEnabled(bool enabled) {
+    state = enabled;
+    _storage.saveAutoLandscapeFocus(enabled);
+  }
+  
+  void toggle() {
+    setEnabled(!state);
+  }
+}

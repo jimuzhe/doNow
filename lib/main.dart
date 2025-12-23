@@ -62,6 +62,7 @@ class AtomicApp extends ConsumerStatefulWidget {
 class _AtomicAppState extends ConsumerState<AtomicApp> {
   StreamSubscription<Task>? _taskDueSubscription;
   StreamSubscription<Task>? _taskUpcomingSubscription;
+  StreamSubscription<String>? _notificationTapSubscription;
   final List<String> _deferredTaskQueue = []; // Queue of tasks waiting for user to become free
 
   @override
@@ -85,15 +86,14 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     
     // Listen for upcoming task warnings
     _taskUpcomingSubscription = scheduler.onTaskUpcoming.listen((task) {
-      // Only show blocking dialog if user is "busy" 
-      // (Running a task, or in Quick Focus / Decision screen)
       if (_isBusy()) {
         _showUpcomingDialog(task);
-      } else {
-        // If not busy (Home, Settings, Analysis), do nothing here.
-        // The system notification will still show (via scheduler), 
-        // and when time is up, it will direct jump.
       }
+    });
+
+    // Listen for notification taps
+    _notificationTapSubscription = scheduler.onNotificationTap.listen((taskId) {
+      _handleNotificationTap(taskId);
     });
   }
 
@@ -101,6 +101,7 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
   void dispose() {
     _taskDueSubscription?.cancel();
     _taskUpcomingSubscription?.cancel();
+    _notificationTapSubscription?.cancel();
     super.dispose();
   }
 
@@ -115,6 +116,36 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     
     // 2. Check explicit busy UI state (Decision / Quick Focus)
     return ref.read(isBusyUIProvider);
+  }
+
+  /// Handle tapping on a system notification
+  void _handleNotificationTap(String taskId) {
+    final tasks = ref.read(taskListProvider);
+    final taskIndex = tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) return;
+    
+    final task = tasks[taskIndex];
+    final now = DateTime.now();
+    
+    // Calculate if task is still within its "validity" window
+    // Start + Planned Duration
+    final expiryTime = task.scheduledStart.add(task.totalDuration);
+    
+    if (now.isBefore(expiryTime)) {
+      // Still in time, navigate directly
+      // Note: If user is busy, _navigateToTaskDetail will show a dialog
+      _navigateToTaskDetail(task);
+    } else {
+      // Expired. Just enter app normally. 
+      // Home screen will show it as expired.
+      final locale = ref.read(localeProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(locale == 'zh' ? '事项已过期' : 'Task expired'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   /// Navigate to task detail screen when a task is due

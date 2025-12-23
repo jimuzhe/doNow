@@ -33,6 +33,23 @@ import ActivityKit
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
     
+    override func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+        logToDocuments(message: "Opened URL: \(url.absoluteString)")
+        
+        if url.host == "complete" || url.absoluteString.contains("complete") {
+            // Mark as complete in App Group for Flutter to pick up
+            if let defaults = UserDefaults(suiteName: "group.com.donow.app") {
+                defaults.set("complete", forKey: "pendingAction")
+                let currentCount = defaults.integer(forKey: "completedStepsCount")
+                defaults.set(currentCount + 1, forKey: "completedStepsCount")
+                defaults.synchronize()
+                logToDocuments(message: "Marked complete from deep link")
+            }
+        }
+        
+        return super.application(app, open: url, options: options)
+    }
+    
     private func handleMethodCall(call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "startActivity":
@@ -247,11 +264,21 @@ import ActivityKit
     private func checkPendingAction(result: @escaping FlutterResult) {
         if let defaults = UserDefaults(suiteName: "group.com.donow.app") {
             let action = defaults.string(forKey: "pendingAction")
-            if let action = action {
-                // Clear it
+            let count = defaults.integer(forKey: "completedStepsCount")
+            
+            if action != nil || count > 0 {
+                var response: [String: Any] = [:]
+                if let action = action {
+                    response["action"] = action
+                }
+                response["count"] = count
+                
+                // Clear them
                 defaults.removeObject(forKey: "pendingAction")
+                defaults.set(0, forKey: "completedStepsCount")
                 defaults.synchronize()
-                result(action)
+                
+                result(response)
             } else {
                 result(nil)
             }

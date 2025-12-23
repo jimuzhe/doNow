@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_user.dart';
 import 'self_hosted_auth_service.dart';
+import '../localization.dart';
 
 export '../models/app_user.dart';
 
@@ -144,22 +145,40 @@ class SelfHostedAuthAdapter implements AuthService {
 
   @override
   String getErrorMessage(dynamic e, String locale) {
-    if (e is! AuthException) {
-      return e.toString();
+    // 1. Handle common network/io errors
+    final errorStr = e.toString().toLowerCase();
+    if (errorStr.contains('socketexception') || errorStr.contains('clientexception') || errorStr.contains('failed host lookup')) {
+      return AppStrings.get('error_network', locale);
+    }
+    if (e is TimeoutException || errorStr.contains('timeout')) {
+      return AppStrings.get('error_timeout', locale);
+    }
+
+    // 2. Handle AuthException (Custom server errors)
+    if (e is AuthException) {
+      final msg = e.message.toLowerCase();
+      
+      if (msg.contains('invalid email or password') || msg.contains('incorrect password')) {
+        return AppStrings.get('error_invalid_email_password', locale);
+      } else if (msg.contains('already registered') || msg.contains('email is already in use')) {
+        return AppStrings.get('error_email_in_use', locale);
+      } else if (msg.contains('not found') || msg.contains('no user')) {
+        return AppStrings.get('error_user_not_found', locale);
+      } else if (msg.contains('weak password')) {
+        return AppStrings.get('error_weak_password', locale);
+      } else if (msg.contains('invalid-email') || msg.contains('invalid email')) {
+        return AppStrings.get('error_invalid_email', locale);
+      } else if (msg.contains('not verified')) {
+        return AppStrings.get('error_not_verified', locale);
+      }
+      
+      // If code is descriptive, we could use that, but usually e.message is better.
+      // However, for unprofessional raw messages, we prefer a generic fallback.
+      return AppStrings.get('error_generic', locale);
     }
     
-    final isZh = locale == 'zh';
-    final msg = e.message.toLowerCase();
-    
-    if (msg.contains('invalid email or password')) {
-      return isZh ? '邮箱或密码错误' : 'Invalid email or password';
-    } else if (msg.contains('already registered')) {
-      return isZh ? '该邮箱已被注册' : 'Email already in use';
-    } else if (msg.contains('not found')) {
-      return isZh ? '用户不存在' : 'User not found';
-    }
-    
-    return isZh ? '操作失败：${e.message}' : 'Error: ${e.message}';
+    // 3. Fallback for any other unexpected errors
+    return AppStrings.get('error_generic', locale);
   }
 }
 

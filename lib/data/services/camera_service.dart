@@ -96,8 +96,17 @@ class CameraService {
   Future<void> release() async {
     _isPrewarmed = false;
     _isPrewarming = false;
-    await _controller?.dispose();
-    _controller = null;
+    _initFuture = null;
+    if (_controller != null) {
+      final c = _controller!;
+      _controller = null;
+      try {
+        await c.dispose();
+      } catch (e) {
+        debugPrint('Error disposing prewarmed camera: $e');
+      }
+    }
+    debugPrint('Camera service released');
   }
 
   /// Dispose everything

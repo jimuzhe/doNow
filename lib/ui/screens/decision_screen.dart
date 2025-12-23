@@ -489,16 +489,13 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
           
           // Layer 2: Coin (on top of everything, can cover AppBar when flying up)
           Positioned.fill(
-            child: IgnorePointer(
-              ignoring: !_isFlipping && _flipCount == 0 ? false : !_isFlipping,
+            child: Center(
               child: GestureDetector(
                 onTap: () {
-                  if (!_isFlipping) _flipCoin();
+                  if (!_isFlipping && _flipCount < 3) _flipCoin();
                 },
-                behavior: HitTestBehavior.translucent,
-                child: Center(
-                  child: coinWidget,
-                ),
+                behavior: HitTestBehavior.opaque,
+                child: coinWidget,
               ),
             ),
           ),

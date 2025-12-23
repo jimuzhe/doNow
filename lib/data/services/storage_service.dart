@@ -19,6 +19,7 @@ class StorageService {
   static const String _localeKey = 'locale';
   static const String _themeModeKey = 'theme_mode';
   static const String _vibrationIntensityKey = 'vibration_intensity';
+  static const String _autoLandscapeFocusKey = 'auto_landscape_focus';
   static const String _currentUserIdKey = 'current_user_id';
 
   SharedPreferences? _prefs;
@@ -159,6 +160,18 @@ class StorageService {
   /// Load vibration intensity from storage (default: 1.0)
   double loadVibrationIntensity() {
     return prefs.getDouble(_vibrationIntensityKey) ?? 1.0;
+  }
+
+  // ============== AUTO LANDSCAPE FOCUS (global) ==============
+
+  /// Save auto landscape focus setting to storage
+  Future<void> saveAutoLandscapeFocus(bool enabled) async {
+    await prefs.setBool(_autoLandscapeFocusKey, enabled);
+  }
+
+  /// Load auto landscape focus setting (default: true)
+  bool loadAutoLandscapeFocus() {
+    return prefs.getBool(_autoLandscapeFocusKey) ?? true;
   }
 
   // ============== AI PERSONA (per-user) ==============

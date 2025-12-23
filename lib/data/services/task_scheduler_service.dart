@@ -21,6 +21,10 @@ class TaskSchedulerService {
   // Stream for upcoming task warnings
   final StreamController<Task> _upcomingController = StreamController<Task>.broadcast();
   Stream<Task> get onTaskUpcoming => _upcomingController.stream;
+
+  // Stream for notification taps
+  final StreamController<String> _notificationTapController = StreamController<String>.broadcast();
+  Stream<String> get onNotificationTap => _notificationTapController.stream;
   
   // Track which tasks have already been notified (to avoid duplicate notifications)
   final Set<String> _notifiedTaskIds = {};
@@ -45,8 +49,9 @@ class TaskSchedulerService {
     await _notifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (response) {
-        // Handle notification tap - could navigate to task
-        print('Notification tapped: ${response.payload}');
+        if (response.payload != null) {
+          _notificationTapController.add(response.payload!);
+        }
       },
     );
     
@@ -107,38 +112,46 @@ class TaskSchedulerService {
       // 2. Logic Check
       
       // A. Upcoming Warning (3 minutes before)
-      // Check window: [-190s, -5s] (Target is >5s and <=190s in future)
       if (diffSeconds >= -190 && diffSeconds <= -5) {
-         // ONLY Trigger if user is actually BUSY
-         // If user is free (Home/Analysis), we rely on their own awareness or just the final due event
-         final isBusy = _ref.read(isBusyUIProvider) || _ref.read(activeTaskIdProvider) != null;
-         
-         if (isBusy && !_notifiedTaskIds.contains('${task.id}_upcoming')) {
-              _notifiedTaskIds.add('${task.id}_upcoming');
-              _sendUpcomingNotification(task);
-              _upcomingController.add(task); // Emit event for UI handler
+          final isForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+          final activeTaskId = _ref.read(activeTaskIdProvider);
+          
+          // Skip if this task is already being executed
+          if (activeTaskId == task.id) continue;
+          
+          final isBusy = _ref.read(isBusyUIProvider) || activeTaskId != null;
+          
+          if (!_notifiedTaskIds.contains('${task.id}_upcoming')) {
+               // Send notification if:
+               // 1. App is in background (not foreground)
+               // 2. User is in app but BUSY
+               if (!isForeground || isBusy) {
+                  _notifiedTaskIds.add('${task.id}_upcoming');
+                  _sendUpcomingNotification(task);
+                  _upcomingController.add(task);
+               }
           }
           continue;
       }
       
       // B. Start Time Reached
-      // Check window: [-30s, 300s]
       if (diffSeconds >= -30 && diffSeconds <= 300) {
          if (!_notifiedTaskIds.contains('${task.id}_due')) {
              _notifiedTaskIds.add('${task.id}_due');
 
-            // CONFLICT CHECK: Is there an active task?
+            final isForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
             final activeTaskId = _ref.read(activeTaskIdProvider);
             
-            if (activeTaskId == task.id) {
-               // This task is ALREADY running, skip entirely
-               continue;
+            if (activeTaskId == task.id) continue;
+
+            if (!isForeground) {
+              // App is in background, definitely send system notification
+              _sendDueNotification(task);
             } else if (activeTaskId != null) {
-               // Conflict! Another task is active.
-               // Notify user but DO NOT auto-navigate.
+               // Conflict! User is in app but doing another task
                _sendConflictNotification(task);
             } else {
-               // No conflict, proceed as normal
+               // No conflict, in foreground
                _triggerTaskDue(task);
             }
          }
@@ -160,6 +173,22 @@ class TaskSchedulerService {
        body: body,
        taskId: task.id,
     );
+  }
+
+  /// Send "Conflict / Due" notification when another task is already active
+  Future<void> _sendDueNotification(Task task) async {
+    final locale = _ref.read(localeProvider);
+    final title = locale == 'zh' ? '🚀 任务开始时间到！' : '🚀 Task Starting Now!';
+    final body = task.title;
+    
+    await _showNotification(
+      id: task.id.hashCode,
+      title: title,
+      body: body,
+      taskId: task.id,
+    );
+    // Also notify internal stream so UI can react if it comes back to foreground
+    _navigationController.add(task);
   }
 
   /// Send "Conflict / Due" notification when another task is already active
@@ -254,9 +283,9 @@ class TaskSchedulerService {
   /// Dispose resources
   void dispose() {
     _checkTimer?.cancel();
-    _checkTimer?.cancel();
     _navigationController.close();
     _upcomingController.close();
+    _notificationTapController.close();
   }
 }
 

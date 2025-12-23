@@ -415,26 +415,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
             child: Row(
               mainAxisSize: MainAxisSize.min, // Shrink wrap width
               children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent, 
-                    shape: BoxShape.circle,
-                  ),
-                  child: achievement.icon.startsWith('http') 
-                    ? WhiteBackgroundRemover(
-                        child: ClipOval(
-                          child: Image.network(
-                            kIsWeb 
-                              ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
-                              : achievement.icon,
-                            width: 24, height: 24, fit: BoxFit.cover, 
-                            errorBuilder: (_,__,___) => const Icon(Icons.star, color: Colors.amber),
-                          ),
-                        ),
-                      )
-                    : Text(achievement.icon, style: const TextStyle(fontSize: 24)),
-                ),
+                achievement.icon.startsWith('http') 
+                  ? WhiteBackgroundRemover(
+                      child: Image.network(
+                        kIsWeb 
+                          ? 'https://corsproxy.io/?${Uri.encodeComponent(achievement.icon)}' 
+                          : achievement.icon,
+                        width: 28, height: 28, fit: BoxFit.contain, 
+                        errorBuilder: (_,__,___) => const Icon(Icons.star, color: Colors.amber),
+                      ),
+                    )
+                  : Text(achievement.icon, style: const TextStyle(fontSize: 24)),
                 const SizedBox(width: 12),
                 Flexible( // Use Flexible to allow wrapping if text is super long, though min width is desired
                   child: Column(
@@ -467,6 +458,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
 
   void _showTimeoutDialog() {
     final locale = ref.read(localeProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     String t(String key) => AppStrings.get(key, locale);
 
     showDialog(
@@ -476,27 +468,55 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> with Widget
         title: t('times_up'),
         content: t('times_up_content'),
         actions: [
-          // Continue option (Overtime)
-          TextButton(
-            onPressed: () {
-               Navigator.pop(context); // Close Dialog and keep running
-            },
-            child: Text(t('ok_cool'), style: const TextStyle(color: Colors.grey)), 
+          // Primary: Complete mission
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _completeMission();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? Colors.white : Colors.black,
+                foregroundColor: isDark ? Colors.black : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text(t('btn_yes'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
           ),
-          TextButton(
-            onPressed: () {
-               ref.read(notificationServiceProvider).endActivity(); 
-               Navigator.pop(context); // Close Dialog
-               _showEncouragementOverlay();
-            },
-            child: Text(t('btn_no')),
+          // Secondary: Not finished
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton(
+              onPressed: () {
+                 ref.read(notificationServiceProvider).endActivity(); 
+                 Navigator.pop(context);
+                 _showEncouragementOverlay();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? Colors.white70 : Colors.grey[700],
+                side: BorderSide(color: isDark ? Colors.white24 : Colors.grey[300]!),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(t('btn_no'), style: const TextStyle(fontSize: 15)),
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _completeMission();
-            },
-            child: Text(t('btn_yes')),
+          // Tertiary: Continue (Overtime)
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: TextButton(
+              onPressed: () {
+                 Navigator.pop(context); // Close Dialog and keep running
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey,
+              ),
+              child: Text(t('ok_cool'), style: const TextStyle(fontSize: 14)),
+            ),
           ),
         ],
       ),
