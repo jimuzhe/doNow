@@ -13,7 +13,6 @@ import '../../data/services/gamification_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:typed_data';
 import 'dart:io';
 import 'achievements_screen.dart';
@@ -103,7 +102,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         fontSize: 32,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -1.0,
-                        color: isDark ? Colors.white : Colors.black,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ],
@@ -156,11 +155,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               children: [
                                       Text(
                                         user?.displayName ?? t('traveler'),
-                                        style: GoogleFonts.dotGothic16(
-                                          fontSize: 24, // Adjusted size
+                                        style: TextStyle(
+                                          fontSize: 24,
                                           fontWeight: FontWeight.bold,
-                                          // Removed italic for better pixel render
-                                          color: isDark ? Colors.white : Colors.black,
+                                          color: theme.colorScheme.onSurface,
                                           letterSpacing: 1.0,
                                         ),
                                       ),
@@ -175,17 +173,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       ),
                                       child: Text(
                                         "Lv.${gamificationState.level}",
-                                        style: GoogleFonts.dotGothic16(
+                                        style: TextStyle(
                                           fontSize: 14, 
                                           fontWeight: FontWeight.bold,
-                                          color: isDark ? Colors.white70 : Colors.black87
+                                          color: theme.colorScheme.onSurface.withOpacity(0.7)
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       gamificationState.levelTitle, 
-                                      style: GoogleFonts.dotGothic16(
+                                      style: TextStyle(
                                         fontSize: 14, 
                                         color: Colors.grey[500],
                                       ),
@@ -275,7 +273,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         children: [
                           Text(
                             t('xp_progress'), 
-                            style: GoogleFonts.dotGothic16(
+                            style: TextStyle(
                               fontSize: 12, 
                               fontWeight: FontWeight.bold, 
                               color: Colors.grey[500], 
@@ -296,7 +294,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           const SizedBox(height: 4),
                           Text(
                             "${gamificationState.currentXp} / ${gamificationState.xpToNextLevel} XP",
-                            style: GoogleFonts.dotGothic16(fontSize: 12, color: Colors.grey[500]),
+                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                           ),
                         ],
                       ),
@@ -862,11 +860,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildSettingsGroup(BuildContext context, {required String title, required List<Widget> children}) {
-     final isDark = Theme.of(context).brightness == Brightness.dark;
+     final theme = Theme.of(context);
+     final isDark = theme.brightness == Brightness.dark;
      final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
      
      return Theme(
-       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+       data: theme.copyWith(dividerColor: Colors.transparent),
        child: ExpansionTile(
          tilePadding: const EdgeInsets.symmetric(horizontal: 0),
          title: Text(
@@ -874,7 +873,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
            style: TextStyle(
              fontSize: 14, 
              fontWeight: FontWeight.bold, 
-             color: isDark ? Colors.white : Colors.black,
+             color: theme.colorScheme.onSurface,
              letterSpacing: 1.0,
            ),
          ),
@@ -1142,7 +1141,8 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     
     return InkWell(
       onTap: onTap,
@@ -1151,7 +1151,7 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: iconColor ?? (isDark ? Colors.white70 : Colors.black87)),
+            Icon(icon, size: 22, color: iconColor ?? theme.colorScheme.onSurface.withOpacity(0.7)),
             const SizedBox(width: 16),
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1160,13 +1160,13 @@ class _SettingsTile extends StatelessWidget {
                 Text(title, style: TextStyle(
                   fontSize: 16, 
                   fontWeight: FontWeight.w500, 
-                  color: textColor ?? (isDark ? Colors.grey[400] : Colors.grey[600])
+                  color: textColor ?? theme.colorScheme.onSurface.withOpacity(0.6)
                 )),
                 if (subtitle != null) ...[
                   const SizedBox(height: 2),
                   Text(subtitle!, style: TextStyle(
                     fontSize: 12,
-                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
                   )),
                 ],
               ],
@@ -1463,7 +1463,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                             const SizedBox(width: 4),
                             Text(
                               _getPersonaName(currentPersona, locale),
-                              style: GoogleFonts.dotGothic16(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: personaColor,
                                 fontWeight: FontWeight.w500,
@@ -1545,7 +1545,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                   children: [
                                     Text(
                                       _getPersonaName(persona, locale),
-                                      style: GoogleFonts.dotGothic16(
+                                      style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                                         color: isSelected 
@@ -1556,7 +1556,7 @@ class _CollapsibleAIPersonaTileState extends ConsumerState<_CollapsibleAIPersona
                                     const SizedBox(height: 2),
                                     Text(
                                       _getPersonaDesc(persona, locale),
-                                      style: GoogleFonts.dotGothic16(
+                                      style: TextStyle(
                                         fontSize: 12,
                                         color: isDark ? Colors.grey[400] : Colors.grey[600],
                                       ),

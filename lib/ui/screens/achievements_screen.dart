@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb; // Add this
 import '../../data/providers.dart';
@@ -26,7 +25,7 @@ class AchievementsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(
           t('achievements_title'), // "Achievements"
-          style: GoogleFonts.dotGothic16(
+          style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             letterSpacing: 2.0,
@@ -116,7 +115,7 @@ class AchievementsScreen extends ConsumerWidget {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dotGothic16(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: isUnlocked 
@@ -238,7 +237,7 @@ class AchievementsScreen extends ConsumerWidget {
               // Title
               Text(
                 title,
-                style: GoogleFonts.dotGothic16(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: achievement.isUnlocked ? (isDark ? Colors.white : Colors.black) : Colors.grey,
