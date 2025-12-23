@@ -91,6 +91,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
             child: ListView(
+              cacheExtent: 1000, // Fix iOS rendering issue
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
               children: [
                 // === 1. Header & Profile ===
@@ -865,27 +866,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
      final isDark = theme.brightness == Brightness.dark;
      final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
      
-     return Theme(
-       data: theme.copyWith(dividerColor: Colors.transparent),
-       child: ExpansionTile(
-         tilePadding: const EdgeInsets.symmetric(horizontal: 0),
-         title: Text(
-           title,
-           style: TextStyle(
-             fontSize: 14, 
-             fontWeight: FontWeight.bold, 
-             color: theme.colorScheme.onSurface,
-             letterSpacing: 1.0,
+     return Column(
+       mainAxisSize: MainAxisSize.min,
+       children: [
+         ExpansionTile(
+           tilePadding: EdgeInsets.zero,
+           title: Text(
+             title,
+             style: TextStyle(
+               fontSize: 14, 
+               fontWeight: FontWeight.bold, 
+               color: theme.colorScheme.onSurface,
+               letterSpacing: 1.0,
+             ),
            ),
+           iconColor: theme.colorScheme.onSurface.withOpacity(0.6),
+           collapsedIconColor: theme.colorScheme.onSurface.withOpacity(0.6),
+           collapsedBackgroundColor: Colors.transparent,
+           backgroundColor: Colors.transparent,
+           childrenPadding: const EdgeInsets.only(bottom: 16),
+           initiallyExpanded: false,
+           children: children,
          ),
-         collapsedShape: Border(bottom: BorderSide(color: borderColor)),
-         shape: Border(bottom: BorderSide(color: borderColor)),
-         collapsedBackgroundColor: Colors.transparent,
-         backgroundColor: Colors.transparent,
-         childrenPadding: const EdgeInsets.only(bottom: 16),
-         initiallyExpanded: false,
-         children: children,
-       ),
+         Divider(height: 1, thickness: 1, color: borderColor),
+       ],
      );
    }
 
