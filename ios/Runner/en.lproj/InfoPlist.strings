@@ -1,0 +1,7 @@
+/* Quick Actions */
+"quick_focus" = "Quick Focus";
+"quick_focus_subtitle" = "Start a quick focus session";
+"decision" = "Make a Decision";
+"decision_subtitle" = "Flip a coin to decide";
+"create_task" = "Create Task";
+"create_task_subtitle" = "Add a new task";

@@ -7,6 +7,9 @@ import 'ui/screens/main_screen.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/email_verification_screen.dart';
 import 'ui/screens/task_detail_screen.dart';
+import 'ui/screens/quick_focus_screen.dart';
+import 'ui/screens/decision_screen.dart';
+import 'ui/screens/create_task_modal.dart';
 import 'data/providers.dart';
 import 'data/localization.dart';
 import 'data/models/task.dart';
@@ -15,6 +18,7 @@ import 'data/services/task_scheduler_service.dart';
 import 'data/services/storage_service.dart';
 import 'data/services/sound_effect_service.dart';
 import 'data/services/auth_service.dart';
+import 'data/services/quick_actions_service.dart';
 import 'ui/widgets/dynamic_island_simulation.dart';
 import 'ui/theme/app_theme.dart';
 
@@ -63,7 +67,9 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
   StreamSubscription<Task>? _taskDueSubscription;
   StreamSubscription<Task>? _taskUpcomingSubscription;
   StreamSubscription<String>? _notificationTapSubscription;
+  StreamSubscription<String>? _quickActionSubscription;
   final List<String> _deferredTaskQueue = []; // Queue of tasks waiting for user to become free
+  String? _pendingQuickAction; // Store quick action if app is cold-started
 
   @override
   void initState() {
@@ -95,6 +101,14 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     _notificationTapSubscription = scheduler.onNotificationTap.listen((taskId) {
       _handleNotificationTap(taskId);
     });
+    
+    // Initialize Quick Actions (for iOS 3D Touch / Android long-press)
+    final quickActions = QuickActionsService();
+    quickActions.init();
+    _quickActionSubscription = quickActions.onAction.listen((actionType) {
+      debugPrint('[Main] Quick action received: $actionType');
+      _handleQuickAction(actionType);
+    });
   }
 
   @override
@@ -102,7 +116,39 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
     _taskDueSubscription?.cancel();
     _taskUpcomingSubscription?.cancel();
     _notificationTapSubscription?.cancel();
+    _quickActionSubscription?.cancel();
     super.dispose();
+  }
+  
+  /// Handle quick action from app icon long-press
+  void _handleQuickAction(String actionType) {
+    final context = navigatorKey.currentContext;
+    if (context == null) {
+      // App not ready yet, store for later
+      _pendingQuickAction = actionType;
+      return;
+    }
+    
+    // Clear any pending action
+    _pendingQuickAction = null;
+    
+    switch (actionType) {
+      case 'quick_focus':
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const QuickFocusScreen()),
+        );
+        break;
+      case 'decision':
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const DecisionScreen()),
+        );
+        break;
+      case 'create_task':
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const CreateTaskModal()),
+        );
+        break;
+    }
   }
 
   /// Check if user is currently in a "blocking" activity or screen

@@ -72,5 +72,38 @@
 			</array>
 		</dict>
 	</array>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>quick_focus</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>quick_focus</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>quick_focus_subtitle</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeTime</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>decision</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>decision</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>decision_subtitle</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeShuffle</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>create_task</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>create_task</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>create_task_subtitle</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+		</dict>
+	</array>
 </dict>
 </plist>

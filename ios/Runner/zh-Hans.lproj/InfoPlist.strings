@@ -1,0 +1,7 @@
+/* Quick Actions */
+"quick_focus" = "快速专注";
+"quick_focus_subtitle" = "开始一个专注时段";
+"decision" = "做个决定";
+"decision_subtitle" = "抛硬币决定";
+"create_task" = "创建任务";
+"create_task_subtitle" = "添加新任务";

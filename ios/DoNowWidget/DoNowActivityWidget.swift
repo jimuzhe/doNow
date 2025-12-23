@@ -410,22 +410,17 @@ struct DynamicCompactLeadingView: View {
         let stepInfo = DynamicStepInfo.from(state: state)
         let progress = stepInfo?.progress ?? state.progress
         
-        // Push content to the far left (away from the camera island)
-        HStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                    .frame(width: 16, height: 16)
-                
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 16, height: 16)
-                    .rotationEffect(.degrees(-90))
-            }
-            .padding(.leading, 2)
+        // Circular progress - no extra spacing, camera island naturally separates elements
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                .frame(width: 16, height: 16)
             
-            Spacer(minLength: 4) // Keep space from the camera island
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .frame(width: 16, height: 16)
+                .rotationEffect(.degrees(-90))
         }
     }
 }
@@ -457,45 +452,40 @@ struct DynamicCompactTrailingView: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 4) // Keep space from the camera island
+        // Timer text - no extra spacing, camera island naturally separates elements
+        if let steps = state.steps, !steps.isEmpty {
+            let currentIndex = getCurrentStepIndex(steps: steps)
             
-            if let steps = state.steps, !steps.isEmpty {
-                let currentIndex = getCurrentStepIndex(steps: steps)
-                
-                if let lastStep = steps.last, currentDate >= lastStep.endTime {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.caption)
-                } else if currentIndex < steps.count {
-                    let step = steps[currentIndex]
-                    if step.endTime > currentDate {
-                        Text(timerInterval: currentDate...step.endTime, countsDown: true)
-                            .monospacedDigit()
-                            .font(.caption2.bold())
-                            .foregroundColor(.white)
-                            .id("timer-\(currentIndex)")
-                            .padding(.trailing, 2)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.caption)
-                    }
-                }
-            } else {
-                // Fallback
-                let stepInfo = DynamicStepInfo.from(state: state)
-                if let info = stepInfo, info.endTime > currentDate {
-                    Text(timerInterval: currentDate...info.endTime, countsDown: true)
+            if let lastStep = steps.last, currentDate >= lastStep.endTime {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+            } else if currentIndex < steps.count {
+                let step = steps[currentIndex]
+                if step.endTime > currentDate {
+                    Text(timerInterval: currentDate...step.endTime, countsDown: true)
                         .monospacedDigit()
                         .font(.caption2.bold())
                         .foregroundColor(.white)
-                        .padding(.trailing, 2)
+                        .id("timer-\(currentIndex)")
                 } else {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                         .font(.caption)
                 }
+            }
+        } else {
+            // Fallback
+            let stepInfo = DynamicStepInfo.from(state: state)
+            if let info = stepInfo, info.endTime > currentDate {
+                Text(timerInterval: currentDate...info.endTime, countsDown: true)
+                    .monospacedDigit()
+                    .font(.caption2.bold())
+                    .foregroundColor(.white)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
             }
         }
     }
