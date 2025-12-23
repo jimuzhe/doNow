@@ -106,7 +106,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         fontSize: 32,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -1.0,
-                        color: theme.colorScheme.onSurface,
+                        color: isDark ? Colors.white : Colors.black,
                       ),
                     ),
                   ],
@@ -117,13 +117,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.white, // Improved visibility
+                    color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05),
+                      width: 1,
+                    ),
                     boxShadow: !isDark ? [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 10,
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 20,
                         offset: const Offset(0, 4),
                       )
                     ] : null,
@@ -169,7 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   style: GoogleFonts.dotGothic16(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onSurface,
+                                    color: isDark ? Colors.white : Colors.black,
                                     letterSpacing: 1.0,
                                   ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
                                 ),
@@ -187,7 +190,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         style: GoogleFonts.dotGothic16(
                                           fontSize: 14, 
                                           fontWeight: FontWeight.bold,
-                                          color: theme.colorScheme.onSurface.withOpacity(0.7)
+                                          color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8)
                                         ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
                                       ),
                                     ),
