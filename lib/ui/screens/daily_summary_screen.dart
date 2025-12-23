@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../data/providers.dart';
 import '../../data/models/task.dart';
 import '../../data/localization.dart';
 import '../../data/services/daily_summary_service.dart';
+import '../theme/app_theme.dart';
 
 class DailySummaryScreen extends ConsumerStatefulWidget {
   final DateTime date;
@@ -182,6 +184,21 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
             ),
             
             const SizedBox(height: 32),
+            
+            // Focus Breakdown Pie Chart
+            if (completedCount > 0) ...[
+              Text(
+                t('focus_breakdown'),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _FocusBreakdownChart(dayTasks: dayTasks, isDark: isDark),
+              const SizedBox(height: 32),
+            ],
             
             // AI Summary Section
             _buildAISummarySection(isDark, t),
@@ -362,6 +379,148 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FocusBreakdownChart extends StatelessWidget {
+  final List<Task> dayTasks;
+  final bool isDark;
+
+  const _FocusBreakdownChart({required this.dayTasks, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final completedTasks = dayTasks.where((t) => t.isCompleted && t.actualDuration != null).toList();
+    if (completedTasks.isEmpty) return const SizedBox();
+
+    // Grouping tasks by title to avoid tiny slices for repetitive tasks
+    final Map<String, int> groupedMinutes = {};
+    for (var task in completedTasks) {
+      final mins = task.actualDuration!.inMinutes;
+      if (mins > 0) {
+        groupedMinutes[task.title] = (groupedMinutes[task.title] ?? 0) + mins;
+      }
+    }
+
+    if (groupedMinutes.isEmpty) return const SizedBox();
+
+    // Sort by duration descending
+    final sortedEntries = groupedMinutes.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    
+    // List of premium colors
+    final colors = [
+      AppTheme.primaryBlue,
+      Colors.purpleAccent,
+      Colors.tealAccent[400]!,
+      Colors.orangeAccent,
+      Colors.pinkAccent,
+      Colors.indigoAccent,
+    ];
+
+    final totalMinutes = groupedMinutes.values.fold(0, (sum, m) => sum + m);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+        boxShadow: [
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+        ],
+      ),
+      child: Column(
+        children: [
+          AspectRatio(
+            aspectRatio: 1.3,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 4,
+                centerSpaceRadius: 40,
+                sections: List.generate(
+                  sortedEntries.length > 5 ? 6 : sortedEntries.length,
+                  (index) {
+                    if (index == 5 && sortedEntries.length > 6) {
+                      // Others slice
+                      final otherMins = sortedEntries.skip(5).fold(0, (sum, e) => sum + e.value);
+                      return PieChartSectionData(
+                        color: Colors.grey,
+                        value: otherMins.toDouble(),
+                        title: '${(otherMins / totalMinutes * 100).toInt()}%',
+                        radius: 50,
+                        titleStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      );
+                    }
+                    
+                    final entry = sortedEntries[index];
+                    return PieChartSectionData(
+                      color: colors[index % colors.length],
+                      value: entry.value.toDouble(),
+                      title: '${(entry.value / totalMinutes * 100).toInt()}%',
+                      radius: 55,
+                      titleStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Custom Legend
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: List.generate(
+              sortedEntries.length > 5 ? 6 : sortedEntries.length,
+              (index) {
+                final isOthers = index == 5 && sortedEntries.length > 6;
+                final label = isOthers ? "Others" : sortedEntries[index].key;
+                final color = isOthers ? Colors.grey : colors[index % colors.length];
+                final mins = isOthers 
+                  ? sortedEntries.skip(5).fold(0, (sum, e) => sum + e.value)
+                  : sortedEntries[index].value;
+
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "$label (${mins}m)",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

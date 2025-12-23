@@ -1057,26 +1057,26 @@ packages:
     dependency: "direct main"
     description:
       name: quick_actions
-      sha256: "68b2daf4cbdbf5d2bbccc67513b4f6fe2ec52b6d32780be97e3204db74ed4f5e"
+      sha256: "7e35dd6a21f5bbd21acf6899039eaf85001a5ac26d52cbd6a8a2814505b90798"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "0.6.0+11"
+    version: "1.1.0"
   quick_actions_android:
     dependency: transitive
     description:
       name: quick_actions_android
-      sha256: "6dff67c9f2ef8db0061b177369934d8adabb403e83a9c2fa1d39f740aba25721"
+      sha256: "23f04632ada7fc16665d84ba54a0c792c09727e7fda6c989c6e6ba1853aa15dc"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "0.6.2"
+    version: "1.0.27"
   quick_actions_ios:
     dependency: transitive
     description:
       name: quick_actions_ios
-      sha256: "04e79bf96ac6b562b485c1d00ef07d668d44650b11d9f6cc3e383c1d76c39dee"
+      sha256: a2e08ceb01f9d26e1b1826b1c4f5da6b7b6bbf61bcbaacd8e93dfff58b91f996
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "0.6.0+14"
+    version: "1.2.3"
   quick_actions_platform_interface:
     dependency: transitive
     description:

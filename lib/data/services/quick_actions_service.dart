@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:quick_actions/quick_actions.dart';
 
@@ -21,30 +21,13 @@ class QuickActionsService {
     if (_initialized) return;
     _initialized = true;
 
-    // Only initialize on iOS and Android
-    if (!Platform.isIOS && !Platform.isAndroid) return;
+    // Skip on Web platform - quick actions not supported
+    if (kIsWeb) return;
 
-    final quickActions = QuickActions();
+    const quickActions = QuickActions();
     
-    // Set the shortcut items (for dynamic shortcuts - optional, since we have static ones in Info.plist)
-    quickActions.setShortcutItems([
-      ShortcutItem(
-        type: 'quick_focus',
-        localizedTitle: 'Quick Focus',
-        icon: Platform.isIOS ? 'time' : 'ic_quick_focus',
-      ),
-      ShortcutItem(
-        type: 'decision',
-        localizedTitle: 'Make a Decision',
-        icon: Platform.isIOS ? 'shuffle' : 'ic_decision',
-      ),
-      ShortcutItem(
-        type: 'create_task',
-        localizedTitle: 'Create Task',
-        icon: Platform.isIOS ? 'add' : 'ic_add_task',
-      ),
-    ]);
-
+    // items are now defined statically in Info.plist (iOS) to avoid duplication.
+    
     // Handle when user taps a quick action
     quickActions.initialize((String shortcutType) {
       debugPrint('[QuickActions] Shortcut tapped: $shortcutType');
