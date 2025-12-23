@@ -87,13 +87,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
-            child: ListView(
-              cacheExtent: 1000, // Fix iOS rendering issue
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-              children: [
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 48.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // === 1. Header & Profile ===
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -115,9 +117,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50], // Minimalist bg
+                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.white, // Improved visibility
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+                    border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
+                    boxShadow: !isDark ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ] : null,
                   ),
                   child: Column(
                     children: [
@@ -155,15 +164,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                      Text(
-                                        user?.displayName ?? t('traveler'),
-                                        style: GoogleFonts.dotGothic16(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.colorScheme.onSurface,
-                                          letterSpacing: 1.0,
-                                        ),
-                                      ),
+                                Text(
+                                  user?.displayName ?? t('traveler'),
+                                  style: GoogleFonts.dotGothic16(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurface,
+                                    letterSpacing: 1.0,
+                                  ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
+                                ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
@@ -179,16 +188,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           fontSize: 14, 
                                           fontWeight: FontWeight.bold,
                                           color: theme.colorScheme.onSurface.withOpacity(0.7)
-                                        ),
+                                        ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      gamificationState.levelTitle, 
+                                      gamificationState.levelTitle,
                                       style: GoogleFonts.dotGothic16(
                                         fontSize: 14, 
                                         color: Colors.grey[500],
-                                      ),
+                                      ).copyWith(fontFamilyFallback: ['Roboto', 'sans-serif']),
                                     ),
                                   ],
                                 ),
@@ -207,8 +216,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               padding: const EdgeInsets.all(8),
                               child: Icon(
                                 Icons.emoji_events_outlined, 
-                                color: isDark ? Colors.amber[300] : Colors.amber[600], // Make it golden/stand out more
-                                size: 36, // Larger size as requested
+                                color: isDark ? Colors.amber[300] : Colors.amber[600],
+                                size: 36,
                               ),
                             ),
                           ),
@@ -526,8 +535,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                      ),
                    ),
                  ),
-                 const SizedBox(height: 32),
-              ],
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
         ),
