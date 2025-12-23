@@ -117,7 +117,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF38383A) : Colors.white,
+                    color: isDark ? const Color(0xFF48484A) : Colors.white,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: isDark ? Colors.white30 : Colors.black.withOpacity(0.05),
@@ -533,8 +533,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                    child: GestureDetector(
                      onTap: _handleVersionTap,
                      child: Text(
-                       "v4.0.1", 
-                       style: TextStyle(color: Colors.grey[400], fontSize: 12)
+                       "v4.0.3", 
+                       style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)
                      ),
                    ),
                  ),
