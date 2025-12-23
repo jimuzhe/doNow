@@ -15,8 +15,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:typed_data';
-import 'package:google_fonts/google_fonts.dart';
-import 'dart:typed_data';
+import 'dart:io';
 import 'achievements_screen.dart';
 import '../widgets/white_background_remover.dart';
 
@@ -126,23 +125,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           // Avatar
                           Container(
                             width: 64, height: 64,
+                            clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: isDark ? Colors.grey[800] : Colors.grey[200],
-                              image: (user?.avatarUrl != null) 
-                                ? DecorationImage(
-                                    image: CachedNetworkImageProvider(
-                                      kIsWeb 
-                                        ? 'https://corsproxy.io/?${Uri.encodeComponent(user!.avatarUrl!)}'
-                                        : user!.avatarUrl!
-                                    ),
-                                    fit: BoxFit.cover
-                                  ) 
-                                : null,
                             ),
-                            child: (user?.avatarUrl == null) 
-                              ? Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400])
-                              : null,
+                            child: (user?.avatarUrl != null) 
+                              ? (user!.avatarUrl!.startsWith('http') 
+                                  ? CachedNetworkImage(
+                                      imageUrl: kIsWeb 
+                                        ? 'https://corsproxy.io/?${Uri.encodeComponent(user.avatarUrl!)}'
+                                        : user.avatarUrl!,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
+                                      errorWidget: (context, url, error) => Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400]),
+                                    )
+                                  : Image.file(
+                                      File(user.avatarUrl!), 
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400]),
+                                    ))
+                              : Icon(Icons.person, size: 32, color: isDark ? Colors.white54 : Colors.grey[400]),
                           ),
                           const SizedBox(width: 20),
                           
@@ -961,29 +964,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                              children: [
                                Container(
                                  width: 100, height: 100,
+                                 clipBehavior: Clip.antiAlias,
                                  decoration: BoxDecoration(
                                    shape: BoxShape.circle,
                                    color: isDark ? Colors.grey[800] : Colors.grey[200],
-                                   image: newImageBytes != null
-                                       ? DecorationImage(
-                                           image: MemoryImage(newImageBytes!),
-                                           fit: BoxFit.cover,
-                                         )
-                                       : (selectedPresetUrl != null 
-                                          ? DecorationImage(
-                                              image: CachedNetworkImageProvider(selectedPresetUrl!),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : (user.avatarUrl != null
-                                               ? DecorationImage(
-                                                   image: CachedNetworkImageProvider(user.avatarUrl!),
-                                                   fit: BoxFit.cover,
-                                                 )
-                                               : null)),
                                  ),
-                                 child: (newImageBytes == null && user.avatarUrl == null && selectedPresetUrl == null)
-                                     ? Icon(Icons.person, size: 50, color: Colors.grey[400])
-                                     : null,
+                                 child: newImageBytes != null
+                                     ? Image.memory(newImageBytes!, fit: BoxFit.cover)
+                                     : (selectedPresetUrl != null 
+                                        ? CachedNetworkImage(
+                                            imageUrl: selectedPresetUrl!,
+                                            fit: BoxFit.cover,
+                                            placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
+                                            errorWidget: (context, url, error) => Icon(Icons.person, size: 50, color: Colors.grey[400]),
+                                          )
+                                        : (user.avatarUrl != null
+                                             ? CachedNetworkImage(
+                                                 imageUrl: user.avatarUrl!,
+                                                 fit: BoxFit.cover,
+                                                 placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
+                                                 errorWidget: (context, url, error) => Icon(Icons.person, size: 50, color: Colors.grey[400]),
+                                               )
+                                             : Icon(Icons.person, size: 50, color: Colors.grey[400]))),
                                ),
                                Positioned(
                                  bottom: 0,
@@ -1024,10 +1026,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                },
                                child: Container(
                                  width: 60, height: 60,
+                                 clipBehavior: Clip.antiAlias,
                                  decoration: BoxDecoration(
                                    shape: BoxShape.circle,
                                    border: isSelected ? Border.all(color: Colors.blue, width: 3) : null,
-                                   image: DecorationImage(image: CachedNetworkImageProvider(url), fit: BoxFit.cover),
+                                 ),
+                                 child: CachedNetworkImage(
+                                   imageUrl: url,
+                                   fit: BoxFit.cover,
+                                   placeholder: (context, url) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? Colors.white24 : Colors.black12)),
+                                   errorWidget: (context, url, error) => const Icon(Icons.error, size: 20),
                                  ),
                                ),
                              );

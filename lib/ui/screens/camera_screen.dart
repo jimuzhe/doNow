@@ -148,12 +148,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       
       await controller.setFlashMode(_flashMode);
       
-      // Pre-warm video recording to reduce long-press delay
-      try {
-        await controller.prepareForVideoRecording();
-      } catch (_) {
-        // Some devices may not support this
-      }
+      // Pre-warm video recording to reduce long-press delay (non-blocking)
+      // ignore: unawaited_futures
+      controller.prepareForVideoRecording().catchError((_) {});
       
       if (mounted) {
         setState(() => _isInit = true);
@@ -206,7 +203,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   // Actions
   Future<void> _switchCamera() async {
-    if (_cameras.length < 2) return;
+    if (_cameras.length < 2 || !_isInit || _controller == null) return;
     HapticHelper(ref).lightImpact();
     
     // 1. Get reference to current controller to dispose
@@ -313,14 +310,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         try {
           final file = File(image.path);
           final bytes = await file.readAsBytes();
-          var original = img.decodeImage(bytes);
           
-          if (original != null) {
-            // Bake orientation ensures we handle the 90deg rotation from phone sensors
-            original = img.bakeOrientation(original);
-            final flipped = img.flip(original, direction: img.FlipDirection.horizontal);
-            
-            await file.writeAsBytes(img.encodeJpg(flipped));
+          // Use compute to run CPU-intensive image processing in another isolate
+          final mirroredBytes = await compute(_processFrontCameraImage, bytes);
+          
+          if (mirroredBytes != null) {
+            await file.writeAsBytes(mirroredBytes);
             processedMirrored = true;
           }
         } catch (e) {
@@ -341,6 +336,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     } catch (e) {
       debugPrint('Error taking picture: $e');
     }
+  }
+
+  /// Helper for processing images in background isolate
+  static Uint8List? _processFrontCameraImage(Uint8List bytes) {
+    var original = img.decodeImage(bytes);
+    if (original != null) {
+      // Bake orientation ensures we handle the 90deg rotation from phone sensors
+      original = img.bakeOrientation(original);
+      final flipped = img.flip(original, direction: img.FlipDirection.horizontal);
+      return Uint8List.fromList(img.encodeJpg(flipped));
+    }
+    return null;
   }
 
   Future<void> _startRecording() async {
@@ -459,15 +466,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
+    if (_capturedPath != null) {
+      return _buildPreviewUI();
+    }
+
     if (!_isInit || _controller == null) {
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
-    }
-
-    if (_capturedPath != null) {
-      return _buildPreviewUI();
     }
     
     // Fix Aspect Ratio for Full Screen
