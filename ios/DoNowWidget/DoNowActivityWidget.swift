@@ -162,7 +162,7 @@ struct DoNowActivityWidget: Widget {
                 }
                 
             } compactLeading: {
-                // Compact Leading - Just circular progress, no text inside
+                // Compact Leading - Just circular progress
                 TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
                     DynamicCompactLeadingView(state: context.state, currentDate: timeline.date)
                 }
@@ -409,18 +409,18 @@ struct DynamicCompactLeadingView: View {
         let stepInfo = DynamicStepInfo.from(state: state)
         let progress = stepInfo?.progress ?? state.progress
         
-        // Circular progress - no extra spacing, camera island naturally separates elements
+        // Minimal circular progress
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                .frame(width: 16, height: 16)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
             
             Circle()
                 .trim(from: 0, to: progress)
-                .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .frame(width: 16, height: 16)
+                .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
+        .frame(width: 12, height: 12)
+        .frame(maxWidth: 14)
     }
 }
 
@@ -431,19 +431,16 @@ struct DynamicCompactTrailingView: View {
     
     // Helper to find current step index - prioritize state.currentStepIndex
     private func getCurrentStepIndex(steps: [StepInfo]) -> Int {
-        // First, use the currentStepIndex from state if it's valid
         if state.currentStepIndex >= 0 && state.currentStepIndex < steps.count {
             return state.currentStepIndex
         }
         
-        // Fallback to time-based calculation
         for (index, step) in steps.enumerated() {
             let stepStart = step.endTime.addingTimeInterval(-Double(step.durationSeconds))
             if currentDate >= stepStart && currentDate < step.endTime {
                 return index
             }
         }
-        // If past all steps, return last index
         if let lastStep = steps.last, currentDate >= lastStep.endTime {
             return steps.count - 1
         }
@@ -451,40 +448,39 @@ struct DynamicCompactTrailingView: View {
     }
     
     var body: some View {
-        // Timer text - no extra spacing, camera island naturally separates elements
         if let steps = state.steps, !steps.isEmpty {
             let currentIndex = getCurrentStepIndex(steps: steps)
             
             if let lastStep = steps.last, currentDate >= lastStep.endTime {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: "checkmark")
                     .foregroundColor(.green)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: .bold))
             } else if currentIndex < steps.count {
                 let step = steps[currentIndex]
                 if step.endTime > currentDate {
                     Text(timerInterval: currentDate...step.endTime, countsDown: true)
                         .monospacedDigit()
-                        .font(.caption2.bold())
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.white)
-                        .id("timer-\(currentIndex)")
+                        .frame(maxWidth: 40)
                 } else {
-                    Image(systemName: "checkmark.circle.fill")
+                    Image(systemName: "checkmark")
                         .foregroundColor(.green)
-                        .font(.caption)
+                        .font(.system(size: 10, weight: .bold))
                 }
             }
         } else {
-            // Fallback
             let stepInfo = DynamicStepInfo.from(state: state)
             if let info = stepInfo, info.endTime > currentDate {
                 Text(timerInterval: currentDate...info.endTime, countsDown: true)
                     .monospacedDigit()
-                    .font(.caption2.bold())
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.white)
+                    .frame(maxWidth: 40)
             } else {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: "checkmark")
                     .foregroundColor(.green)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: .bold))
             }
         }
     }
