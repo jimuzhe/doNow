@@ -668,7 +668,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: GestureDetector(
                       onTap: _handleVersionTap,
                       child: Text(
-                        "v4.7.1",
+                        "v5.0.0",
                         style: TextStyle(color: Colors.grey[400], fontSize: 12),
                       ),
                     ),

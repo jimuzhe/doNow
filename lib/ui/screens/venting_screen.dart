@@ -19,6 +19,7 @@ import '../../data/services/focus_audio_service.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import '../../data/localization.dart';
 
 enum VentingMode { 
   realtime,  // 实时通话模式 - AI陪伴
@@ -42,13 +43,20 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   late AudioRecorder _audioRecorder;
   late AudioPlayer _audioPlayer;
   late VoiceAIService _voiceService;
+
+  // Subscriptions & Connections
   StreamSubscription? _micStreamSub;
   StreamSubscription? _voiceStateSub;
   StreamSubscription? _textSub;
   StreamSubscription? _audioSub;
   StreamSubscription? _sttSub;
   StreamSubscription? _activationSub;
-  StreamSubscription? _ttsSub; // TTS state subscription
+  StreamSubscription? _ttsSub;
+  StreamSubscription? _eventSub;
+  
+  // Reconnection state
+  int _reconnectAttempts = 0;
+  bool _isReconnecting = false; // TTS state subscription
   
   // State
   bool _isConnected = false;
@@ -247,6 +255,63 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       }
     });
 
+    // Listen to low-level events for auto-reconnection
+    _eventSub = _voiceService.eventStream.listen((event) async {
+      if (!mounted) return;
+      
+      if (event.type == XiaozhiEventType.connected) {
+        // Reset retry count on successful connection
+        _reconnectAttempts = 0;
+        if (_isReconnecting) {
+          setState(() => _isReconnecting = false);
+          
+          // Silent resume: if in realtime mode, auto-resume mic if needed
+          if (_currentMode == VentingMode.realtime && !_isMicOn) {
+             _toggleMic();
+          }
+        }
+      } else if (event.type == XiaozhiEventType.disconnected) {
+        // Seamless Auto-Reconnect:
+        // Try to reconnect silently without disturbing the user.
+        // Only show error if max retries reached.
+        
+        if ((_currentMode == VentingMode.realtime || _isRecording || _isAnalyzing) && _reconnectAttempts < 5) {
+           // Set state but don't show visible UI overlay
+           if (!_isReconnecting) setState(() => _isReconnecting = true);
+           
+           _reconnectAttempts++;
+           debugPrint("[Silent Reconnect] Attempt $_reconnectAttempts/5...");
+           
+           // Fast retry
+           await Future.delayed(const Duration(milliseconds: 1000));
+           if (mounted) {
+             _voiceService.connect();
+           }
+        } else if (_reconnectAttempts >= 5) {
+           // Max retries reached -> Only THEN show user feedback
+           debugPrint("Max reconnection attempts reached.");
+           setState(() => _isReconnecting = false);
+           
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+                 content: const Text("网络连接不稳定，请检查重试"),
+                 action: SnackBarAction(label: '重试', onPressed: () {
+                    _reconnectAttempts = 0;
+                    _voiceService.connect();
+                 }),
+                 duration: const Duration(seconds: 4),
+             ),
+           );
+           
+           // Reset state
+           if (_isRecording) {
+              _stopVoiceInputRecording(cancelled: true);
+           }
+           _reconnectAttempts = 0;
+        }
+      }
+    });
+
     // Pre-connect when entering the page for faster response when user starts recording
     _preConnect();
   }
@@ -360,6 +425,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     _sttSub?.cancel();
     _activationSub?.cancel();
     _ttsSub?.cancel();
+    _eventSub?.cancel();
     _timer?.cancel();
     _voiceService.disconnect();
     // Best-effort stop of any ongoing TTS stream playback.
@@ -375,6 +441,9 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     final primary = AppTheme.primaryBlue;
     final accent = AppTheme.accentPurple;
     final cancelColor = const Color(0xFFFB7185);
+    
+    final locale = ref.watch(localeProvider);
+    String t(String key) => AppStrings.get(key, locale);
     
     final bgColor = isDark ? Colors.black : const Color(0xFFFBFBFF);
     final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
@@ -404,10 +473,10 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                     // Top section
                     Column(
                       children: [
-                        _buildHeader(textColor, secondaryTextColor),
+                        _buildHeader(textColor, secondaryTextColor, t),
                         const SizedBox(height: 40),
                         // Center content - switches based on mode and state
-                        _buildCenterContent(primary, accent, cancelColor, isDark, textColor),
+                        _buildCenterContent(primary, accent, cancelColor, isDark, textColor, t),
                       ],
                     ),
                     
@@ -415,7 +484,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                     Column(
                       children: [
                         // Status text
-                        _buildStatusArea(textColor, secondaryTextColor),
+                        _buildStatusArea(textColor, secondaryTextColor, t),
                         
                         const SizedBox(height: 30),
                         
@@ -442,7 +511,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     );
   }
 
-  Widget _buildHeader(Color textColor, Color secondaryColor) {
+  Widget _buildHeader(Color textColor, Color secondaryColor, String Function(String) t) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -458,7 +527,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
           // Title (only show in voiceInput mode)
           if (_currentMode == VentingMode.voiceInput)
             Text(
-              "大声倾诉",
+              t('venting'),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -485,7 +554,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                     Icon(Icons.phone_in_talk_rounded, size: 16, color: AppTheme.primaryBlue),
                     const SizedBox(width: 6),
                     Text(
-                      "陪伴",
+                      t('companion'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -505,21 +574,41 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   }
 
 
-  Widget _buildCenterContent(Color primary, Color accent, Color cancel, bool isDark, Color textColor) {
+  Widget _buildCenterContent(Color primary, Color accent, Color cancel, bool isDark, Color textColor, String Function(String) t) {
     // 1. Analyzing state (Thinking) - Priority
     if (_isAnalyzing) {
-      return _buildSpinningOrb(primary, accent, isDark);
+      return _buildSpinningOrb(primary, accent, isDark, t);
     }
 
     // 2. STT Processing state
-    if (_currentMode == VentingMode.voiceInput && _userTranscript == "正在识别...") {
-      return _buildSpinningOrb(primary, accent, isDark);
+    final identifyingStr = t('identifying');
+    if (_currentMode == VentingMode.voiceInput && _userTranscript == identifyingStr) {
+      return _buildSpinningOrb(primary, accent, isDark, t);
     }
     
     // 3. Result state - show transcript/aphorisms
     if (_currentMode == VentingMode.voiceInput && _showTranscript && _userTranscript.isNotEmpty) {
-      return _buildTranscriptResult(textColor, isDark);
+      // Logic to hide user's raw transcript (requested by user)
+      // Only show result if:
+      // A. Aphorisms have been generated (Analysis complete)
+      // B. It is an error message (failure/retry)
+      // Otherwise (Raw user text), show "Thinking" orb.
+      
+      bool hasAphorisms = _aphorisms.isNotEmpty;
+      // Simple heuristic for error messages based on AppStrings
+      bool isError = _userTranscript.contains("失败") || 
+                     _userTranscript.contains("Failed") || 
+                     _userTranscript.contains("retry") ||
+                     _userTranscript.contains("重试");
+                     
+      if (hasAphorisms || isError) {
+        return _buildTranscriptResult(textColor, isDark, t);
+      } else {
+        // Hide user text -> Show Thinking Orb similar to analyzing state
+        return _buildSpinningOrb(primary, accent, isDark, t);
+      }
     }
+    
     
     // 4. Default - show liquid orb (Recording or Idle)
     return _buildLiquidOrb(primary, accent, cancel, isDark);
@@ -528,12 +617,13 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
 
   /// Processing state animation - reuses liquid orb with breathing effect
-  Widget _buildSpinningOrb(Color primary, Color accent, bool isDark) {
+  Widget _buildSpinningOrb(Color primary, Color accent, bool isDark, String Function(String) t) {
+    final locale = ref.watch(localeProvider);
     // We just reuse the liquid orb but pass isProcessing=true
     return AnimatedBuilder(
       animation: _liquidController,
       builder: (context, child) {
-        final t = _liquidController.value;
+        final tAnim = _liquidController.value;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -543,7 +633,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
             SizedBox(
               width: 200,
               child: Text(
-                "正在思考${'.' * ((t * 3).toInt() % 4)}",
+                "${t('thinking')}${'.' * ((tAnim * 3).toInt() % 4)}",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -559,7 +649,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     );
   }
 
-  Widget _buildTranscriptResult(Color textColor, bool isDark) {
+  Widget _buildTranscriptResult(Color textColor, bool isDark, String Function(String) t) {
     return FadeTransition(
       opacity: _transcriptController,
       child: Column(
@@ -668,12 +758,13 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
             GestureDetector(
               onTap: () async {
                 HapticHelper(ref).mediumImpact();
+                final locale = ref.read(localeProvider);
                 
                 // Save to timeline
                 final now = DateTime.now();
                 final task = Task(
                   id: const Uuid().v4(),
-                  title: "大声倾诉",
+                  title: AppStrings.get('venting', locale),
                   totalDuration: Duration.zero,
                   scheduledStart: now,
                   subTasks: [],
@@ -683,207 +774,129 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                   journalAudioPath: _lastAudioPath,
                   journalNote: "$_userTranscript\n\n$_aphorisms",
                 );
+                
                 ref.read(taskListProvider.notifier).addTask(task);
                 
-                // Show encouragement and exit after 3 seconds
-                if (_encouragement.isNotEmpty) {
-                  setState(() {
-                    _showEncouragement = true;
-                  });
-                  
-                  // Wait 3 seconds then exit
-                  await Future.delayed(const Duration(seconds: 3));
-                  if (mounted) {
-                    Navigator.pop(context);
-                  }
-                } else {
-                  Navigator.pop(context);
-                }
+                setState(() => _showEncouragement = true);
+                
+                // Delay to show encouragement, then close
+                await Future.delayed(const Duration(seconds: 4));
+                if (mounted) Navigator.pop(context);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppTheme.primaryBlue,
-                      AppTheme.primaryBlue.withBlue(200),
-                    ],
-                  ),
+                  gradient: isDark 
+                      ? const LinearGradient(
+                          colors: [Color(0xFF334155), Color(0xFF475569)],
+                        )
+                      : LinearGradient(
+                          colors: [AppTheme.primaryBlue, AppTheme.accentPurple],
+                        ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryBlue.withOpacity(0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      color: isDark ? Colors.black.withOpacity(0.2) : AppTheme.primaryBlue.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: const Text(
-                  "我知道怎么做了",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                child: Text(
+                  AppStrings.get('i_know_what_to_do', ref.read(localeProvider)),
+                  style: const TextStyle(
                     color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
-            )
-          else
-            // Re-record & Confirm Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Re-record button
-                Flexible(
-                  child: GestureDetector(
-                  onTap: () {
-                    HapticHelper(ref).selectionClick();
-                    // Use abort instead of disconnect to keep connection alive
-                    _voiceService.abort();
+            ),
+            
+          const SizedBox(height: 16),
+          
+          // Re-record Button (Secondary)
+          if (_aphorisms.isEmpty)
+             _buildRerecordButton(isDark, textColor, t),
+          
+          // If aphorisms exist, allow re-record as secondary option below finish
+          if (_aphorisms.isNotEmpty)
+             Padding(
+               padding: const EdgeInsets.only(top: 8),
+               child: GestureDetector(
+                 onTap: () {
+                    HapticHelper(ref).mediumImpact();
                     setState(() {
                       _showTranscript = false;
                       _userTranscript = "";
-                      // Don't reset _isConnected since we're keeping connection
-                      _voiceInputBuffer.clear(); // Clear local buffer on re-record
+                      _aphorisms = "";
                     });
                     _transcriptController.reverse();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
-                        color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.refresh_rounded,
-                          size: 20,
-                          color: isDark ? Colors.white60 : Colors.black45,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "重录",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.white60 : Colors.black45,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                ),
-                const SizedBox(width: 16),
-                // Confirm button - triggers analysis to show aphorisms
-                Flexible(
-                  child: GestureDetector(
-                onTap: () async {
-                  if (_isAnalyzing) return;
-                  
-                  HapticHelper(ref).mediumImpact();
-                  if (mounted) setState(() => _isAnalyzing = true);
-
-                  try {
-                    // Analyze with AI to get aphorisms and encouragement
-                    final aiService = ref.read(aiServiceProvider);
-                    final result = await aiService.analyzeVentingContent(_userTranscript);
-                    
-                    if (!mounted) return;
-                    
-                    // Parse result: "aphorisms|||encouragement"
-                    String aphorisms = result;
-                    String encouragement = "";
-                    if (result.contains('|||')) {
-                      final parts = result.split('|||');
-                      aphorisms = parts[0].trim();
-                      encouragement = parts.length > 1 ? parts[1].trim() : "";
-                    }
-                    
-                    // Update UI to show aphorisms (task will be saved when user clicks "我知道怎么做了")
-                    setState(() {
-                      _isAnalyzing = false;
-                      _aphorisms = aphorisms;
-                      _encouragement = encouragement;
-                    });
-                    
-                  } catch (e) {
-                     debugPrint("Venting processing error: $e");
-                     if (mounted) {
-                       setState(() => _isAnalyzing = false);
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         SnackBar(content: Text("处理失败，请重试: $e")),
-                       );
-                     }
-                  }
-                },
-                child: Opacity(
-                  opacity: _isAnalyzing ? 0.7 : 1.0,
-                  child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.primaryBlue,
-                        AppTheme.primaryBlue.withBlue(200),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryBlue.withOpacity(0.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_isAnalyzing)
-                        const SizedBox(
-                          width: 20, 
-                          height: 20, 
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      else
-                        const Icon(
-                          Icons.check_rounded,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _isAnalyzing ? "生成中..." : "确认",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ),
-              ),
-                ),
-            ],
-          ),
+                 },
+                 child: Text(
+                   AppStrings.get('rerecord', ref.read(localeProvider)),
+                   style: TextStyle(
+                     color: isDark ? Colors.white54 : Colors.black45,
+                     fontSize: 14,
+                   ),
+                 ),
+               ),
+             ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusArea(Color textColor, Color secondaryColor) {
+  Widget _buildRerecordButton(bool isDark, Color textColor, String Function(String) t) {
+    final locale = ref.watch(localeProvider);
+    return GestureDetector(
+      onTap: () {
+        HapticHelper(ref).selectionClick();
+        // Use abort instead of disconnect to keep connection alive
+        _voiceService.abort();
+        setState(() {
+          _showTranscript = false;
+          _userTranscript = "";
+          // Don't reset _isConnected since we're keeping connection
+          _voiceInputBuffer.clear(); // Clear local buffer on re-record
+        });
+        _transcriptController.reverse();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.refresh_rounded,
+              size: 20,
+              color: isDark ? Colors.white60 : Colors.black45,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              t("rerecord"),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white60 : Colors.black45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusArea(Color textColor, Color secondaryColor, String Function(String) t) {
     if (_currentMode == VentingMode.realtime) {
       // Realtime mode status
       if (_aiResponseText.isNotEmpty) {
@@ -900,8 +913,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       }
       return Text(
         _isConnected 
-            ? (_isMicOn ? "正在聆听..." : "点击麦克风开始对话") 
-            : "正在连接...",
+            ? (_isMicOn ? t("listening") : t("tap_mic_to_start_chat")) 
+            : t("connecting"),
         style: TextStyle(
           fontSize: 12,
           letterSpacing: 2,
@@ -934,7 +947,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                   size: 18,
                 ),
                 Text(
-                  isUpSwipe ? "松开取消" : "上滑取消",
+                  isUpSwipe ? t("release_to_cancel") : t("swipe_up_to_cancel"),
                   style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 1,
@@ -950,7 +963,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                   size: 18,
                 ),
                 Text(
-                  isDownSwipe ? "松开输入" : "下滑打字",
+                  isDownSwipe ? t("release_to_input") : t("swipe_down_to_type"),
                   style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 1,
@@ -966,7 +979,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       // Default state - show hint based on mode
       if (_showTextInput) {
         return Text(
-          "输入文字发送",
+          t("input_text_to_send"),
           style: TextStyle(
             fontSize: 12,
             letterSpacing: 2,
@@ -976,7 +989,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         );
       }
       return Text(
-        "按住说话",
+        t("hold_to_speak"),
         style: TextStyle(
           fontSize: 12,
           letterSpacing: 2,
@@ -1630,14 +1643,15 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     // IMMEDIATE UI UPDATE - show processing state (Analyzing/Thinking)
     // NOTE: We keep _showTranscript = false so that the Orb is shown (in Thinking state)
     // The Orb will show "正在思考..." if _userTranscript == "正在识别..." or _isAnalyzing == true
+    final locale = ref.read(localeProvider);
     setState(() {
       _isRecording = false;
       _isCancelled = false;
       _dragOffset = 0;
       _recordDuration = Duration.zero;
       _smoothedAmplitude = 0;
-      _userTranscript = "正在识别...";
-      _showTranscript = false; 
+      _userTranscript = AppStrings.get('identifying', locale);
+      _showTranscript = true; 
       _transcriptController.forward();
     });
     
@@ -1659,7 +1673,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
           print('Failed to connect for sending audio');
           if (mounted) {
             setState(() {
-                _userTranscript = "连接失败，请重试";
+                _userTranscript = AppStrings.get('connection_failed', locale);
                 _showTranscript = true;
             });
           }
@@ -1691,23 +1705,24 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       
       // Wait for STT result
       int waitCount = 0;
-      while ((_userTranscript.isEmpty || _userTranscript == "正在识别...") && waitCount < 100) {
+      String identifyingStr = AppStrings.get('identifying', locale);
+      while ((_userTranscript.isEmpty || _userTranscript == identifyingStr) && waitCount < 100) {
         await Future.delayed(const Duration(milliseconds: 100));
         waitCount++;
         if (!mounted) return;
       }
       
       if (mounted) {
-        if (_userTranscript.isEmpty || _userTranscript == "正在识别...") {
+        if (_userTranscript.isEmpty || _userTranscript == identifyingStr) {
           setState(() {
-            _userTranscript = "未能识别到语音，请重试";
+            _userTranscript = AppStrings.get('no_voice_detected', locale);
             _showTranscript = true;
           });
         } else {
              // STT Success! Auto proceed to Analysis
              setState(() {
                  _isAnalyzing = true; // Triggers "Thinking" Orb
-                 _showTranscript = false; // Hide transcript
+                 _showTranscript = true; // Keep transcript visible
              });
              await _autoAnalyzeAndFinish(recordedChunks);
         }
@@ -1716,7 +1731,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       print('Error sending audio: $e');
       if (mounted) {
         setState(() {
-           _userTranscript = "发送失败: $e";
+           _userTranscript = "${AppStrings.get('send_failed', locale)}: $e";
            _showTranscript = true;
         });
       }
@@ -1730,8 +1745,18 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         debugPrint("Starting auto analysis...");
         // 1. Analyze with AI
         final aiService = ref.read(aiServiceProvider);
+        final locale = ref.read(localeProvider);
         
-        final analysisFuture = aiService.analyzeVentingContent(_userTranscript);
+        // Use local variable for analysis to allow UI to show loading status
+        final transcriptToAnalyze = _userTranscript;
+        
+        if (mounted) {
+           setState(() {
+               _userTranscript = AppStrings.get('analyzing_insight', locale);
+           });
+        }
+        
+        final analysisFuture = aiService.analyzeVentingContent(transcriptToAnalyze);
         
         // 2. Save Audio File (for later use when user confirms)
         String? audioPath;
@@ -1787,6 +1812,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
             _aphorisms = aphorisms;
             _encouragement = encouragement;
             _showTranscript = true; // Show result card with typewriter
+            _userTranscript = transcriptToAnalyze; // Restore original text for saving
             _transcriptController.forward();
           });
           HapticHelper(ref).success();
@@ -1795,9 +1821,10 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       } catch (e) {
          debugPrint("Venting processing error: $e");
          if (mounted) {
+           final locale = ref.read(localeProvider);
            setState(() { 
                _isAnalyzing = false;
-               _userTranscript = "处理失败: $e"; 
+               _userTranscript = "${AppStrings.get('processing_failed', locale)}: $e"; 
                _showTranscript = true; // Show error
            });
          }
@@ -1810,63 +1837,9 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
   /// Build the encouragement overlay shown before exiting
   Widget _buildEncouragementOverlay(bool isDark, Color textColor) {
-    return Container(
-      color: isDark ? Colors.black : Colors.white,
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Heart icon with subtle glow
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.primaryBlue.withOpacity(0.1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryBlue.withOpacity(0.2),
-                        blurRadius: 30,
-                        spreadRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.favorite_rounded,
-                    size: 50,
-                    color: AppTheme.primaryBlue,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Encouragement text
-                Text(
-                  _encouragement,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                    height: 1.6,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 60),
-                // Subtle exit hint
-                Text(
-                  "即将返回...",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: textColor.withOpacity(0.4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return EncouragementView(
+      text: _encouragement,
+      isDark: isDark,
     );
   }
 
@@ -2116,5 +2089,295 @@ class LiveStreamAudioSource extends StreamAudioSource {
   // We just need to clean up our own controller.
   Future<void> dispose() async {
     await _controller.close();
+  }
+}
+
+/// A postcard-style encouragement view designed to feel personal and warm.
+class EncouragementView extends ConsumerStatefulWidget {
+  final String text;
+  final bool isDark;
+
+  const EncouragementView({
+    super.key,
+    required this.text,
+    required this.isDark,
+  });
+
+  @override
+  ConsumerState<EncouragementView> createState() => _EncouragementViewState();
+}
+
+class _EncouragementViewState extends ConsumerState<EncouragementView> with TickerProviderStateMixin {
+  late AnimationController _mainController;
+  
+  // Animations
+  late Animation<double> _cardSlide;
+  late Animation<double> _contentOpacity;
+  late Animation<double> _stampScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _mainController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _cardSlide = CurvedAnimation(
+      parent: _mainController,
+      curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
+    );
+
+    _contentOpacity = CurvedAnimation(
+      parent: _mainController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+    );
+    
+    _stampScale = CurvedAnimation(
+      parent: _mainController,
+      curve: const Interval(0.7, 1.0, curve: Curves.elasticOut),
+    );
+
+    _mainController.forward();
+  }
+
+  @override
+  void dispose() {
+    _mainController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = ref.watch(localeProvider);
+    
+    // Postcard colors - Dark Mode Adaptation
+    final paperColor = widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFFDFBF7); // Dark Blue-Grey vs Warm Paper
+    final inkColor = widget.isDark ? const Color(0xFFE2E8F0) : const Color(0xFF2D3748);   // Light Grey vs Dark Ink
+    final stampColor = widget.isDark ? const Color(0xFFFC8181) : const Color(0xFFE53E3E); // Light Red vs Red
+    final bgBase = widget.isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F2F5);     // Darker BG
+
+    return Scaffold(
+      backgroundColor: bgBase,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background Texture (Subtle Noise or Gradient)
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: widget.isDark 
+                  ? [const Color(0xFF0F172A), const Color(0xFF1E293B)]
+                  : [const Color(0xFFF0F2F5), const Color(0xFFE2E8F0)],
+              ),
+            ),
+          ),
+          
+          // The Postcard
+          Center(
+            child: AnimatedBuilder(
+              animation: _mainController,
+              builder: (context, child) {
+                // Slide up from bottom
+                final slide = 100 * (1.0 - _cardSlide.value);
+                // Slight rotation for natural feel
+                
+                return Transform.translate(
+                  offset: Offset(0, slide),
+                  child: Transform.rotate(
+                    angle: -0.02, // Permanent slight tilt
+                    child: Opacity(
+                      opacity: _cardSlide.value.clamp(0.0, 1.0),
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        constraints: const BoxConstraints(maxWidth: 400, minHeight: 500),
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: paperColor,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(widget.isDark ? 0.3 : 0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                            if (!widget.isDark)
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                          ],
+                          border: widget.isDark 
+                              ? Border.all(color: Colors.white.withOpacity(0.1), width: 1)
+                              : null,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Header: Stamp and Postmark
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Left: Greeting
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 20, left: 0),
+                                  child: Text(
+                                    "TO: YOU",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 2,
+                                      color: inkColor.withOpacity(0.4),
+                                    ),
+                                  ),
+                                ),
+                                
+                                // Right: Valid Stamp
+                                Transform.scale(
+                                  scale: _stampScale.value,
+                                  child: _buildStamp(stampColor),
+                                ),
+                              ],
+                            ),
+                            
+                            const SizedBox(height: 48),
+                            
+                            // Body: Encouragement Text
+                            FadeTransition(
+                              opacity: _contentOpacity,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.text,
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      height: 1.4,
+                                      color: inkColor.withOpacity(0.9),
+                                      letterSpacing: 0.5,
+                                      fontWeight: FontWeight.w400,
+                                      fontFamilyFallback: const ['Georgia', 'serif'], // Try serif if available
+                                    ),
+                                  ),
+                                  const SizedBox(height: 40),
+                                  // Divider line
+                                  Container(
+                                    width: 80,
+                                    height: 2,
+                                    color: inkColor.withOpacity(0.1),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  // Signature
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Transform.rotate(
+                                      angle: -0.05,
+                                      child: Text(
+                                        AppStrings.get('from_ai', locale),
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          fontStyle: FontStyle.italic,
+                                          color: inkColor.withOpacity(0.7),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          // Footer text outside card
+          Positioned(
+            bottom: 60,
+            left: 0,
+            right: 0,
+            child: FadeTransition(
+              opacity: _contentOpacity,
+              child: Center(
+                child: Text(
+                  AppStrings.get('encouragement_footer', locale),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: widget.isDark ? Colors.white54 : Colors.black45,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStamp(Color color) {
+    return Container(
+      width: 60,
+      height: 70,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+           BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset:const Offset(1,1))
+        ]
+      ),
+      child: Stack(
+        children: [
+          // Stamp perforation effect (visual only)
+          Positioned(top: 2, left: 2, right: 2, bottom: 2,
+             child: Container(
+               decoration: BoxDecoration(
+                 border: Border.all(color: color.withOpacity(0.2), width: 1, style: BorderStyle.solid),
+               ),
+             ),
+          ),
+          Center(
+            child: Icon(Icons.favorite, color: color, size: 28),
+          ),
+          // Postmark overlay
+          Positioned(
+            bottom: -5,
+            right: -5,
+            child: Transform.rotate(
+              angle: -0.5,
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black.withOpacity(0.2), width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    "POST",
+                    style: TextStyle(
+                       fontSize: 8, 
+                       fontWeight: FontWeight.bold, 
+                       color: Colors.black.withOpacity(0.2)
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

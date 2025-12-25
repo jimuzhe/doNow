@@ -100,7 +100,9 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
     final locale = ref.watch(localeProvider);
     String t(String key) => AppStrings.get(key, locale);
     
-    final dateStr = DateFormat('EEEE, MMM d, yyyy', locale == 'zh' ? 'zh_CN' : 'en_US').format(widget.date);
+    final dateStr = locale == 'zh' 
+        ? DateFormat('yyyy年MM月dd日 EEEE', 'zh_CN').format(widget.date)
+        : DateFormat('EEEE, MMM d, yyyy', 'en_US').format(widget.date);
     
     // Get tasks for this day
     final allTasks = ref.watch(taskListProvider);

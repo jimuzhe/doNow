@@ -664,7 +664,23 @@ $personaPrompt
         continue;
       }
 
-      // 3. Regular Tasks
+      // 3. Venting (New)
+      if (task.isVenting) {
+        if (isZh) {
+          taskDetails.writeln('🗣️ [大声倾诉] ${task.title}');
+          // "journalNote" stores the user's speech transcript
+          if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   倾诉内容: ${task.journalNote}');
+          if (task.completedAt != null) taskDetails.writeln('   时间: ${_formatTime(task.completedAt!)}');
+        } else {
+          taskDetails.writeln('🗣️ [Venting] ${task.title}');
+          if (task.journalNote?.isNotEmpty == true) taskDetails.writeln('   Content: ${task.journalNote}');
+          if (task.completedAt != null) taskDetails.writeln('   Time: ${_formatTime(task.completedAt!)}');
+        }
+        taskDetails.writeln();
+        continue;
+      }
+
+      // 4. Regular Tasks
       final plannedMinutes = task.totalDuration.inMinutes;
       final actualMinutes = task.actualDuration?.inMinutes ?? plannedMinutes;
       final diff = actualMinutes - plannedMinutes;
@@ -805,9 +821,10 @@ $taskDetails
 请生成一个包含以下三个维度的 JSON。语气应具有磁性、鼓励性且犀利。
 
 1. **今日综述 (summary)**：
-   - 融合用户的决策([Decision])和笔记(Note)。
+   - 融合用户的决策([Decision])、笔记(Note)以及倾诉([Venting])内容。
+   - 关注用户的倾诉内容（[Venting]），从中捕捉真实的心声与压力源。
    - 识别今天的“高光时刻”。比如：用户在哪个任务中表现出了极高的专注度？
-   - 捕捉心情轨迹：从笔记中分析当天的情绪状态。
+   - 捕捉心情轨迹：从笔记和倾诉中分析当天的情绪状态。
 
 2. **成长点拨 (improvement)**：
    - 指出用户本人的“效率陷阱”。
@@ -855,12 +872,13 @@ Generate a deep, holistic daily summary based on the above data. Focus on these 
 1. **Core Achievements**: Summarize WHAT specific important tasks were completed, not just the count.
 2. **Decision Review**: Review decisions made ([Decision]) and their context.
 3. **Focus Quality**: Analyze Quick Focus sessions ([Quick Focus]) and their effectiveness.
-4. **Journal Analysis**: Dig into the user's thoughts, mood, or context revealed through Notes and Location records (ignore media).
-5. **Time Efficiency**: Analyze time usage in context of the actual work done, not just "faster/slower".
+4. **Emotional Release**: Read the [Venting] entries to understand what's weighing on the user's mind.
+5. **Journal Analysis**: Dig into the user's thoughts, mood, or context revealed through Notes and Venting.
+6. **Time Efficiency**: Analyze time usage in context of the actual work done, not just "faster/slower".
 
 【Output Format - JSON Object, in English】
 {
-  "summary": "Comprehensive review: Cover what key tasks were done, decisions made, focus quality, and insights from notes. Do not just list data points or focus solely on time speed. (80-120 words)",
+  "summary": "Comprehensive review: Cover what key tasks were done, decisions made, focus quality, and insights from notes/venting. Do not just list data points or focus solely on time speed. (80-120 words)",
   "encouragement": "An inspiring, specific encouraging message based on today's activities (15-30 words)",
   "improvement": "A specific, deep improvement suggestion derived from analyzing notes, decisions, and execution (40-60 words)"
 }
