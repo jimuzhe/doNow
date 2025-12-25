@@ -2,7 +2,7 @@ name: Build iOS IPA for TrollStore
 
 on:
   push:
-    branches: [ "main", "ios17-interactive" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
