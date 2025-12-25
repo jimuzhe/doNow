@@ -64,16 +64,36 @@ jobs:
       - name: Build iOS App with Flutter
         run: |
           # Build the iOS app using Flutter (this handles everything including xcodebuild)
-          flutter build ios --release --no-codesign 2>&1 | tee flutter_build.log
+          # Don't use || true - we want to see if build actually fails
+          flutter build ios --release --no-codesign --verbose 2>&1 | tee flutter_build.log
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          
+          echo "📊 Build exit code: $BUILD_EXIT_CODE"
           
           # List the build output
           echo "📂 Flutter build output:"
-          ls -la build/ios/iphoneos/ || true
+          ls -la build/ios/iphoneos/ 2>/dev/null || echo "build/ios/iphoneos/ not found"
+          ls -la build/ios/Release-iphoneos/ 2>/dev/null || echo "build/ios/Release-iphoneos/ not found"
           
           # Check if Runner.app exists and show contents
           if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "📱 Runner.app contents:"
+            echo "📱 Runner.app contents (iphoneos):"
             ls -la build/ios/iphoneos/Runner.app/
+          elif [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
+            echo "📱 Runner.app contents (Release-iphoneos):"
+            ls -la build/ios/Release-iphoneos/Runner.app/
+          fi
+          
+          # Check for errors in log
+          echo "🔍 Checking for build errors..."
+          grep -i "error:" flutter_build.log | head -20 || echo "No error: lines found"
+          
+          # Exit with original build code if it failed
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Flutter build failed with exit code $BUILD_EXIT_CODE"
+            echo "📋 Last 100 lines of build log:"
+            tail -100 flutter_build.log
+            exit $BUILD_EXIT_CODE
           fi
 
       - name: Verify and Prepare App Bundle
