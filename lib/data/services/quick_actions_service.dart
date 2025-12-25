@@ -26,13 +26,27 @@ class QuickActionsService {
 
     const quickActions = QuickActions();
     
-    // Clear any existing dynamic shortcuts to avoid duplication with static ones defined in Info.plist
-    quickActions.setShortcutItems([]);
-    
-    // Handle when user taps a quick action
+    // 1. Initialize the callback FIRST
     quickActions.initialize((String shortcutType) {
       debugPrint('[QuickActions] Shortcut tapped: $shortcutType');
       _actionController.add(shortcutType);
+    });
+
+    // 2. Clear and Set Shortcuts
+    // We wrap this in a microtask to ensure the engine is fully ready to handle the channel call
+    Future.microtask(() async {
+      try {
+        await quickActions.clearShortcutItems();
+        await quickActions.setShortcutItems(const <ShortcutItem>[
+          ShortcutItem(type: 'create_task', localizedTitle: '新建事项', icon: 'add'),
+          ShortcutItem(type: 'quick_focus', localizedTitle: '快速专注', icon: 'timer'),
+          ShortcutItem(type: 'decision', localizedTitle: '做个决定', icon: 'shuffle'),
+          ShortcutItem(type: 'venting', localizedTitle: '大声倾诉', icon: 'mic'),
+        ]);
+        debugPrint('[QuickActions] Shortcuts registered successfully');
+      } catch (e) {
+        debugPrint('[QuickActions] Error registering shortcuts: $e');
+      }
     });
   }
 

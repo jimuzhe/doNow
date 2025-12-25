@@ -33,6 +33,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   FlashMode _flashMode = FlashMode.off;
   bool _isFrontCamera = false;
   bool _usedPrewarmedController = false; // Track if we used prewarmed controller
+  String? _errorMessage;
   
   // Zoom & Focus
   double _minAvailableZoom = 1.0;
@@ -111,6 +112,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     
     // Fallback: Initialize camera normally
     try {
+      // Camera plugin doesn't support Web - exit with error on Web
+      if (kIsWeb) {
+        if (mounted) {
+          setState(() => _errorMessage = "相机功能在 Web 平台不支持，请使用手机端");
+        }
+        return;
+      }
+      
       _cameras = cameraService.cameras ?? await availableCameras();
       if (_cameras.isEmpty) {
         if (mounted) Navigator.pop(context);
@@ -126,6 +135,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       await _startCamera(_cameras[_selectedCameraIdx]);
     } catch (e) {
       debugPrint('Camera init error: $e');
+      if (mounted) setState(() => _errorMessage = "初始化相机失败：$e");
     }
   }
 
@@ -157,6 +167,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
       }
     } catch (e) {
       debugPrint('Camera start error: $e');
+      if (mounted) setState(() => _errorMessage = "启动相机失败: $e");
     }
   }
 
@@ -468,6 +479,40 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     if (_capturedPath != null) {
       return _buildPreviewUI();
+    }
+
+    if (_errorMessage != null) {
+       return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                 const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                 const SizedBox(height: 16),
+                 Text(
+                   "相机错误", 
+                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+                 ),
+                 const SizedBox(height: 8),
+                 Text(
+                   _errorMessage!, 
+                   style: const TextStyle(color: Colors.white70), 
+                   textAlign: TextAlign.center
+                 ),
+                 const SizedBox(height: 24),
+                 ElevatedButton(
+                   onPressed: () => Navigator.pop(context), 
+                   style: ElevatedButton.styleFrom(backgroundColor: Colors.white24),
+                   child: const Text("关闭", style: TextStyle(color: Colors.white)),
+                 ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     if (!_isInit || _controller == null) {

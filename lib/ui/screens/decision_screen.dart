@@ -261,7 +261,10 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
         ),
       ]).animate(_rotateController);
       
-      _rotateController.forward();
+      // Delay animation slightly to sync with audio latency
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) _rotateController.forward();
+      });
     });
   }
 

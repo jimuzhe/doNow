@@ -1,294 +1,1260 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
-import '../../data/models/task.dart';
-import '../../data/providers.dart';
+import 'package:audio_session/audio_session.dart';
+import '../../data/providers/ai_providers.dart';
+import '../../data/services/voice_ai_service.dart';
 import '../../utils/haptic_helper.dart';
-import '../../utils/snackbar_helper.dart';
 import '../theme/app_theme.dart';
+import '../../data/models/task.dart';
+import '../../data/providers/task_providers.dart';
+import '../../core/utils/audio_util.dart';
+import '../../data/services/focus_audio_service.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
+enum VentingMode { 
+  realtime,  // 实时通话模式 - AI陪伴
+  voiceInput // 语音输入模式 - 录音转文字
+}
 
 class VentingScreen extends ConsumerStatefulWidget {
-  const VentingScreen({super.key});
+  final VentingMode initialMode;
+  
+  const VentingScreen({super.key, this.initialMode = VentingMode.voiceInput});
 
   @override
   ConsumerState<VentingScreen> createState() => _VentingScreenState();
 }
 
 class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProviderStateMixin {
-  final TextEditingController _titleController = TextEditingController();
+  // Mode
+  late VentingMode _currentMode;
   
-  // Audio
+  // AI & Audio
   late AudioRecorder _audioRecorder;
   late AudioPlayer _audioPlayer;
-  StreamSubscription<Amplitude>? _amplitudeSub;
+  late VoiceAIService _voiceService;
+  StreamSubscription? _micStreamSub;
+  StreamSubscription? _voiceStateSub;
+  StreamSubscription? _textSub;
+  StreamSubscription? _audioSub;
+  StreamSubscription? _sttSub;
+  StreamSubscription? _activationSub;
+  StreamSubscription? _ttsSub; // TTS state subscription
   
-  // Basic State
+  // State
+  bool _isConnected = false;
+  bool _isMicOn = false;
   bool _isRecording = false;
-  bool _isPreviewMode = false;
-  bool _isPlaying = false;
-  String? _tempPath;
+  bool _listeningStarted = false; // Track if startListening has been called
+  bool _showTranscript = false;
+  String _aiResponseText = "";
+  String _userTranscript = "";
   Duration _recordDuration = Duration.zero;
   Timer? _timer;
-  double _amplitude = 0.0;
   double _smoothedAmplitude = 0.0;
+  bool _isAnalyzing = false;
+  String _aphorisms = "";
+
+  // Realtime TTS playback (streaming)
+  LiveStreamAudioSource? _liveTtsSource;
+  bool _isTtsSpeaking = false;
+
+  // Background audio ducking while TTS speaks
+  double? _focusVolumeBeforeTts;
+  static const double _focusDuckRatio = 0.3;
+
+  Future<void> _restartAutoListeningIfNeeded() async {
+    if (!mounted) return;
+    if (_currentMode != VentingMode.realtime) return;
+    if (!_isMicOn) return;
+
+    // Only restart when service is ready; otherwise connect and wait briefly.
+    if (_voiceService.state != VoiceState.ready) {
+      await _voiceService.connect();
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    if (_voiceService.state != VoiceState.ready) return;
+
+    _voiceService.clearAudioBuffer();
+    await _voiceService.startListening(mode: 'auto');
+  }
   
-  // Gesture & Positioning
+  // Voice input mode: buffer audio locally, send all at once when done
+  List<Uint8List> _voiceInputBuffer = [];
+  String? _lastAudioPath;  // Store audio path for saving to timeline later
+  String _encouragement = "";  // Farewell message shown when user confirms
+  
+  // Gesture (for voice input mode)
   Offset _startPos = Offset.zero;
-  double _dragUpOffset = 0.0;
+  double _dragOffset = 0.0; // Positive = down, Negative = up
+  bool _isTextInputMode = false; // Down swipe triggers text input
+  
+  // Text input mode
+  final TextEditingController _textController = TextEditingController();
+  bool _showTextInput = false;
   bool _isCancelled = false;
+  bool _showEncouragement = false;  // Show farewell encouragement before exit
   
   // Animations
   late AnimationController _liquidController;
-  late AnimationController _previewController;
   late AnimationController _introController;
+  late AnimationController _transcriptController;
 
   @override
   void initState() {
     super.initState();
+    _currentMode = widget.initialMode;
     _audioRecorder = AudioRecorder();
     _audioPlayer = AudioPlayer();
+    
+    // Configure AudioSession for Speaker output
+    Future.microtask(() async {
+      final session = await AudioSession.instance;
+      // Combine options using a non-const expression
+      final categoryOptions = AVAudioSessionCategoryOptions.defaultToSpeaker |
+          AVAudioSessionCategoryOptions.mixWithOthers;
+      await session.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions: categoryOptions,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          flags: AndroidAudioFlags.none,
+          // Using voiceCommunication may route audio to the earpiece (call-like).
+          // media keeps playback on the speaker by default while still allowing mic recording.
+          usage: AndroidAudioUsage.media,
+        ),
+        // Allow other audio (e.g. focus sounds) to keep playing by ducking.
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
+        androidWillPauseWhenDucked: false,
+      ));
+    });
+
+    // Audio player will be used to play buffered TTS audio
+    // No need for live streaming - we buffer and play when TTS stops
+    _voiceService = ref.read(voiceAIServiceProvider);
     
     _liquidController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
 
-    _previewController = AnimationController(
+    _introController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..forward();
+
+    _transcriptController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
 
-    _introController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..forward();
-
-    _audioPlayer.playerStateStream.listen((state) {
-      if (mounted) setState(() => _isPlaying = state.playing);
+    // Listen to voice AI state changes
+    _voiceStateSub = _voiceService.stateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isConnected = state == VoiceState.ready || state == VoiceState.listening || state == VoiceState.speaking;
+        });
+        
+        // Handle connection failure - show error to user
+        if (state == VoiceState.idle || state == VoiceState.error) {
+          if (_isRecording || (_currentMode == VentingMode.voiceInput && _showTranscript && _userTranscript == "正在识别...")) {
+            setState(() {
+              _userTranscript = "连接失败，请重试";
+              _showTranscript = true;
+              _transcriptController.forward();
+            });
+          }
+        }
+      }
     });
+
+    // Listen to AI TTS text responses
+    _textSub = _voiceService.textStream.listen((text) {
+      if (mounted) setState(() => _aiResponseText = text);
+    });
+
+    // Listen to STT transcription results (user's speech to text)
+    // In sttOnlyMode, XiaozhiService auto-sends abort, but we still call it here for safety
+    _sttSub = _voiceService.sttStream.listen((transcript) {
+      print('STT result received in UI: $transcript');
+      if (mounted && transcript.isNotEmpty) {
+        setState(() {
+          _userTranscript = transcript;
+          // In voice input mode, show transcript after recording finishes
+          if (_currentMode == VentingMode.voiceInput) {
+            _showTranscript = true;
+            _transcriptController.forward();
+          }
+        });
+      }
+    });
+
+    // Stream TTS audio data (play as it arrives)
+    // Note: audioStream not available in new architecture, handled internally
+    // _audioSub = _voiceService.audioStream.listen((pcmData) {
+    //   if (!mounted || _currentMode != VentingMode.realtime) return;
+
+      if (!_isTtsSpeaking) {
+        _isTtsSpeaking = true;
+      }
+
+      // Start streaming playback lazily on first audio chunk
+      if (_liveTtsSource == null) {
+        unawaited(_startLiveTtsPlayback());
+      }
+
+    //   _liveTtsSource?.addAudio(pcmData);
+
+    //   // Visual feedback
+    //   setState(() {
+    //     _smoothedAmplitude = 0.7;
+    //   });
+    // });
+    
+    // Listen for TTS state changes to start/stop live playback
+    _ttsSub = _voiceService.ttsStateStream.listen((state) {
+      if (mounted && _currentMode == VentingMode.realtime) {
+        if (state == 'start') {
+          _isTtsSpeaking = true;
+          unawaited(_startLiveTtsPlayback());
+          print('[TTS] Started');
+        } else if (state == 'stop') {
+          _isTtsSpeaking = false;
+          unawaited(_stopLiveTtsPlayback());
+
+          // In "auto" VAD mode, keep the conversation flowing by re-entering listening
+          // after the AI finishes speaking.
+          unawaited(Future.delayed(
+            const Duration(milliseconds: 200),
+            _restartAutoListeningIfNeeded,
+          ));
+        }
+      }
+    });
+
+    _activationSub = _voiceService.activationStream.listen((result) {
+      if (!result.isActivated && mounted) {
+        _showActivationDialog(result.activationCode ?? '', result.message);
+      }
+    });
+
+    // Pre-connect when entering the page for faster response when user starts recording
+    _preConnect();
+  }
+
+  /// Pre-connect to voice service for faster response
+  Future<void> _preConnect() async {
+    print('Pre-connecting to voice service...');
+    
+    // In voiceInput mode, only use STT (no AI voice response)
+    if (_currentMode == VentingMode.voiceInput) {
+      _voiceService.setSttOnlyMode(true);
+    } else {
+      _voiceService.setSttOnlyMode(false);
+    }
+    
+    await _voiceService.connect();
+    if (mounted && _voiceService.state == VoiceState.ready) {
+      print('Pre-connection successful, ready for recording');
+    }
+  }
+  
+  Future<void> _startLiveTtsPlayback() async {
+    if (!mounted || _currentMode != VentingMode.realtime) return;
+
+    // If a previous stream is still active, stop it first.
+    await _stopLiveTtsPlayback();
+
+    _duckBackgroundAudioForTts();
+
+    try {
+      _liveTtsSource = LiveStreamAudioSource();
+      await _audioPlayer.setAudioSource(_liveTtsSource!);
+      await _audioPlayer.play();
+    } catch (e) {
+      print('[TTS Live] Start error: $e');
+      await _stopLiveTtsPlayback();
+    }
+  }
+
+  Future<void> _stopLiveTtsPlayback() async {
+    try {
+      if (_audioPlayer.playing) {
+        await _audioPlayer.stop();
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    _restoreBackgroundAudioAfterTts();
+
+    final src = _liveTtsSource;
+    _liveTtsSource = null;
+    if (src != null) {
+      try {
+        await src.dispose();
+      } catch (e) {
+        print('[TTS Live] Dispose error: $e');
+      }
+    }
+  }
+
+  void _duckBackgroundAudioForTts() {
+    if (_focusVolumeBeforeTts != null) return; // already ducked
+    try {
+      final focusService = ref.read(focusAudioServiceProvider);
+      final current = focusService.currentVolume;
+      _focusVolumeBeforeTts = current;
+      final ducked = (current * _focusDuckRatio).clamp(0.0, 1.0);
+      focusService.setVolume(ducked);
+    } catch (e) {
+      print('[TTS Duck] Failed to duck focus audio: $e');
+      _focusVolumeBeforeTts = null;
+    }
+  }
+
+  void _restoreBackgroundAudioAfterTts() {
+    final prev = _focusVolumeBeforeTts;
+    _focusVolumeBeforeTts = null;
+    if (prev == null) return;
+    try {
+      ref.read(focusAudioServiceProvider).setVolume(prev);
+    } catch (e) {
+      print('[TTS Duck] Failed to restore focus audio: $e');
+    }
+  }
+
+  Future<void> _checkActivation() async {
+    final result = await _voiceService.checkOtaActivation();
+    if (!result.isActivated && mounted) {
+      _showActivationDialog(result.activationCode ?? '', result.message);
+    }
+  }
+
+  Future<void> _resetAndRecheck() async {
+    await _voiceService.resetDevice();
+    await _checkActivation();
   }
 
   @override
   void dispose() {
-    _titleController.dispose();
+    _textController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _liquidController.dispose();
-    _previewController.dispose();
     _introController.dispose();
-    _amplitudeSub?.cancel();
+    _transcriptController.dispose();
+    _micStreamSub?.cancel();
+    _voiceStateSub?.cancel();
+    _textSub?.cancel();
+    _audioSub?.cancel();
+    _sttSub?.cancel();
+    _activationSub?.cancel();
+    _ttsSub?.cancel();
     _timer?.cancel();
+    _voiceService.disconnect();
+    // Best-effort stop of any ongoing TTS stream playback.
+    unawaited(_stopLiveTtsPlayback());
     super.dispose();
   }
 
-  // --- Core Logic ---
-
-  Future<void> _startRecording() async {
-    if (_isPreviewMode) return; // Ignore if in preview
-    try {
-      if (await _audioRecorder.hasPermission()) {
-        final directory = await getTemporaryDirectory();
-        _tempPath = '${directory.path}/venting_temp_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-        await _audioRecorder.start(const RecordConfig(), path: _tempPath!);
-        
-        _amplitudeSub = _audioRecorder.onAmplitudeChanged(const Duration(milliseconds: 40)).listen((amp) {
-           if (mounted) {
-             setState(() {
-               _amplitude = (amp.current + 45).clamp(0, 45) / 45;
-               _smoothedAmplitude = _smoothedAmplitude * 0.7 + _amplitude * 0.3;
-             });
-           }
-        });
-
-        _recordDuration = Duration.zero;
-        _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-          setState(() => _recordDuration += const Duration(seconds: 1));
-        });
-        
-        setState(() {
-          _isRecording = true;
-          _isCancelled = false;
-        });
-        HapticHelper(ref).mediumImpact();
-      }
-    } catch (e) {
-      debugPrint("Start error: $e");
-    }
-  }
-
-  Future<void> _stopRecording({required bool triggeredCancel}) async {
-    if (!_isRecording) return;
-    
-    _timer?.cancel();
-    _amplitudeSub?.cancel();
-
-    try {
-      final path = await _audioRecorder.stop();
-      if (triggeredCancel) {
-        if (path != null) File(path).delete().ignore();
-        HapticHelper(ref).heavyImpact();
-      } else {
-        // Enter Preview Mode
-        setState(() {
-          _isPreviewMode = true;
-          _dragUpOffset = 0;
-        });
-        if (mounted) _previewController.forward();
-        if (path != null) {
-          await _audioPlayer.setFilePath(path);
-        }
-        HapticHelper(ref).success();
-      }
-    } catch (e) {
-      debugPrint("Stop error: $e");
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRecording = false;
-          _isCancelled = false; // CRITICAL: Reset cancel state
-          _dragUpOffset = 0;
-          _recordDuration = Duration.zero;
-          _smoothedAmplitude = 0;
-        });
-      }
-    }
-  }
-
-  Future<void> _saveVenting() async {
-    if (_tempPath == null) return;
-    
-    final title = _titleController.text.trim().isNotEmpty ? _titleController.text.trim() : "大声倾诉";
-    final docDir = await getApplicationDocumentsDirectory();
-    final permanentPath = '${docDir.path}/venting_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await File(_tempPath!).copy(permanentPath);
-    
-    final task = Task(
-      id: const Uuid().v4(),
-      title: title,
-      totalDuration: Duration.zero,
-      scheduledStart: DateTime.now(),
-      subTasks: [],
-      isCompleted: true,
-      isVenting: true,
-      journalAudioPath: permanentPath,
-      completedAt: DateTime.now(),
-    );
-
-    ref.read(taskListProvider.notifier).addTask(task);
-    if (mounted) Navigator.pop(context);
-  }
-
-  void _discard() {
-    setState(() {
-      _isPreviewMode = false;
-      _tempPath = null;
-      _recordDuration = Duration.zero;
-      _smoothedAmplitude = 0;
-      _titleController.clear();
-    });
-    _previewController.reverse();
-    _audioPlayer.stop();
-  }
-
-  String _formatDuration(Duration d) {
-    return "${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}";
-  }
-
-  // --- UI Building ---
+  // ==================== UI BUILD ====================
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = AppTheme.primaryBlue;
     final accent = AppTheme.accentPurple;
-    final cancelColor = const Color(0xFFFB7185).withOpacity(0.8);
+    final cancelColor = const Color(0xFFFB7185);
     
-    // Adaptive Colors
     final bgColor = isDark ? Colors.black : const Color(0xFFFBFBFF);
-    final mainTextColor = isDark ? Colors.white : const Color(0xFF1E293B);
+    final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
     final secondaryTextColor = isDark ? Colors.white54 : const Color(0xFF64748B);
-    final glassColor = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03);
-    final glassBorder = isDark ? Colors.white10 : Colors.black.withOpacity(0.05);
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: Stack(
+      resizeToAvoidBottomInset: true, // Allow keyboard to push content up
+      body: _showEncouragement 
+        ? _buildEncouragementOverlay(isDark, textColor)
+        : Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Background Visuals
+          // Background
           _buildLiquidBackground(primary, accent, cancelColor, isDark),
           
           SafeArea(
-            child: Column(
-              children: [
-                _buildHeader(mainTextColor),
-                const Spacer(),
-                
-                // Central Liquid Orb
-                _buildLiquidOrb(primary, accent, cancelColor, isDark),
-                
-                const Spacer(),
-                
-                // Content area switching between Recording and Preview
-                if (_isPreviewMode) _buildPreviewPlayer(isDark, primary)
-                else if (_isRecording) _buildRecordingStatus(mainTextColor, secondaryTextColor)
-                else _buildIdleStatus(secondaryTextColor),
-                
-                const SizedBox(height: 180),
-              ],
-            ),
-          ),
-          
-          // 2. Control Layout
-          _buildControls(primary, accent, isDark),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(Color textColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(Icons.close_rounded, color: textColor.withOpacity(0.3), size: 28),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                controller: _titleController,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18, 
-                  fontWeight: FontWeight.w300, 
-                  color: textColor,
-                  letterSpacing: 0.5,
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
                 ),
-                decoration: InputDecoration(
-                  hintText: "TITLE (OPTIONAL)",
-                  hintStyle: TextStyle(color: textColor.withOpacity(0.12), fontSize: 13, letterSpacing: 2, fontWeight: FontWeight.bold),
-                  border: InputBorder.none,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Top section
+                    Column(
+                      children: [
+                        _buildHeader(textColor, secondaryTextColor),
+                        const SizedBox(height: 40),
+                        // Center content - switches based on mode and state
+                        _buildCenterContent(primary, accent, cancelColor, isDark, textColor),
+                      ],
+                    ),
+                    
+                    // Bottom section
+                    Column(
+                      children: [
+                        // Status text
+                        _buildStatusArea(textColor, secondaryTextColor),
+                        
+                        const SizedBox(height: 30),
+                        
+                        // Controls - different for each mode
+                        if (_currentMode == VentingMode.realtime)
+                          _buildRealtimeControls(primary, isDark)
+                        else if (_showTextInput)
+                          // Text input mode (triggered by down swipe)
+                          _buildTextInputArea(primary, isDark, textColor)
+                        else
+                          // Voice input mode (default)
+                          _buildVoiceInputControls(primary, isDark),
+                        
+                        const SizedBox(height: 80), // Bottom padding to avoid phone's one-hand mode
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 48), // Balance for the close button
         ],
       ),
     );
   }
+
+  Widget _buildHeader(Color textColor, Color secondaryColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          // Close button
+          IconButton(
+            icon: Icon(Icons.close_rounded, color: textColor.withOpacity(0.4), size: 28),
+            onPressed: () => Navigator.pop(context),
+          ),
+          
+          const Spacer(),
+          
+          // Title (only show in voiceInput mode)
+          if (_currentMode == VentingMode.voiceInput)
+            Text(
+              "大声倾诉",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: textColor.withOpacity(0.6),
+              ),
+            ),
+          
+          const Spacer(),
+          
+          // Companion mode button (only in voiceInput mode)
+          if (_currentMode == VentingMode.voiceInput)
+            GestureDetector(
+              onTap: () => _switchMode(VentingMode.realtime),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.phone_in_talk_rounded, size: 16, color: AppTheme.primaryBlue),
+                    const SizedBox(width: 6),
+                    Text(
+                      "陪伴",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            // In realtime mode, show back arrow to return to voiceInput
+            const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildCenterContent(Color primary, Color accent, Color cancel, bool isDark, Color textColor) {
+    // 1. Analyzing state (Thinking) - Priority
+    if (_isAnalyzing) {
+      return _buildSpinningOrb(primary, accent, isDark);
+    }
+
+    // 2. STT Processing state
+    if (_currentMode == VentingMode.voiceInput && _userTranscript == "正在识别...") {
+      return _buildSpinningOrb(primary, accent, isDark);
+    }
+    
+    // 3. Result state - show transcript/aphorisms
+    if (_currentMode == VentingMode.voiceInput && _showTranscript && _userTranscript.isNotEmpty) {
+      return _buildTranscriptResult(textColor, isDark);
+    }
+    
+    // 4. Default - show liquid orb (Recording or Idle)
+    return _buildLiquidOrb(primary, accent, cancel, isDark);
+  }
+
+
+
+  /// Processing state animation - reuses liquid orb with breathing effect
+  Widget _buildSpinningOrb(Color primary, Color accent, bool isDark) {
+    // We just reuse the liquid orb but pass isProcessing=true
+    return AnimatedBuilder(
+      animation: _liquidController,
+      builder: (context, child) {
+        final t = _liquidController.value;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLiquidOrb(primary, accent, Colors.transparent, isDark, isProcessing: true),
+            const SizedBox(height: 32),
+            // Animated text
+            SizedBox(
+              width: 200,
+              child: Text(
+                "正在思考${'.' * ((t * 3).toInt() % 4)}",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                  letterSpacing: 2,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTranscriptResult(Color textColor, bool isDark) {
+    return FadeTransition(
+      opacity: _transcriptController,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Result card
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? Colors.white.withOpacity(0.06) 
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.06),
+              ),
+              boxShadow: [
+                if (!isDark)
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Quote decoration
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primaryBlue.withOpacity(0),
+                            AppTheme.primaryBlue.withOpacity(0.5),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(
+                      Icons.format_quote_rounded,
+                      color: AppTheme.primaryBlue.withOpacity(0.4),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 32,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primaryBlue.withOpacity(0.5),
+                            AppTheme.primaryBlue.withOpacity(0),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Content Switch: Transcript OR Aphorisms
+                if (_aphorisms.isEmpty)
+                  // Show User Transcript
+                  Text(
+                    _userTranscript,
+                    style: TextStyle(
+                      fontSize: 22,
+                      height: 1.6,
+                      color: textColor,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    textAlign: TextAlign.center,
+                  )
+                else
+                  // Show Aphorisms with Typewriter effect
+                  _TypewriterText(
+                    text: _aphorisms,
+                    style: TextStyle(
+                      fontSize: 18,
+                      height: 2.0, // Increase line height for cleaner look
+                      color: textColor.withOpacity(0.9),
+                      fontWeight: FontWeight.w400, // Use normal weight instead of w500
+                      // fontStyle: FontStyle.italic, // REMOVED: Italic looks messy for Chinese
+                      letterSpacing: 0.5, // Slight spacing for elegance
+                    ),
+                    textAlign: TextAlign.start, // Left align to avoid jagged edges
+                    duration: const Duration(milliseconds: 50),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          // Action buttons
+          if (_aphorisms.isNotEmpty)
+            // Finish Button - SAVE TO TIMELINE when user confirms
+            GestureDetector(
+              onTap: () async {
+                HapticHelper(ref).mediumImpact();
+                
+                // Save to timeline
+                final now = DateTime.now();
+                final task = Task(
+                  id: const Uuid().v4(),
+                  title: "大声倾诉",
+                  totalDuration: Duration.zero,
+                  scheduledStart: now,
+                  subTasks: [],
+                  isVenting: true,
+                  isCompleted: true,
+                  completedAt: now,
+                  journalAudioPath: _lastAudioPath,
+                  journalNote: "$_userTranscript\n\n$_aphorisms",
+                );
+                ref.read(taskListProvider.notifier).addTask(task);
+                
+                // Show encouragement and exit after 3 seconds
+                if (_encouragement.isNotEmpty) {
+                  setState(() {
+                    _showEncouragement = true;
+                  });
+                  
+                  // Wait 3 seconds then exit
+                  await Future.delayed(const Duration(seconds: 3));
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primaryBlue,
+                      AppTheme.primaryBlue.withBlue(200),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryBlue.withOpacity(0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  "我知道怎么做了",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            )
+          else
+            // Re-record & Confirm Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Re-record button
+                Flexible(
+                  child: GestureDetector(
+                  onTap: () {
+                    HapticHelper(ref).selectionClick();
+                    // Use abort instead of disconnect to keep connection alive
+                    _voiceService.abort();
+                    setState(() {
+                      _showTranscript = false;
+                      _userTranscript = "";
+                      // Don't reset _isConnected since we're keeping connection
+                      _voiceInputBuffer.clear(); // Clear local buffer on re-record
+                    });
+                    _transcriptController.reverse();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white60 : Colors.black45,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "重录",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white60 : Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                ),
+                const SizedBox(width: 16),
+                // Confirm button - triggers analysis to show aphorisms
+                Flexible(
+                  child: GestureDetector(
+                onTap: () async {
+                  if (_isAnalyzing) return;
+                  
+                  HapticHelper(ref).mediumImpact();
+                  if (mounted) setState(() => _isAnalyzing = true);
+
+                  try {
+                    // Analyze with AI to get aphorisms and encouragement
+                    final aiService = ref.read(aiServiceProvider);
+                    final result = await aiService.analyzeVentingContent(_userTranscript);
+                    
+                    if (!mounted) return;
+                    
+                    // Parse result: "aphorisms|||encouragement"
+                    String aphorisms = result;
+                    String encouragement = "";
+                    if (result.contains('|||')) {
+                      final parts = result.split('|||');
+                      aphorisms = parts[0].trim();
+                      encouragement = parts.length > 1 ? parts[1].trim() : "";
+                    }
+                    
+                    // Update UI to show aphorisms (task will be saved when user clicks "我知道怎么做了")
+                    setState(() {
+                      _isAnalyzing = false;
+                      _aphorisms = aphorisms;
+                      _encouragement = encouragement;
+                    });
+                    
+                  } catch (e) {
+                     debugPrint("Venting processing error: $e");
+                     if (mounted) {
+                       setState(() => _isAnalyzing = false);
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(content: Text("处理失败，请重试: $e")),
+                       );
+                     }
+                  }
+                },
+                child: Opacity(
+                  opacity: _isAnalyzing ? 0.7 : 1.0,
+                  child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppTheme.primaryBlue,
+                        AppTheme.primaryBlue.withBlue(200),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withOpacity(0.35),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isAnalyzing)
+                        const SizedBox(
+                          width: 20, 
+                          height: 20, 
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      else
+                        const Icon(
+                          Icons.check_rounded,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isAnalyzing ? "生成中..." : "确认",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ),
+              ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusArea(Color textColor, Color secondaryColor) {
+    if (_currentMode == VentingMode.realtime) {
+      // Realtime mode status
+      if (_aiResponseText.isNotEmpty) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Text(
+            _aiResponseText,
+            style: TextStyle(fontSize: 16, color: textColor, height: 1.5),
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }
+      return Text(
+        _isConnected 
+            ? (_isMicOn ? "正在聆听..." : "点击麦克风开始对话") 
+            : "正在连接...",
+        style: TextStyle(
+          fontSize: 12,
+          letterSpacing: 2,
+          fontWeight: FontWeight.w500,
+          color: secondaryColor.withOpacity(0.5),
+        ),
+      );
+    } else {
+      // Voice input mode status
+      if (_isRecording) {
+        // Determine current gesture state
+        final bool isUpSwipe = _dragOffset < -80; // Cancel
+        final bool isDownSwipe = _dragOffset > 80; // Text input
+        
+        return Column(
+          children: [
+            Text(
+              _formatDuration(_recordDuration),
+              style: TextStyle(fontSize: 48, fontWeight: FontWeight.w200, color: textColor),
+            ),
+            const SizedBox(height: 8),
+            // Show gesture hints
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Up swipe hint (cancel)
+                Icon(
+                  Icons.keyboard_arrow_up_rounded,
+                  color: isUpSwipe ? const Color(0xFFFB7185) : secondaryColor.withOpacity(0.3),
+                  size: 18,
+                ),
+                Text(
+                  isUpSwipe ? "松开取消" : "上滑取消",
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w500,
+                    color: isUpSwipe ? const Color(0xFFFB7185) : secondaryColor.withOpacity(0.3),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                // Down swipe hint (text input)
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: isDownSwipe ? AppTheme.primaryBlue : secondaryColor.withOpacity(0.3),
+                  size: 18,
+                ),
+                Text(
+                  isDownSwipe ? "松开输入" : "下滑打字",
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w500,
+                    color: isDownSwipe ? AppTheme.primaryBlue : secondaryColor.withOpacity(0.3),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      }
+      // Default state - show hint based on mode
+      if (_showTextInput) {
+        return Text(
+          "输入文字发送",
+          style: TextStyle(
+            fontSize: 12,
+            letterSpacing: 2,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.primaryBlue.withOpacity(0.6),
+          ),
+        );
+      }
+      return Text(
+        "按住说话",
+        style: TextStyle(
+          fontSize: 12,
+          letterSpacing: 2,
+          fontWeight: FontWeight.w500,
+          color: secondaryColor.withOpacity(0.4),
+        ),
+      );
+    }
+  }
+
+  // ==================== REALTIME MODE CONTROLS ====================
+
+  Widget _buildRealtimeControls(Color primary, bool isDark) {
+    final buttonBg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04);
+    final iconColor = isDark ? Colors.white : Colors.black87;
+    
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Mic toggle button
+        GestureDetector(
+          onTap: _toggleMic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isMicOn ? primary : buttonBg,
+              border: Border.all(
+                color: _isMicOn ? primary : (isDark ? Colors.white10 : Colors.black12),
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              _isMicOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+              color: _isMicOn ? Colors.white : iconColor.withOpacity(0.5),
+              size: 28,
+            ),
+          ),
+        ),
+        
+        const SizedBox(width: 40),
+        
+        // Hang up button - returns to voiceInput mode
+        GestureDetector(
+          onTap: _hangUp,
+          child: Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFFB7185),
+            ),
+            child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==================== VOICE INPUT MODE CONTROLS ====================
+
+  Widget _buildVoiceInputControls(Color primary, bool isDark) {
+    final double size = _isRecording ? 100 : 80;
+    final buttonBg = isDark 
+        ? Colors.white.withOpacity(_isRecording ? 0.15 : 0.08)
+        : Colors.black.withOpacity(_isRecording ? 0.08 : 0.04);
+    final iconColor = isDark ? Colors.white : Colors.black87;
+
+    return Listener(
+      onPointerDown: (e) {
+        // If coming from a previous result, reset first
+        if (_showTranscript) {
+          _voiceService.abort(); // Use abort instead of disconnect
+          setState(() {
+            _showTranscript = false;
+            _userTranscript = "";
+            // Don't reset _isConnected - connection is still alive
+          });
+          _transcriptController.reverse();
+        }
+        
+        _startPos = e.position;
+        _startVoiceInputRecording();
+      },
+      onPointerMove: (e) {
+        if (!_isRecording) return;
+        setState(() {
+          // Track both up and down movement
+          _dragOffset = (e.position.dy - _startPos.dy).clamp(-200.0, 200.0);
+          _isCancelled = _dragOffset < -80; // Up swipe = cancel
+          _isTextInputMode = _dragOffset > 80; // Down swipe = text input
+        });
+      },
+      onPointerUp: (e) {
+        if (_isTextInputMode) {
+          // Down swipe: cancel recording and show text input
+          _stopVoiceInputRecording(cancelled: true);
+          HapticHelper(ref).mediumImpact();
+          setState(() {
+            _showTextInput = true;
+            _isTextInputMode = false;
+            _dragOffset = 0;
+          });
+        } else {
+          // Normal release or up swipe cancel
+          _stopVoiceInputRecording(cancelled: _isCancelled);
+          setState(() {
+            _dragOffset = 0;
+            _isTextInputMode = false;
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: buttonBg,
+          border: Border.all(
+            color: _isCancelled 
+                ? const Color(0xFFFB7185).withOpacity(0.5) // Red for cancel
+                : _isTextInputMode
+                    ? AppTheme.primaryBlue.withOpacity(0.5) // Blue for text input
+                    : (isDark ? Colors.white10 : Colors.black12),
+            width: 2,
+          ),
+          boxShadow: _isRecording ? [
+            BoxShadow(
+              color: _isCancelled 
+                  ? const Color(0xFFFB7185).withOpacity(0.3)
+                  : _isTextInputMode
+                      ? AppTheme.primaryBlue.withOpacity(0.3)
+                      : primary.withOpacity(0.3),
+              blurRadius: 30,
+              spreadRadius: 5,
+            ),
+          ] : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _isTextInputMode 
+                  ? Icons.keyboard_rounded  // Show keyboard when swiping down
+                  : _isCancelled 
+                      ? Icons.close_rounded  // Show X when swiping up to cancel
+                      : Icons.mic_rounded,   // Default mic icon
+              color: _isRecording 
+                  ? (_isTextInputMode 
+                      ? AppTheme.primaryBlue 
+                      : _isCancelled 
+                          ? const Color(0xFFFB7185) 
+                          : iconColor)
+                  : iconColor.withOpacity(0.4),
+              size: 32,
+            ),
+            if (_isRecording && !_isCancelled && !_isTextInputMode)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFB7185),
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== TEXT INPUT AREA ====================
+
+  Widget _buildTextInputArea(Color primary, bool isDark, Color textColor) {
+    final buttonBg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04);
+    final iconColor = isDark ? Colors.white : Colors.black87;
+    
+    // Only show when text input mode is active (triggered by down swipe)
+    if (!_showTextInput) {
+      return const SizedBox.shrink();
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: AnimatedOpacity(
+        opacity: _showTextInput ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: BoxDecoration(
+            color: buttonBg,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              // Close button (switch back to voice)
+              GestureDetector(
+                onTap: () {
+                  HapticHelper(ref).selectionClick();
+                  setState(() => _showTextInput = false);
+                  _textController.clear();
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(Icons.mic_rounded, size: 22, color: iconColor.withOpacity(0.6)),
+                ),
+              ),
+              // Text input
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  autofocus: true, // Auto focus when shown
+                  style: TextStyle(color: textColor, fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: "输入文字...",
+                    hintStyle: TextStyle(color: iconColor.withOpacity(0.3)),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendTextMessage(),
+                ),
+              ),
+              // Send button
+              GestureDetector(
+                onTap: _sendTextMessage,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(right: 4),
+                  decoration: BoxDecoration(
+                    color: primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.send_rounded, size: 20, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Send text message to server
+  Future<void> _sendTextMessage() async {
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+    
+    HapticHelper(ref).mediumImpact();
+    
+    // Clear input immediately for better UX
+    _textController.clear();
+    setState(() => _showTextInput = false);
+    
+    // Show processing state
+    setState(() {
+      _userTranscript = text;
+      _showTranscript = true;
+      _transcriptController.forward();
+    });
+    
+    // Send to server
+    try {
+      await _voiceService.sendTextMessage(text);
+    } catch (e) {
+      print('Error sending text message: $e');
+      if (mounted) {
+        setState(() => _userTranscript = "发送失败: $e");
+      }
+    }
+  }
+
+  // ==================== LIQUID ORB ====================
 
   Widget _buildLiquidBackground(Color primary, Color accent, Color cancel, bool isDark) {
     return AnimatedBuilder(
@@ -298,10 +1264,16 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         final opacity = isDark ? 0.12 : 0.08;
         return Stack(
           children: [
-            Positioned(top: -100 + (sin(t) * 40), left: -100 + (cos(t) * 40), child: _buildGlow(primary.withOpacity(opacity), 450)),
-            Positioned(bottom: -150 + (cos(t * 0.8) * 50), right: -100 + (sin(t * 1.2) * 30), child: _buildGlow(accent.withOpacity(opacity - 0.02), 500)),
-            if (_isRecording || _isPreviewMode)
-               Center(child: _buildGlow((_isCancelled ? cancel : primary).withOpacity(isDark ? 0.08 : 0.05), 350 + (_isPreviewMode ? 0 : _smoothedAmplitude * 200))),
+            Positioned(
+              top: -100 + (sin(t) * 40),
+              left: -100 + (cos(t) * 40),
+              child: _buildGlow(primary.withOpacity(opacity), 450),
+            ),
+            Positioned(
+              bottom: -150 + (cos(t * 0.8) * 50),
+              right: -100 + (sin(t * 1.2) * 30),
+              child: _buildGlow(accent.withOpacity(opacity - 0.02), 500),
+            ),
           ],
         );
       },
@@ -309,198 +1281,840 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   }
 
   Widget _buildGlow(Color color, double size) {
-    return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [color, Colors.transparent])));
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: [color, Colors.transparent]),
+      ),
+    );
+  }
+
+  Widget _buildLiquidOrb(Color primary, Color accent, Color cancel, bool isDark, {bool isProcessing = false}) {
+    final double baseSize = 220.0;
+    final isActive = _isMicOn || _isRecording;
+    
+    // Use AnimatedBuilder to animate blobs
+    return AnimatedBuilder(
+      animation: Listenable.merge([_liquidController, _introController]),
+      builder: (context, child) {
+        // Base time for animation
+        final t = _liquidController.value * 2 * pi;
+        // Apply fade-in opacity
+        final double opacity = _introController.value;
+        
+        // Scale breathing based on state
+        double breathScale = 1.0;
+        if (isActive) {
+          breathScale = 1.0 + _smoothedAmplitude * 0.15;
+        } else if (isProcessing) {
+          breathScale = 1.0 + 0.03 * sin(t * 1.5);
+        }
+        
+        // Colors with good opacity for blending
+        Color pColor = primary.withOpacity(isDark ? 0.45 : 0.35);
+        Color aColor = accent.withOpacity(isDark ? 0.40 : 0.30);
+        Color cColor = (_isCancelled ? cancel : primary.withBlue(180)).withOpacity(isDark ? 0.35 : 0.25);
+        Color dColor = accent.withRed(200).withOpacity(isDark ? 0.30 : 0.20);
+        
+        if (isProcessing) {
+          pColor = primary.withOpacity(isDark ? 0.7 : 0.6);
+          aColor = accent.withOpacity(isDark ? 0.6 : 0.5);
+          cColor = primary.withOpacity(isDark ? 0.5 : 0.4);
+          dColor = accent.withOpacity(isDark ? 0.4 : 0.3);
+        }
+
+        return Transform.scale(
+          scale: breathScale,
+          child: Opacity(
+            opacity: opacity,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Multiple diffuse blobs moving in different patterns
+                // Blob 1: Large, slow circular drift
+                _buildDiffuseBlob(
+                  color: pColor, 
+                  size: baseSize * 0.9, 
+                  time: t,
+                  radiusX: 15, radiusY: 12, 
+                  speedX: 0.8, speedY: 1.0, 
+                  phaseX: 0, phaseY: pi / 3,
+                ),
+                // Blob 2: Medium, opposite direction
+                _buildDiffuseBlob(
+                  color: aColor, 
+                  size: baseSize * 0.75, 
+                  time: t,
+                  radiusX: 18, radiusY: 14, 
+                  speedX: 1.1, speedY: 0.7, 
+                  phaseX: pi / 2, phaseY: pi,
+                ),
+                // Blob 3: Smaller, faster diagonal
+                _buildDiffuseBlob(
+                  color: cColor, 
+                  size: baseSize * 0.65, 
+                  time: t,
+                  radiusX: 20, radiusY: 16, 
+                  speedX: 0.9, speedY: 1.2, 
+                  phaseX: pi, phaseY: pi / 4,
+                ),
+                // Blob 4: Tiny accent, wandering
+                _buildDiffuseBlob(
+                  color: dColor, 
+                  size: baseSize * 0.55, 
+                  time: t,
+                  radiusX: 22, radiusY: 18, 
+                  speedX: 1.3, speedY: 0.9, 
+                  phaseX: pi * 1.5, phaseY: pi / 2,
+                ),
+                // Blob 5: Center anchor (subtle movement)
+                _buildDiffuseBlob(
+                  color: pColor.withOpacity(pColor.opacity * 0.6), 
+                  size: baseSize * 1.0, 
+                  time: t,
+                  radiusX: 6, radiusY: 5, 
+                  speedX: 0.5, speedY: 0.6, 
+                  phaseX: 0, phaseY: 0,
+                ),
+                
+                // Heavy blur to blend everything together
+                ClipOval(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
+                    child: Container(
+                      width: baseSize * 1.4, 
+                      height: baseSize * 1.4, 
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.01),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.6, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build a single diffuse blob that moves in an elliptical path
+  Widget _buildDiffuseBlob({
+    required Color color,
+    required double size,
+    required double time,
+    required double radiusX,
+    required double radiusY,
+    required double speedX,
+    required double speedY,
+    required double phaseX,
+    required double phaseY,
+  }) {
+    // Elliptical path with independent X and Y motion
+    final double offsetX = radiusX * sin(time * speedX + phaseX);
+    final double offsetY = radiusY * cos(time * speedY + phaseY);
+    
+    // Subtle scale pulsing
+    final double pulse = 1.0 + 0.05 * sin(time * 0.7 + phaseX);
+    
+    return Transform.translate(
+      offset: Offset(offsetX, offsetY),
+      child: Transform.scale(
+        scale: pulse,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                color,
+                color.withOpacity(color.opacity * 0.3),
+              ],
+              stops: const [0.3, 1.0],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
 
-  Widget _buildLiquidOrb(Color primary, Color accent, Color cancel, bool isDark) {
-    final double baseSize = 255.0; // Slightly larger for better filler
-    // Slow drift when previewing, reactive when recording
-    final double scale = _isPreviewMode ? 1.05 : (_isRecording ? (1.0 + _smoothedAmplitude * 0.45) : 1.0);
+  // ==================== LOGIC ====================
+
+  void _switchMode(VentingMode mode) {
+    if (_currentMode == mode) return;
     
-    return Center(
-      child: AnimatedBuilder(
-        animation: _liquidController,
-        builder: (context, child) {
-          final t = _liquidController.value * 2 * pi;
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              _buildBlob(primary.withOpacity(isDark ? 0.5 : 0.35), baseSize * 0.8 * scale, t, 0),
-              _buildBlob(accent.withOpacity(isDark ? 0.4 : 0.3), baseSize * 0.9 * scale, t, 1),
-              _buildBlob((_isCancelled ? cancel : primary).withOpacity(isDark ? 0.2 : 0.15), baseSize * 1.1 * scale, t, 2),
-              
-              ClipOval(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: isDark ? 50 : 40, sigmaY: isDark ? 50 : 40),
-                  child: Container(width: baseSize * 1.5, height: baseSize * 1.5, color: Colors.transparent),
+    // Stop any ongoing recording/connection
+    if (_isMicOn) _toggleMic();
+    if (_isRecording) _stopVoiceInputRecording(cancelled: true);
+    
+    setState(() {
+      _currentMode = mode;
+      _showTranscript = false;
+      _userTranscript = "";
+      _aiResponseText = "";
+    });
+    
+    if (mode == VentingMode.realtime) {
+      // Realtime mode needs TTS
+      _voiceService.setSttOnlyMode(false);
+      _voiceService.connect();
+      // Auto-start mic after connection established
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted && _currentMode == VentingMode.realtime && _isConnected && !_isMicOn) {
+          _toggleMic();
+        }
+      });
+    } else {
+      // VoiceInput mode only needs STT (don't disconnect, use abort if needed)
+      _voiceService.setSttOnlyMode(true);
+      // Don't disconnect - keep connection for faster re-recording
+    }
+    
+    HapticHelper(ref).selectionClick();
+  }
+
+  /// Hang up call and return to voiceInput mode
+  void _hangUp() {
+    if (_isMicOn) {
+      _toggleMic();
+    }
+    _voiceService.abort(); // Use abort to stop any ongoing activity
+    
+    setState(() {
+      _currentMode = VentingMode.voiceInput;
+      _isConnected = false;
+      _aiResponseText = "";
+    });
+    
+    HapticHelper(ref).heavyImpact();
+  }
+
+  void _toggleMic() async {
+    if (_isMicOn) {
+      // Turn off mic
+      _micStreamSub?.cancel();
+      _voiceService.stopListening();
+      setState(() => _isMicOn = false);
+    } else {
+      // Turn on mic
+      if (await _audioRecorder.hasPermission()) {
+        // Let XiaozhiService handle the recording internally
+        // NOTE: Server-side VAD "realtime" requires AEC support; prefer "auto" for reliability.
+        await _voiceService.startListening(mode: 'auto');
+        
+        setState(() => _isMicOn = true);
+      }
+    }
+    HapticHelper(ref).mediumImpact();
+  }
+
+  /// Voice Input Mode: Record locally, send all at once when done
+  Future<void> _startVoiceInputRecording() async {
+    print('Starting voice input recording...');
+    
+    final hasPermission = await _audioRecorder.hasPermission();
+    print('Microphone permission: $hasPermission');
+    
+    if (!hasPermission) {
+      print('No microphone permission!');
+      return;
+    }
+    
+    // === IMMEDIATE UI RESPONSE ===
+    HapticHelper(ref).mediumImpact();
+    
+    // Abort any ongoing server response (but keep connection)
+    _voiceService.abort();
+    
+    // Clear previous buffer
+    _voiceInputBuffer.clear();
+    
+    setState(() {
+      _isRecording = true;
+      _isCancelled = false;
+      _userTranscript = "";
+      _showTranscript = false;  // Hide previous transcript
+      _aphorisms = "";  // Clear previous aphorisms
+      _recordDuration = Duration.zero;
+    });
+    _transcriptController.reverse();
+    
+    // Start timer
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
+    });
+    
+    // === START LOCAL RECORDING ===
+    print('Starting audio stream...');
+    try {
+      final stream = await _audioRecorder.startStream(const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+        echoCancel: true,
+        noiseSuppress: true,
+      ));
+      print('Audio stream started');
+      
+      int chunkCount = 0;
+      _micStreamSub = stream.listen((data) {
+        chunkCount++;
+        // Log every 10 chunks
+        if (chunkCount % 10 == 0) {
+          print('Recording: received chunk #$chunkCount, ${data.length} bytes');
+        }
+        
+        // Update amplitude visualization
+        if (data.isNotEmpty && mounted) {
+          setState(() {
+            final amp = (data[0].abs() / 128.0).clamp(0.0, 1.0);
+            _smoothedAmplitude = _smoothedAmplitude * 0.7 + amp * 0.3;
+          });
+        }
+        
+        // BUFFER LOCALLY - don't send yet
+        _voiceInputBuffer.add(Uint8List.fromList(data));
+      }, onError: (e) {
+        print('Audio stream error: $e');
+      });
+      
+      print('Started local recording for Voice Input mode');
+    } catch (e) {
+      print('Failed to start audio stream: $e');
+    }
+  }
+
+  Future<void> _stopVoiceInputRecording({required bool cancelled}) async {
+    _timer?.cancel();
+    
+    // Wait a bit to ensure all audio data is captured before stopping
+    if (!cancelled) {
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+    
+    _micStreamSub?.cancel();
+    await _audioRecorder.stop();
+    
+    final recordedChunks = List<Uint8List>.from(_voiceInputBuffer);
+    _voiceInputBuffer.clear();
+    
+    print('Stopped recording: ${recordedChunks.length} audio chunks captured');
+    
+    if (cancelled || recordedChunks.isEmpty) {
+      HapticHelper(ref).heavyImpact();
+      _userTranscript = "";
+      
+      setState(() {
+        _isRecording = false;
+        _isCancelled = false;
+        _dragOffset = 0;
+        _recordDuration = Duration.zero;
+        _smoothedAmplitude = 0;
+      });
+      return;
+    }
+    
+    HapticHelper(ref).success();
+    
+    // IMMEDIATE UI UPDATE - show processing state (Analyzing/Thinking)
+    // NOTE: We keep _showTranscript = false so that the Orb is shown (in Thinking state)
+    // The Orb will show "正在思考..." if _userTranscript == "正在识别..." or _isAnalyzing == true
+    setState(() {
+      _isRecording = false;
+      _isCancelled = false;
+      _dragOffset = 0;
+      _recordDuration = Duration.zero;
+      _smoothedAmplitude = 0;
+      _userTranscript = "正在识别...";
+      _showTranscript = false; 
+      _transcriptController.forward();
+    });
+    
+    // === NOW SEND ALL AUDIO TO SERVER ===
+    try {
+      // Connect only if WebSocket is not connected (use isConnected, not state)
+      if (!_voiceService.isConnected) {
+        print('Connecting to send audio...');
+        await _voiceService.connect();
+        
+        // Wait for connection
+        int waitCount = 0;
+        while (!_voiceService.isConnected && waitCount < 30) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          waitCount++;
+        }
+        
+        if (!_voiceService.isConnected) {
+          print('Failed to connect for sending audio');
+          if (mounted) {
+            setState(() {
+                _userTranscript = "连接失败，请重试";
+                _showTranscript = true;
+            });
+          }
+          return;
+        }
+      } else {
+        print('Using existing connection');
+      }
+      
+      // Clear any previous buffer
+      _voiceService.clearAudioBuffer();
+      
+      // Start listening (skip recording since we already have buffered audio)
+      await _voiceService.startListening(mode: 'manual', skipRecording: true);
+      print('Started listening, sending ${recordedChunks.length} audio chunks...');
+      
+      // Send all buffered audio chunks (encode PCM to Opus first)
+      for (final chunk in recordedChunks) {
+        final opusData = await AudioUtil.encodeToOpus(chunk);
+        if (opusData != null) {
+          _voiceService.sendBinaryMessage(opusData);
+        }
+      }
+      
+      print('All audio sent, stopping listening...');
+      
+      // Stop listening but stay connected for STT result
+      _voiceService.stopListening();
+      
+      // Wait for STT result
+      int waitCount = 0;
+      while ((_userTranscript.isEmpty || _userTranscript == "正在识别...") && waitCount < 100) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitCount++;
+        if (!mounted) return;
+      }
+      
+      if (mounted) {
+        if (_userTranscript.isEmpty || _userTranscript == "正在识别...") {
+          setState(() {
+            _userTranscript = "未能识别到语音，请重试";
+            _showTranscript = true;
+          });
+        } else {
+             // STT Success! Auto proceed to Analysis
+             setState(() {
+                 _isAnalyzing = true; // Triggers "Thinking" Orb
+                 _showTranscript = false; // Hide transcript
+             });
+             await _autoAnalyzeAndFinish(recordedChunks);
+        }
+      }
+    } catch (e) {
+      print('Error sending audio: $e');
+      if (mounted) {
+        setState(() {
+           _userTranscript = "发送失败: $e";
+           _showTranscript = true;
+        });
+      }
+    }
+  }
+
+  /// 自动分析用户倾诉内容，生成格言，但不保存到时间线
+  /// 只有用户点击"我知道怎么做了"才会保存到时间线
+  Future<void> _autoAnalyzeAndFinish(List<Uint8List> recordedChunks) async {
+      try {
+        debugPrint("Starting auto analysis...");
+        // 1. Analyze with AI
+        final aiService = ref.read(aiServiceProvider);
+        
+        final analysisFuture = aiService.analyzeVentingContent(_userTranscript);
+        
+        // 2. Save Audio File (for later use when user confirms)
+        String? audioPath;
+        if (recordedChunks.isNotEmpty) {
+            try {
+               final dir = await getApplicationDocumentsDirectory();
+               final audioDir = Directory('${dir.path}/journal_audio');
+               if (!await audioDir.exists()) {
+                 await audioDir.create(recursive: true);
+               }
+               
+               final fileName = 'venting_${DateTime.now().millisecondsSinceEpoch}.wav';
+               audioPath = '${audioDir.path}/$fileName';
+               
+               final dataBytesBuilder = BytesBuilder();
+               for (var b in recordedChunks) dataBytesBuilder.add(b);
+               final dataBytes = dataBytesBuilder.toBytes();
+               
+               if (dataBytes.isNotEmpty) {
+                 final header = AudioUtil.buildWavHeader(dataBytes.length, wavSampleRate: 16000);
+                 final file = File(audioPath);
+                 
+                 final finalBytesBuilder = BytesBuilder();
+                 finalBytesBuilder.add(header);
+                 finalBytesBuilder.add(dataBytes);
+                 
+                 await file.writeAsBytes(finalBytesBuilder.toBytes());
+                 debugPrint("Audio saved to: $audioPath");
+                 // Store audio path for later use when saving to timeline
+                 _lastAudioPath = audioPath;
+               }
+            } catch (e) {
+               debugPrint("Audio save failed: $e");
+            }
+        }
+
+        final result = await analysisFuture;
+        if (!mounted) return;
+        
+        // Parse result: "aphorisms|||encouragement"
+        String aphorisms = result;
+        String encouragement = "";
+        if (result.contains('|||')) {
+          final parts = result.split('|||');
+          aphorisms = parts[0].trim();
+          encouragement = parts.length > 1 ? parts[1].trim() : "";
+        }
+        
+        // 3. Only update UI to show result (不保存到时间线，等用户点击"我知道怎么做了")
+        if (mounted) {
+          setState(() {
+            _isAnalyzing = false;
+            _aphorisms = aphorisms;
+            _encouragement = encouragement;
+            _showTranscript = true; // Show result card with typewriter
+            _transcriptController.forward();
+          });
+          HapticHelper(ref).success();
+        }
+        
+      } catch (e) {
+         debugPrint("Venting processing error: $e");
+         if (mounted) {
+           setState(() { 
+               _isAnalyzing = false;
+               _userTranscript = "处理失败: $e"; 
+               _showTranscript = true; // Show error
+           });
+         }
+      }
+  }
+
+  String _formatDuration(Duration d) {
+    return "${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}";
+  }
+
+  /// Build the encouragement overlay shown before exiting
+  Widget _buildEncouragementOverlay(bool isDark, Color textColor) {
+    return Container(
+      color: isDark ? Colors.black : Colors.white,
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Heart icon with subtle glow
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.primaryBlue.withOpacity(0.1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withOpacity(0.2),
+                        blurRadius: 30,
+                        spreadRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.favorite_rounded,
+                    size: 50,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+                const SizedBox(height: 40),
+                // Encouragement text
+                Text(
+                  _encouragement,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                    height: 1.6,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 60),
+                // Subtle exit hint
+                Text(
+                  "即将返回...",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor.withOpacity(0.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+  void _showActivationDialog(String code, String? message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.vpn_key_rounded, color: AppTheme.primaryBlue, size: 32),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '设备激活',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '请在后台输入以下激活码',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2)),
+              ),
+              child: SelectableText(
+                code,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryBlue,
+                  letterSpacing: 6,
                 ),
               ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBlob(Color color, double size, double time, int seed) {
-    final double offset = 25 * sin(time + seed);
-    final double sX = 1.0 + 0.12 * cos(time * 0.9 + seed);
-    final double sY = 1.0 + 0.12 * sin(time * 1.1 + seed);
-    return Transform.translate(
-      offset: Offset(offset, offset * (seed.isEven ? 1 : -1)),
-      child: Transform.scale(scaleX: sX, scaleY: sY, child: Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: color))),
-    );
-  }
-
-  Widget _buildRecordingStatus(Color mainTextColor, Color secondaryTextColor) {
-    return Column(
-      children: [
-        Text(_formatDuration(_recordDuration), style: TextStyle(fontSize: 54, fontWeight: FontWeight.w200, color: mainTextColor, letterSpacing: -2)),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-             Icon(Icons.keyboard_arrow_up_rounded, color: _isCancelled ? const Color(0xFFFB7185) : secondaryTextColor.withOpacity(0.5), size: 20),
-             const SizedBox(width: 4),
-             Text(_isCancelled ? "DROP TO DELETE" : "SLIDE UP TO CANCEL", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, color: _isCancelled ? const Color(0xFFFB7185) : secondaryTextColor.withOpacity(0.5))),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPreviewPlayer(bool isDark, Color primary) {
-    final bgColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04);
-    final textColor = isDark ? Colors.white70 : Colors.black87;
-    final iconColor = isDark ? Colors.white : Colors.black54;
-
-    return FadeTransition(
-      opacity: _previewController,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 50),
-        child: Column(
-          children: [
-             Text("PREVIEWING VOICE", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 3, color: primary.withOpacity(0.7))),
-             const SizedBox(height: 15),
-             ClipRRect(
-               borderRadius: BorderRadius.circular(30),
-               child: BackdropFilter(
-                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                 child: Container(
-                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                   decoration: BoxDecoration(
-                     color: bgColor, 
-                     borderRadius: BorderRadius.circular(30), 
-                     border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
-                   ),
-                   child: Row(
-                     children: [
-                        IconButton(
-                          icon: Icon(_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: iconColor),
-                          onPressed: () {
-                             if (_isPlaying) _audioPlayer.pause(); else _audioPlayer.play();
-                          },
-                        ),
-                        Expanded(child: Text("Voice Note - ${_formatDuration(_recordDuration)}", style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
-                        const SizedBox(width: 40),
-                     ],
-                   ),
-                 ),
-               ),
-             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIdleStatus(Color textColor) {
-    return FadeTransition(opacity: _introController, child: Text("HOLD TO START VENTING", style: TextStyle(letterSpacing: 3, fontSize: 10, fontWeight: FontWeight.w900, color: textColor.withOpacity(0.2))));
-  }
-
-  Widget _buildControls(Color primary, Color accent, bool isDark) {
-    return Positioned(
-      bottom: 80, left: 0, right: 0,
-      child: Center(
-        child: _isPreviewMode ? _buildPreviewActions(primary, isDark) : _buildMicButtonListener(primary, isDark),
-      ),
-    );
-  }
-
-  Widget _buildMicButtonListener(Color primary, bool isDark) {
-    final double size = _isRecording ? 105 : 85;
-    final micColor = isDark ? Colors.white : Colors.black87;
-    final buttonBg = isDark 
-        ? Colors.white.withOpacity(_isRecording ? 0.2 : 0.05) 
-        : Colors.black.withOpacity(_isRecording ? 0.08 : 0.03);
-
-    return Listener(
-      onPointerDown: (e) { _startPos = e.position; _startRecording(); },
-      onPointerMove: (e) {
-        if (!_isRecording) return;
-        setState(() {
-          _dragUpOffset = (e.position.dy - _startPos.dy).clamp(-200.0, 0.0);
-          _isCancelled = _dragUpOffset < -110;
-        });
-      },
-      onPointerUp: (e) => _stopRecording(triggeredCancel: _isCancelled),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        width: size, height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: buttonBg,
-          border: Border.all(color: _isCancelled ? const Color(0xFFFB7185).withOpacity(0.5) : (isDark ? Colors.white10 : Colors.black.withOpacity(0.1)), width: 2),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.mic_rounded, color: _isRecording ? micColor : micColor.withOpacity(0.35), size: 36),
-              if (_isRecording) Container(margin: const EdgeInsets.only(top: 2), width: 5, height: 5, decoration: const BoxDecoration(color: Color(0xFFFB7185), shape: BoxShape.circle)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreviewActions(Color primary, bool isDark) {
-    final secondaryColor = isDark ? Colors.white24 : Colors.black.withOpacity(0.12);
-    final secondaryTextColor = isDark ? Colors.white24 : Colors.black38;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildActionButton(Icons.delete_outline_rounded, "Discard", secondaryColor, secondaryTextColor, _discard),
-        const SizedBox(width: 30),
-        _buildActionButton(Icons.check_rounded, "Save", primary, primary, _saveVenting, isPrimary: true, isDark: isDark),
-      ],
-    );
-  }
-
-  Widget _buildActionButton(IconData icon, String label, Color color, Color textColor, VoidCallback onTap, {bool isPrimary = false, bool isDark = true}) {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 70, height: 70,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle, 
-              color: isPrimary ? color : Colors.transparent, 
-              border: isPrimary ? null : Border.all(color: color, width: 2)
             ),
-            child: Icon(icon, color: isPrimary ? (isDark ? Colors.black : Colors.white) : color, size: 30),
-          ),
+            const SizedBox(height: 16),
+            Text(
+              message ?? 'xiaozhi.me',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(label.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: textColor)),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(ctx); _resetAndRecheck(); },
+            child: Text('重置', style: TextStyle(color: Colors.orange)),
+          ),
+          TextButton(
+            onPressed: () { Navigator.pop(ctx); Navigator.pop(context); },
+            child: Text('稍后', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+          ),
+          ElevatedButton(
+            onPressed: () { Navigator.pop(ctx); _checkActivation(); },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
+            child: const Text('已激活', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 }
 
 extension on HapticHelper {
   void success() { try { selectionClick(); mediumImpact(); } catch(_) {} }
+}
+
+class _TypewriterText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final Duration duration;
+  final TextAlign textAlign;
+
+  const _TypewriterText({
+    Key? key,
+    required this.text,
+    required this.style,
+    this.duration = const Duration(milliseconds: 30),
+    this.textAlign = TextAlign.center,
+  }) : super(key: key);
+
+  @override
+  State<_TypewriterText> createState() => _TypewriterTextState();
+}
+
+class _TypewriterTextState extends State<_TypewriterText> {
+  String _displayedText = "";
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTyping();
+  }
+  
+  @override
+  void didUpdateWidget(_TypewriterText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+        _startTyping();
+    }
+  }
+
+  void _startTyping() {
+    _timer?.cancel();
+    _displayedText = "";
+    
+    // Simple split usually works for Chinese, but characters.toList() is safer
+    // Since we don't import characters, we use runestrings or just regular invalid logic
+    // But characters package is included in flutter.
+    // To be safe without extra imports, use .split('') or runes.
+    // However, emoji might break. Characters is best.
+    // Assuming 'package:flutter/widgets.dart' exports Characters via 'package:characters/characters.dart'? 
+    // Actually no, it might not be exported directly in all versions. 
+    // Safest is visual Characters handling. 
+    // Let's use characters property on String if available (dart >= 2.12 with flutter).
+    // Text(str).data!.characters 
+    // Let's use characters.
+    
+    final chars = widget.text.characters.toList();
+    int currentIndex = 0;
+    
+    _timer = Timer.periodic(widget.duration, (timer) {
+      if (currentIndex < chars.length) {
+        setState(() {
+          _displayedText += chars[currentIndex];
+        });
+        currentIndex++;
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_displayedText.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    // Split text by newlines to insert dividers
+    final parts = _displayedText.split('\n');
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (int i = 0; i < parts.length; i++) ...[
+          // Only render text if not empty (to avoid empty space, though Text("") is mostly invisible)
+          if (parts[i].isNotEmpty)
+             Text(parts[i], style: widget.style, textAlign: widget.textAlign),
+             
+          // Add Divider if we have split parts (meaning newlines occurred)
+          // i < parts.length - 1 ensures we don't put divider after the last part
+          if (i < parts.length - 1)
+            Container(
+               margin: const EdgeInsets.symmetric(vertical: 24),
+               height: 1,
+               // Use a very subtle color derived from the text color
+               color: widget.style.color?.withOpacity(0.06) ?? Colors.grey.withOpacity(0.06), 
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A custom AudioSource that streams raw PCM data wrapped in a WAV container.
+/// Used for realtime voice playback from the AI.
+class LiveStreamAudioSource extends StreamAudioSource {
+  final StreamController<List<int>> _controller = StreamController<List<int>>();
+  
+  LiveStreamAudioSource();
+
+  /// Push raw PCM bytes to the player
+  void addAudio(Uint8List bytes) {
+    if (!_controller.isClosed) {
+      if (bytes.isNotEmpty) {
+        // print("[Audio] Pushing ${bytes.length} bytes to player"); 
+      }
+      _controller.add(bytes.toList());
+    }
+  }
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    // TTS audio from server is 16000Hz (confirmed from server hello response)
+    // We use a very large file size (approx 4GB) to simulate an infinite stream
+    // 0xFFFFFFFF = 4294967295 bytes
+    final header = AudioUtil.buildWavHeader(
+      0xFFFFFFFF, 
+      wavSampleRate: 16000,  // Server returns 16kHz audio
+      wavChannels: 1
+    );
+    
+    return StreamAudioResponse(
+      sourceLength: null,
+      contentLength: null,
+      offset: 0,
+      stream: _createStream(header.toList()),
+      contentType: 'audio/wav',
+    );
+  }
+
+  Stream<List<int>> _createStream(List<int> header) async* {
+    yield header;
+    yield* _controller.stream;
+  }
+
+  // Not overriding close/dispose from super as it may not exist or doesn't need to be called
+  // We just need to clean up our own controller.
+  Future<void> dispose() async {
+    await _controller.close();
+  }
 }

@@ -3,6 +3,7 @@ import '../models/api_settings.dart';
 import '../models/ai_persona.dart';
 import '../services/ai_service.dart';
 import '../services/zhipu_ai_service.dart';
+import '../services/voice_ai_service.dart';
 import '../api_config.dart';
 import 'base_providers.dart';
 
@@ -70,4 +71,8 @@ final aiServiceProvider = Provider<AIService>((ref) {
   final settings = ref.watch(apiSettingsProvider);
   final persona = ref.watch(aiPersonaProvider);
   return ZhipuAIService(settings, persona: persona);
+});
+
+final voiceAIServiceProvider = Provider<VoiceAIService>((ref) {
+  return VoiceAIService();
 });

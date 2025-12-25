@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart'; // Added just_audio
 import '../../../data/models/task.dart';
 import '../video_player_dialog.dart';
@@ -55,22 +56,30 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
         ),
       );
     } else if (task.journalImagePath != null) {
-      showDialog(
-        context: context,
-        barrierColor: Colors.black87,
-        builder: (context) => GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.all(16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Transform.flip(
-                flipX: task.journalMediaMirrored,
-                child: kIsWeb
-                    ? Image.network(task.journalImagePath!, fit: BoxFit.contain)
-                    : Image.file(File(task.journalImagePath!), fit: BoxFit.contain),
-              ),
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
+            ),
+            extendBodyBehindAppBar: true,
+            body: Center(
+              child: InteractiveViewer(
+                  panEnabled: true,
+                  boundaryMargin: const EdgeInsets.all(20),
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Transform.flip(
+                    flipX: task.journalMediaMirrored,
+                    child: kIsWeb
+                        ? Image.network(task.journalImagePath!, fit: BoxFit.contain)
+                        : Image.file(File(task.journalImagePath!), fit: BoxFit.contain),
+                  ),
+                ),
             ),
           ),
         ),
@@ -104,13 +113,12 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
     }
 
     // Determine interactions
-    final effectiveOnTap = task.isVenting
-        ? () {
-            setState(() {
-              _isExpanded = !_isExpanded;
-            });
-          }
-        : widget.onTap;
+    final effectiveOnTap = () {
+      HapticFeedback.selectionClick();
+      setState(() {
+        _isExpanded = !_isExpanded;
+      });
+    };
 
     return GestureDetector(
       onTap: effectiveOnTap, 
@@ -278,7 +286,7 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                                 )
                               ],
                             )
-                          else
+                          else if (task.isDecision)
                             Row(
                               children: [
                                 Text(
@@ -297,13 +305,57 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(color: isDark ? Colors.indigo.withOpacity(0.2) : Colors.indigo.withOpacity(0.1)),
                                   ),
-                                  child: Text(
-                                    "Decision", 
-                                    style: TextStyle(
-                                      fontSize: 10, 
-                                      fontWeight: FontWeight.bold, 
-                                      color: isDark ? Colors.indigo[200] : Colors.indigo[700]
-                                    ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.psychology, size: 10, color: isDark ? Colors.indigo[200] : Colors.indigo[700]),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        "Decision", 
+                                        style: TextStyle(
+                                          fontSize: 10, 
+                                          fontWeight: FontWeight.bold, 
+                                          color: isDark ? Colors.indigo[200] : Colors.indigo[700]
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              ],
+                            )
+                          else
+                            Row(
+                              children: [
+                                Text(
+                                  timeStr,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white70 : Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.blue.withOpacity(0.1) : Colors.blue.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: isDark ? Colors.blue.withOpacity(0.2) : Colors.blue.withOpacity(0.1)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.task_alt, size: 10, color: isDark ? Colors.blue[200] : Colors.blue[700]),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        "Task", 
+                                        style: TextStyle(
+                                          fontSize: 10, 
+                                          fontWeight: FontWeight.bold, 
+                                          color: isDark ? Colors.blue[200] : Colors.blue[700]
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 )
                               ],
@@ -321,7 +373,7 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                                   : (isDark ? Colors.white : Colors.black),
                             ),
                           ),
-                          if (task.journalLocation != null) ...[
+                          if (_isExpanded && task.journalLocation != null) ...[
                             const SizedBox(height: 4),
                             Row(
                               children: [
@@ -331,8 +383,6 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                                   child: Text(
                                     task.journalLocation!,
                                     style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -342,7 +392,8 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                           // Conditional Body:
                           // If venting: show note/audio ONLY if expanded
                           // Else: show note normally
-                          if ((!task.isVenting || _isExpanded) && task.journalNote != null && task.journalNote!.isNotEmpty && task.journalNote != "语音倾诉") ...[
+                          // Note: Show only if expanded
+                          if (_isExpanded && task.journalNote != null && task.journalNote!.isNotEmpty && task.journalNote != "语音倾诉") ...[
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.all(8),
@@ -388,18 +439,17 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                             ),
                           ],
                           
-                          // Expanded Audio Player for Venting
-                          if (task.isVenting && _isExpanded && task.journalAudioPath != null) ...[
+                          // Expanded Audio Player (For any task with audio)
+                          if (_isExpanded && task.journalAudioPath != null) ...[
                              const SizedBox(height: 8),
                              InlineAudioPlayer(audioPath: task.journalAudioPath!, isDark: isDark),
-                          ]
+                          ],
+
+
                         ],
                       ),
                     ),
-                    
-                    // Right side media icon
-                    // Hide if Venting (since we use inline player on expand)
-                    if (!task.isVenting && (task.journalImagePath != null || task.journalVideoPath != null || task.journalAudioPath != null))
+                    if (_isExpanded && !task.isVenting && (task.journalImagePath != null || task.journalVideoPath != null))
                       Padding(
                         padding: const EdgeInsets.only(left: 12),
                         child: GestureDetector(
@@ -414,9 +464,7 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                                 border: Border.all(
                                   color: isDark ? Colors.white12 : Colors.black12,
                                 ),
-                                color: (task.journalAudioPath != null)
-                                    ? (isDark ? Colors.teal.withOpacity(0.1) : Colors.teal.withOpacity(0.05))
-                                    : (task.journalImagePath == null && task.journalVideoPath != null
+                                color: (task.journalImagePath == null && task.journalVideoPath != null
                                         ? (isDark ? Colors.grey[800] : Colors.grey[600])
                                         : Colors.black12),
                                 image: task.journalImagePath != null
@@ -437,18 +485,16 @@ class _TimelineItemWithLineState extends State<TimelineItemWithLine> {
                                       color: Colors.white.withOpacity(0.9), 
                                       size: 24,
                                     ),
-                                  if (task.journalAudioPath != null)
-                                    Icon(
-                                      Icons.graphic_eq, 
-                                      color: isDark ? Colors.tealAccent : Colors.teal, 
-                                      size: 24,
-                                    ),
                                 ],
                               ),
                             ),
                           ),
                         ),
                       ),
+                    
+                    // Right side media icon
+                    // Hide if Venting (since we use inline player on expand)
+
                   ],
                 ),
               ),
@@ -580,30 +626,34 @@ class _InlineAudioPlayerState extends State<InlineAudioPlayer> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Waveform-like bar
-                Stack(
-                  children: [
-                    Container(
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
-                      height: 4,
-                      width: MediaQuery.of(context).size.width * 0.4 * 
-                             (_duration.inMilliseconds > 0 
-                                 ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0) 
-                                 : 0.0),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [primaryColor, primaryColor.withOpacity(0.5)],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: Stack(
+                    children: [
+                      Container(
+                        height: 4,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        borderRadius: BorderRadius.circular(2),
                       ),
-                    ),
-                  ],
+                      FractionallySizedBox(
+                        widthFactor: _duration.inMilliseconds > 0 
+                            ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0) 
+                            : 0.0,
+                        child: Container(
+                          height: 4,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [primaryColor, primaryColor.withOpacity(0.5)],
+                            ),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Row(

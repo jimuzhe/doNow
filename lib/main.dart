@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:opus_dart/opus_dart.dart';
+import 'package:opus_flutter/opus_flutter.dart' as opus_flutter;
 import 'ui/screens/main_screen.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/email_verification_screen.dart';
@@ -10,6 +12,7 @@ import 'ui/screens/task_detail_screen.dart';
 import 'ui/screens/quick_focus_screen.dart';
 import 'ui/screens/decision_screen.dart';
 import 'ui/screens/create_task_modal.dart';
+import 'ui/screens/venting_screen.dart';
 import 'data/providers.dart';
 import 'data/localization.dart';
 import 'data/models/task.dart';
@@ -42,6 +45,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   */
+  
+  // 🔥 Initialize Opus encoder/decoder (CRITICAL!)
+  initOpus(await opus_flutter.load());
+  debugPrint('Opus initialized: ${getOpusVersion()}');
   
   // Initialize Storage Service before running app
   final storageService = StorageService();
@@ -147,6 +154,11 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
       case 'decision':
         navigatorKey.currentState?.push(
           MaterialPageRoute(builder: (_) => const DecisionScreen()),
+        );
+        break;
+      case 'venting':
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const VentingScreen()),
         );
         break;
       case 'create_task':

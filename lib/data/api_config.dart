@@ -4,4 +4,10 @@ class ApiConfig {
   
   static const String baseUrl = 'https://api.longcat.chat/openai/v1/chat/completions';
   static const String model = 'LongCat-Flash-Chat'; // or 'glm-4-flash', etc.
+
+  // XiaoZhi AI Voice Configuration
+  // 官方服务器 (api.tenclass.net) - 参考 xiaozhi-client-flutter
+  static const String xiaozhiOtaUrl = 'https://api.tenclass.net/xiaozhi/ota/';
+  static const String xiaozhiWebsocketUrl = 'wss://api.tenclass.net/xiaozhi/v1/';
+  static const String xiaozhiAdminUrl = 'https://xiaozhi.me';
 }

@@ -20,6 +20,9 @@ abstract class AIService {
 
   /// Generate a daily summary, encouragement, and improvement suggestions specifically for the previous day
   Future<DailySummary> generateDailySummary(List<Task> tasks, DateTime date, {String? locale});
+
+  /// Analyze "Tree Hole" venting content and provide profound aphorisms
+  Future<String> analyzeVentingContent(String content, {String? locale});
 }
 
 class MockAIService implements AIService {
@@ -86,5 +89,15 @@ class MockAIService implements AIService {
       encouragement: "Great job maintaining focus. Keep it up!",
       improvement: "Try to start your first task earlier in the day.",
     );
+
+  }
+
+  @override
+  Future<String> analyzeVentingContent(String content, {String? locale}) async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (locale == 'en') {
+      return "Sometimes, the heaviest burdens are the ones we carry in silence.\nNaming your fear is the first step to conquering it.\nYou are stronger than you think.|||Keep going, you're braver than you believe.";
+    }
+    return "有些路，只能一个人走；有些关，只能一个人过。\n允许自己脆弱，才是真正的勇敢。\n凡是过往，皆为序章。|||去吧，带着力量前行。";
   }
 }

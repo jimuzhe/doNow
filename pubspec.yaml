@@ -56,11 +56,11 @@ dependencies:
   audio_session: ^0.1.18
   record: ^5.2.1
   path_provider: ^2.1.5
+  web_socket_channel: ^3.0.3
+  opus_dart: ^3.0.1
+  opus_flutter: ^3.0.1
+  flutter_pcm_sound: ^3.3.3
 
-dependency_overrides:
-  record_linux: ^1.2.0
-
-  
   # Firebase removed
   # firebase_core: ^3.8.1
   # firebase_auth: ^5.3.4
@@ -77,6 +77,11 @@ dependency_overrides:
   mime: ^2.0.0
   http_parser: ^4.1.2
   quick_actions: ^1.1.0
+  crypto: ^3.0.3
+  device_info_plus: ^10.1.0
+
+dependency_overrides:
+  record_linux: ^1.2.0
 
 dev_dependencies:
   flutter_test:

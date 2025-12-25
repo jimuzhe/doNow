@@ -28,7 +28,7 @@ class SoundEffectService {
 
   /// Play the coin throw sound
   Future<void> playCoinThrow() async {
-    await _playAsset('assets/coin/throw.mp3');
+    await _playAsset('assets/coin/throw.mp3', speed: 0.8);
   }
 
   /// Play the coin land sound
@@ -37,13 +37,18 @@ class SoundEffectService {
   }
 
   /// Helper to play any asset
-  Future<void> _playAsset(String assetPath) async {
+  Future<void> _playAsset(String assetPath, {double speed = 1.0}) async {
     if (_player == null) {
       _player = AudioPlayer();
       _isInitialized = true;
     }
     
     try {
+      // Reset speed to normal or target speed
+      if (_player!.speed != speed) {
+        await _player!.setSpeed(speed);
+      }
+      
       await _player!.setAsset(assetPath);
       await _player!.seek(Duration.zero);
       await _player!.play();

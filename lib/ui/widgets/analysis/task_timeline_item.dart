@@ -2,10 +2,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:just_audio/just_audio.dart'; // Add audio player support
 import '../../../data/models/task.dart';
 import 'time_info_chip.dart';
 
-class TaskTimelineItem extends StatelessWidget {
+class TaskTimelineItem extends StatefulWidget {
   final Task task;
   final bool isDark;
   final VoidCallback onLongPress;
@@ -20,7 +21,62 @@ class TaskTimelineItem extends StatelessWidget {
   });
 
   @override
+  State<TaskTimelineItem> createState() => _TaskTimelineItemState();
+}
+
+class _TaskTimelineItemState extends State<TaskTimelineItem> {
+  AudioPlayer? _player;
+  bool _isPlaying = false;
+  bool _isInit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.task.journalAudioPath != null) {
+      _initAudio();
+    }
+  }
+
+  Future<void> _initAudio() async {
+    try {
+      if (widget.task.journalAudioPath == null) return;
+      
+      final file = File(widget.task.journalAudioPath!);
+      if (!await file.exists()) return;
+
+      _player = AudioPlayer();
+      await _player!.setFilePath(widget.task.journalAudioPath!);
+      
+      _player!.playerStateStream.listen((state) {
+        if (mounted) {
+          setState(() {
+            _isPlaying = state.playing;
+            if (state.processingState == ProcessingState.completed) {
+              _isPlaying = false;
+              _player!.seek(Duration.zero);
+              _player!.pause();
+            }
+          });
+        }
+      });
+      
+      if (mounted) setState(() => _isInit = true);
+    } catch (e) {
+      debugPrint("Timeline audio init error: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final task = widget.task;
+    final isDark = widget.isDark;
+    
     final timeStr = task.completedAt != null 
         ? DateFormat('HH:mm').format(task.completedAt!)
         : DateFormat('HH:mm').format(task.scheduledStart);
@@ -51,7 +107,7 @@ class TaskTimelineItem extends StatelessWidget {
       key: Key(task.id),
       direction: DismissDirection.endToStart,
       confirmDismiss: (direction) async {
-        onSwipeLeft();
+        widget.onSwipeLeft();
         return false; // Don't actually dismiss
       },
       background: Container(
@@ -78,7 +134,7 @@ class TaskTimelineItem extends StatelessWidget {
         ),
       ),
       child: GestureDetector(
-        onLongPress: onLongPress,
+        onLongPress: widget.onLongPress,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(16),
@@ -173,6 +229,67 @@ class TaskTimelineItem extends StatelessWidget {
                       ],
                     ),
                     
+                    // Audio Player Row (New)
+                    if (task.journalAudioPath != null && _isInit)
+                      Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                if (_isPlaying) {
+                                  _player?.pause();
+                                } else {
+                                  _player?.play();
+                                }
+                              },
+                              child: Icon(
+                                _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                                color: task.isVenting ? Colors.blueAccent : (isDark ? Colors.white70 : Colors.black54),
+                                size: 32,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Simple waveform visualization placeholder
+                            Expanded(
+                              child: SizedBox(
+                                height: 24,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: List.generate(20, (index) {
+                                    return Container(
+                                      width: 3,
+                                      height: 10 + (index % 5) * 3.0,
+                                      decoration: BoxDecoration(
+                                        color: _isPlaying 
+                                           ? (index % 2 == 0 ? Colors.blueAccent : Colors.blueAccent.withOpacity(0.5))
+                                           : (isDark ? Colors.white24 : Colors.black12),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Duration text (using actual duration or placeholder)
+                            Text(
+                              "语音",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white54 : Colors.black54,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                     const SizedBox(height: 8),
                     
                     // Time comparison row
