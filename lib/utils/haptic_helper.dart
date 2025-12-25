@@ -53,6 +53,32 @@ class HapticHelper {
     if (intensity <= 0) return;
     HapticFeedback.selectionClick();
   }
+
+  /// Success feedback
+  void success() {
+    if (intensity <= 0) return;
+    if (intensity < 0.4) {
+       HapticFeedback.lightImpact();
+    } else {
+       HapticFeedback.mediumImpact();
+    }
+  }
+
+  /// Warning feedback
+  void warning() {
+    if (intensity <= 0) return;
+    HapticFeedback.mediumImpact();
+  }
+
+  /// Error feedback
+  void error() {
+    if (intensity <= 0) return;
+    HapticFeedback.heavyImpact();
+    // Double vibration for error if intensity is high?
+    if (intensity > 0.7) {
+       Future.delayed(const Duration(milliseconds: 100), () => HapticFeedback.heavyImpact());
+    }
+  }
 }
 
 /// Static helper for places where WidgetRef is not available

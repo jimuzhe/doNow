@@ -277,7 +277,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     return EmptyStateWidget(
       icon: Icons.add_task_outlined,
       title: t('tap_to_start'),
-      subtitle: t('no_tasks_today_hint') != 'no_tasks_today_hint' ? t('no_tasks_today_hint') : "今天还没有任务，点击下方按钮开始规划吧",
+      subtitle: t('no_tasks_today_hint'),
       onAction: () => _showTaskModal(context),
       actionLabel: t('create_task'),
     );

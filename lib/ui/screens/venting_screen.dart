@@ -790,13 +790,13 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                       ? const LinearGradient(
                           colors: [Color(0xFF334155), Color(0xFF475569)],
                         )
-                      : LinearGradient(
-                          colors: [AppTheme.primaryBlue, AppTheme.accentPurple],
+                      : const LinearGradient(
+                          colors: [Color(0xFF475569), Color(0xFF64748B)],
                         ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: isDark ? Colors.black.withOpacity(0.2) : AppTheme.primaryBlue.withOpacity(0.3),
+                      color: isDark ? Colors.black.withOpacity(0.2) : Colors.black.withOpacity(0.1),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),

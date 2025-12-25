@@ -663,7 +663,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ],
 
-<<<<<<< HEAD
                   const SizedBox(height: 48),
                   Center(
                     child: GestureDetector(
@@ -674,18 +673,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                   ),
-=======
-                 const SizedBox(height: 48),
-                 Center(
-                   child: GestureDetector(
-                     onTap: _handleVersionTap,
-                     child: Text(
-                       "v4.0.3", 
-                       style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)
-                     ),
-                   ),
-                 ),
->>>>>>> origin/main
                   const SizedBox(height: 32),
                 ],
                 ),
@@ -1130,7 +1117,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-<<<<<<< HEAD
   Widget _buildSettingsGroup(
     BuildContext context, {
     required String title,
@@ -1139,39 +1125,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
-=======
-  Widget _buildSettingsGroup(BuildContext context, {required String title, required List<Widget> children}) {
-     final theme = Theme.of(context);
-     final isDark = theme.brightness == Brightness.dark;
-     final borderColor = isDark ? Colors.white12 : Colors.grey[200]!;
-     
-     return Column(
-       mainAxisSize: MainAxisSize.min,
-       children: [
-         ExpansionTile(
-           tilePadding: EdgeInsets.zero,
-           title: Text(
-             title,
-             style: TextStyle(
-               fontSize: 14, 
-               fontWeight: FontWeight.bold, 
-               color: isDark ? Colors.white : Colors.black,
-               letterSpacing: 1.0,
-             ),
-           ),
-           iconColor: isDark ? Colors.white70 : Colors.black54,
-           collapsedIconColor: isDark ? Colors.white70 : Colors.black54,
-           collapsedBackgroundColor: Colors.transparent,
-           backgroundColor: Colors.transparent,
-           childrenPadding: const EdgeInsets.only(bottom: 16),
-           initiallyExpanded: false,
-           children: children,
-         ),
-         Divider(height: 1, thickness: 1, color: borderColor),
-       ],
-     );
-   }
->>>>>>> origin/main
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1595,7 +1548,6 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: [
-<<<<<<< HEAD
             Icon(
               icon,
               size: 22,
@@ -1629,25 +1581,6 @@ class _SettingsTile extends StatelessWidget {
                       ),
                     ),
                   ],
-=======
-            Icon(icon, size: 22, color: iconColor ?? (isDark ? Colors.white70 : Colors.black54)),
-            const SizedBox(width: 16),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, style: TextStyle(
-                  fontSize: 16, 
-                  fontWeight: FontWeight.w500, 
-                  color: textColor ?? (isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.8))
-                )),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(subtitle!, style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.white38 : Colors.black38,
-                  )),
->>>>>>> origin/main
                 ],
               ),
             ),
