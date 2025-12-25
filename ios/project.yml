@@ -27,7 +27,9 @@ targets:
     type: application
     platform: iOS
     sources: 
-      - Runner
+      - path: Runner
+        excludes:
+          - "Info.plist"
       - Flutter
       - path: DoNowWidget/DoNowActivityAttributes.swift
         group: Shared
@@ -81,7 +83,10 @@ targets:
   DoNowWidget:
     type: app-extension
     platform: iOS
-    sources: DoNowWidget
+    sources: 
+      - path: DoNowWidget
+        excludes:
+          - "Info.plist"
     # NO configFiles here - this is a pure Swift extension, NOT a Flutter target
     settings:
       base:

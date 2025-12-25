@@ -61,114 +61,77 @@ jobs:
           pod install --repo-update
           cd ..
 
-      - name: Build Flutter Assets
+      - name: Build iOS App with Flutter
         run: |
-          # Set FLUTTER_ROOT environment variable
-          export FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
-          echo "FLUTTER_ROOT: $FLUTTER_ROOT"
+          # Build the iOS app using Flutter (this handles everything including xcodebuild)
+          flutter build ios --release --no-codesign 2>&1 | tee flutter_build.log
           
-          # Only build Flutter assets, don't try to build the full iOS app
-          flutter build ios --release --no-codesign 2>&1 || true
+          # List the build output
+          echo "📂 Flutter build output:"
+          ls -la build/ios/iphoneos/ || true
+          
+          # Check if Runner.app exists and show contents
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "📱 Runner.app contents:"
+            ls -la build/ios/iphoneos/Runner.app/
+          fi
 
-      - name: Build with Xcodebuild (Ad-hoc Signing)
+      - name: Verify and Prepare App Bundle
         run: |
-          export FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
-          echo "FLUTTER_ROOT: $FLUTTER_ROOT"
+          APP_PATH="build/ios/iphoneos/Runner.app"
           
-          cd ios
-          
-          # Build using xcodebuild with ad-hoc signing
-          # Using 'build' instead of 'archive' for better control
-          xcodebuild \
-            -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            BUILD_DIR=build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            GENERATE_INFOPLIST_FILE=NO \
-            FLUTTER_ROOT="$FLUTTER_ROOT" \
-            clean build 2>&1 | tee xcodebuild.log || true
-          
-          # Debug: List what was built
-          echo "📂 Contents of build directory:"
-          find build -name "*.app" -type d 2>/dev/null || true
-          
-          cd ..
-
-      - name: Locate and Prepare App Bundle
-        run: |
-          echo "🔍 Searching for built app..."
-          
-          # Check xcodebuild build output first (new path)
-          if [ -d "ios/build/Release-iphoneos/Runner.app" ]; then
-            echo "✅ Found app in iOS build/Release-iphoneos directory"
-            APP_SOURCE="ios/build/Release-iphoneos/Runner.app"
-          elif [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
-            echo "✅ Found app in Flutter build directory"
-            APP_SOURCE="build/ios/Release-iphoneos/Runner.app"
-          elif [ -d "ios/build/Runner.xcarchive/Products/Applications/Runner.app" ]; then
-            echo "✅ Found app in archive"
-            APP_SOURCE="ios/build/Runner.xcarchive/Products/Applications/Runner.app"
-          else
-            echo "🔍 Searching all build directories..."
+          # Check if the app bundle exists
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ Runner.app not found in build/ios/iphoneos/"
+            echo "🔍 Searching for Runner.app..."
             find . -name "Runner.app" -type d 2>/dev/null
             
-            # Try to find any Runner.app (excluding Pods)
-            APP_SOURCE=$(find . -name "Runner.app" -type d 2>/dev/null | grep -v "Pods" | head -1)
-            
-            if [ -z "$APP_SOURCE" ]; then
-              echo "❌ Could not find Runner.app"
-              echo "📋 Build log (last 100 lines):"
-              tail -100 ios/xcodebuild.log || true
+            # Try to find it elsewhere
+            FOUND_APP=$(find . -name "Runner.app" -type d 2>/dev/null | grep -v Pods | head -1)
+            if [ -n "$FOUND_APP" ]; then
+              echo "✅ Found at: $FOUND_APP"
+              mkdir -p build/ios/iphoneos
+              cp -r "$FOUND_APP" "$APP_PATH"
+            else
+              echo "📋 Flutter build log (last 50 lines):"
+              tail -50 flutter_build.log
               exit 1
             fi
-            echo "✅ Found app at: $APP_SOURCE"
           fi
           
-          # Debug: Show app bundle contents before copy
-          echo "📂 Source app bundle contents:"
-          ls -la "$APP_SOURCE"
+          echo "📂 App bundle contents:"
+          ls -la "$APP_PATH"
           
-          # Verify Info.plist exists in source
-          if [ ! -f "$APP_SOURCE/Info.plist" ]; then
-            echo "⚠️ Warning: Info.plist not found in source app bundle"
-            echo "📋 Checking if build completed properly..."
-            grep -i "error:" ios/xcodebuild.log || echo "No obvious errors found"
+          # Check for Info.plist
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "❌ Info.plist not found in app bundle"
+            echo "📋 This usually means the build failed. Checking for errors..."
+            grep -i "error:" flutter_build.log || echo "No obvious errors in flutter build log"
+            exit 1
           fi
           
-          # Prepare output directory
-          mkdir -p build/ios/iphoneos
-          cp -r "$APP_SOURCE" build/ios/iphoneos/Runner.app
+          # Check for executable
+          if [ ! -f "$APP_PATH/Runner" ]; then
+            echo "❌ Runner executable not found in app bundle"
+            exit 1
+          fi
           
-          echo "✅ App copied to build/ios/iphoneos/Runner.app"
-          echo "📂 Final app bundle contents:"
-          ls -la build/ios/iphoneos/Runner.app
+          echo "✅ App bundle is valid"
 
       - name: Sign App for TrollStore
         run: |
           APP_PATH="build/ios/iphoneos/Runner.app"
           
-          # Check if app bundle is valid
-          if [ ! -f "$APP_PATH/Info.plist" ]; then
-            echo "❌ Invalid app bundle - Info.plist not found"
-            ls -la "$APP_PATH" || true
-            exit 1
-          fi
-          
-          echo "📱 App bundle contents:"
-          ls -la "$APP_PATH"
+          echo "📱 Signing app bundle..."
           
           # Sign all frameworks first
           if [ -d "$APP_PATH/Frameworks" ]; then
             echo "✍️ Signing frameworks..."
-            find "$APP_PATH/Frameworks" -name "*.framework" -o -name "*.dylib" | while read framework; do
+            find "$APP_PATH/Frameworks" -name "*.framework" -type d | while read framework; do
               codesign -f -s - "$framework" 2>/dev/null || true
+            done
+            find "$APP_PATH/Frameworks" -name "*.dylib" -type f | while read dylib; do
+              codesign -f -s - "$dylib" 2>/dev/null || true
             done
           fi
           
@@ -213,5 +176,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
-          path: ios/xcodebuild.log
+          name: flutter-build-log
+          path: flutter_build.log
