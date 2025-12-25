@@ -78,20 +78,26 @@ jobs:
           cd ios
           
           # Build using xcodebuild with ad-hoc signing
+          # Using 'build' instead of 'archive' for better control
           xcodebuild \
             -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -archivePath build/Runner.xcarchive \
+            BUILD_DIR=build \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
+            GENERATE_INFOPLIST_FILE=NO \
             FLUTTER_ROOT="$FLUTTER_ROOT" \
-            clean archive 2>&1 | tee xcodebuild.log || true
+            clean build 2>&1 | tee xcodebuild.log || true
+          
+          # Debug: List what was built
+          echo "📂 Contents of build directory:"
+          find build -name "*.app" -type d 2>/dev/null || true
           
           cd ..
 
@@ -99,30 +105,41 @@ jobs:
         run: |
           echo "🔍 Searching for built app..."
           
-          # Check archive first
-          if [ -d "ios/build/Runner.xcarchive/Products/Applications/Runner.app" ]; then
-            echo "✅ Found app in archive"
-            APP_SOURCE="ios/build/Runner.xcarchive/Products/Applications/Runner.app"
+          # Check xcodebuild build output first (new path)
+          if [ -d "ios/build/Release-iphoneos/Runner.app" ]; then
+            echo "✅ Found app in iOS build/Release-iphoneos directory"
+            APP_SOURCE="ios/build/Release-iphoneos/Runner.app"
           elif [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
             echo "✅ Found app in Flutter build directory"
             APP_SOURCE="build/ios/Release-iphoneos/Runner.app"
-          elif [ -d "ios/build/Release-iphoneos/Runner.app" ]; then
-            echo "✅ Found app in iOS build directory"
-            APP_SOURCE="ios/build/Release-iphoneos/Runner.app"
+          elif [ -d "ios/build/Runner.xcarchive/Products/Applications/Runner.app" ]; then
+            echo "✅ Found app in archive"
+            APP_SOURCE="ios/build/Runner.xcarchive/Products/Applications/Runner.app"
           else
             echo "🔍 Searching all build directories..."
             find . -name "Runner.app" -type d 2>/dev/null
             
-            # Try to find any Runner.app
+            # Try to find any Runner.app (excluding Pods)
             APP_SOURCE=$(find . -name "Runner.app" -type d 2>/dev/null | grep -v "Pods" | head -1)
             
             if [ -z "$APP_SOURCE" ]; then
               echo "❌ Could not find Runner.app"
-              echo "📋 Build log:"
-              cat ios/xcodebuild.log || true
+              echo "📋 Build log (last 100 lines):"
+              tail -100 ios/xcodebuild.log || true
               exit 1
             fi
             echo "✅ Found app at: $APP_SOURCE"
+          fi
+          
+          # Debug: Show app bundle contents before copy
+          echo "📂 Source app bundle contents:"
+          ls -la "$APP_SOURCE"
+          
+          # Verify Info.plist exists in source
+          if [ ! -f "$APP_SOURCE/Info.plist" ]; then
+            echo "⚠️ Warning: Info.plist not found in source app bundle"
+            echo "📋 Checking if build completed properly..."
+            grep -i "error:" ios/xcodebuild.log || echo "No obvious errors found"
           fi
           
           # Prepare output directory
@@ -130,6 +147,8 @@ jobs:
           cp -r "$APP_SOURCE" build/ios/iphoneos/Runner.app
           
           echo "✅ App copied to build/ios/iphoneos/Runner.app"
+          echo "📂 Final app bundle contents:"
+          ls -la build/ios/iphoneos/Runner.app
 
       - name: Sign App for TrollStore
         run: |
