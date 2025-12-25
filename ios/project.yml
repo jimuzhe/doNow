@@ -97,7 +97,7 @@ targets:
         SKIP_INSTALL: NO
         CODE_SIGN_ENTITLEMENTS: DoNowWidget/DoNowWidget.entitlements
         SWIFT_VERSION: 5.0
-        IPHONEOS_DEPLOYMENT_TARGET: 16.1
+        IPHONEOS_DEPLOYMENT_TARGET: 16.2
         # Ensure widget doesn't try to link Flutter
         OTHER_LDFLAGS: ""
     entitlements:

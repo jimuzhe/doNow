@@ -83,9 +83,9 @@ import ActivityKit
     // MARK: - Live Activity Methods
     
     private func startLiveActivity(args: [String: Any], result: @escaping FlutterResult) {
-        guard #available(iOS 16.1, *) else {
+        guard #available(iOS 16.2, *) else {
             logToDocuments(message: "Live Activities not supported on this iOS version")
-            result(FlutterError(code: "UNSUPPORTED", message: "iOS 16.1+ required", details: nil))
+            result(FlutterError(code: "UNSUPPORTED", message: "iOS 16.2+ required", details: nil))
             return
         }
         
@@ -170,8 +170,8 @@ import ActivityKit
     }
     
     private func updateLiveActivity(args: [String: Any], result: @escaping FlutterResult) {
-        guard #available(iOS 16.1, *) else {
-            result(FlutterError(code: "UNSUPPORTED", message: "iOS 16.1+ required", details: nil))
+        guard #available(iOS 16.2, *) else {
+            result(FlutterError(code: "UNSUPPORTED", message: "iOS 16.2+ required", details: nil))
             return
         }
         
@@ -232,8 +232,8 @@ import ActivityKit
     }
     
     private func endLiveActivity(result: @escaping FlutterResult) {
-        guard #available(iOS 16.1, *) else {
-            result(FlutterError(code: "UNSUPPORTED", message: "iOS 16.1+ required", details: nil))
+        guard #available(iOS 16.2, *) else {
+            result(FlutterError(code: "UNSUPPORTED", message: "iOS 16.2+ required", details: nil))
             return
         }
         
@@ -251,12 +251,12 @@ import ActivityKit
     }
     
     private func checkLiveActivitySupport(result: @escaping FlutterResult) {
-        if #available(iOS 16.1, *) {
+        if #available(iOS 16.2, *) {
             let isEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
             logToDocuments(message: "Live Activities supported: \(isEnabled)")
             result(isEnabled)
         } else {
-            logToDocuments(message: "Live Activities not supported (iOS < 16.1)")
+            logToDocuments(message: "Live Activities not supported (iOS < 16.2)")
             result(false)
         }
     }
