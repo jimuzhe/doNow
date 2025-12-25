@@ -2,7 +2,7 @@ name: Runner
 options:
   bundleIdPrefix: com.donow
   deploymentTarget:
-    iOS: 17.0
+    iOS: 16.0
 
 configs:
   Debug: debug
@@ -20,7 +20,7 @@ settings:
   base:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
-    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    IPHONEOS_DEPLOYMENT_TARGET: 16.0
 
 targets:
   Runner:
@@ -92,6 +92,7 @@ targets:
         SKIP_INSTALL: NO
         CODE_SIGN_ENTITLEMENTS: DoNowWidget/DoNowWidget.entitlements
         SWIFT_VERSION: 5.0
+        IPHONEOS_DEPLOYMENT_TARGET: 16.1
         # Ensure widget doesn't try to link Flutter
         OTHER_LDFLAGS: ""
     entitlements:
