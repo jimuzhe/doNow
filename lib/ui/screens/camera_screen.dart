@@ -532,27 +532,22 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     // Usually controller.value.aspectRatio is ~0.75 (3/4) in portrait or ~1.33 (4/3) in landscape.
     // To cover the screen, we scale.
     
-    // Use the standard "Cover" logic
-    var scale = size.aspectRatio * _controller!.value.aspectRatio;
-    // ensure scale is correct to cover
-    if (scale < 1) scale = 1 / scale;
-
+    // Use standard fit (Center) to ensure full field of view is visible
+    // This avoids the "zoomed in" effect caused by forcing BoxFit.cover
+    
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Camera Preview (Zoomable, Focusable, Full Screen)
+          // 1. Camera Preview (Zoomable, Focusable)
           GestureDetector(
             onScaleStart: _onScaleStart,
             onScaleUpdate: _onScaleUpdate,
             onTapUp: (details) => _onTapToFocus(details, BoxConstraints(maxWidth: size.width, maxHeight: size.height)),
             child: SizedBox.expand(
-               child: Transform.scale(
-                 scale: scale,
-                 child: Center(
-                   // CameraPreview handles mirroring for front camera on native platforms
-                   child: CameraPreview(_controller!),
-                 ),
+               child: Center(
+                 // CameraPreview handles mirroring for front camera on native platforms
+                 child: CameraPreview(_controller!),
                ),
             ),
           ),
@@ -732,9 +727,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
               flipX: _isVideoMirrored,
               child: _isVideo 
                 ? (_videoThumbnailPath != null
-                    ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.cover)
+                    ? Image.file(File(_videoThumbnailPath!), fit: BoxFit.contain)
                     : const Center(child: Icon(Icons.videocam, size: 100, color: Colors.white24)))
-                : Image.file(File(_capturedPath!), fit: BoxFit.cover),
+                : Image.file(File(_capturedPath!), fit: BoxFit.contain),
             ),
           
           // Video indicator overlay - tap to play

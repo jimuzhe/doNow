@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:quick_actions/quick_actions.dart';
@@ -35,6 +36,11 @@ class QuickActionsService {
     // 2. Clear and Set Shortcuts
     // We wrap this in a microtask to ensure the engine is fully ready to handle the channel call
     Future.microtask(() async {
+      // On iOS, we use Info.plist for static shortcuts to support System Types (icons) properly
+      // and avoid duplication/overwriting issues.
+      // On Android, we set them dynamically here as it works reliably.
+      if (Platform.isIOS) return;
+
       try {
         await quickActions.clearShortcutItems();
         await quickActions.setShortcutItems(const <ShortcutItem>[
@@ -50,7 +56,7 @@ class QuickActionsService {
     });
   }
 
-  void dispose() {
+  void dispose() {  
     _actionController.close();
   }
 }

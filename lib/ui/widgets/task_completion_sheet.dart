@@ -260,7 +260,12 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     );
     
     if (choice == 'photo') {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80, // Compress to save space
+        maxWidth: 1920,   // Resize large photos
+        maxHeight: 1920,
+      );
       if (image != null) {
         setState(() {
           _imagePath = image.path;
@@ -318,12 +323,49 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
     setState(() => _showRecordOptions = true);
   }
 
-  void _onSaveWithRecord() {
+  // Helper to move file from temp to documents directory
+  Future<String?> _persistFile(String? srcPath, String subDir) async {
+    if (srcPath == null) return null;
+    final file = File(srcPath);
+    if (!await file.exists()) return null;
+    
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dir = Directory('${appDocDir.path}/media/$subDir');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      
+      // Create unique filename
+      final filename = '${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}';
+      final newPath = '${dir.path}/$filename';
+      
+      // Copy to permanent storage
+      await file.copy(newPath);
+      debugPrint('✅ Persisted file to: $newPath');
+      return newPath;
+    } catch (e) {
+      debugPrint('❌ Error persisting file: $e');
+      return srcPath; // Fallback to original path if copy fails
+    }
+  }
+
+  Future<void> _onSaveWithRecord() async {
     HapticHelper(ref).heavyImpact();
     
-    debugPrint('💾 Saving task - videoPath: $_videoPath, isMirrored: $_isMirrored');
+    // Show saving indicator if needed, but for now just log
+    debugPrint('💾 Saving task - Processing media...');
     if (ref.read(debugLogEnabledProvider)) {
-      SnackBarHelper.showInfo('💾 Saving: ${_videoPath != null ? "video" : "photo"}, mirrored=$_isMirrored');
+      SnackBarHelper.showInfo('💾 Persisting media files...');
+    }
+    
+    // Persist media files to Documents directory
+    // This prevents data loss when OS cleans up temp/cache directories
+    final persistentImagePath = await _persistFile(_imagePath, 'images');
+    final persistentVideoPath = await _persistFile(_videoPath, 'videos');
+    
+    if (ref.read(debugLogEnabledProvider)) {
+      SnackBarHelper.showInfo('💾 Media persisted: ${_videoPath != null ? "video" : "photo"}');
     }
     
     final repo = ref.read(taskRepositoryProvider);
@@ -331,8 +373,8 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       isCompleted: true,
       completedAt: DateTime.now(),
       actualDuration: widget.actualDuration,
-      journalImagePath: _imagePath,
-      journalVideoPath: _videoPath,
+      journalImagePath: persistentImagePath,
+      journalVideoPath: persistentVideoPath,
       journalLocation: _location,
       journalNote: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
       journalMediaMirrored: _isMirrored, // Save mirror flag for front camera media
@@ -344,7 +386,9 @@ class _TaskCompletionSheetState extends ConsumerState<TaskCompletionSheet>
       repo.updateTask(completedTask);
     }
     
-    Navigator.of(context).pop(true);
+    if (mounted) {
+      Navigator.of(context).pop(true);
+    }
   }
 
   void _onSkip() {
