@@ -525,8 +525,6 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                   ],
                 ),
               ),
-                  ],
-                ),
               ),
             ),
           ),
