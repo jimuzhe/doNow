@@ -509,13 +509,14 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                         const SizedBox(height: 30),
                         
                         // Controls - different for each mode
+                        // 当显示金句时隐藏麦克风按钮，因为金句区域已经有重录选项
                         if (_currentMode == VentingMode.realtime)
                           _buildRealtimeControls(primary, isDark)
                         else if (_showTextInput)
                           // Text input mode (triggered by down swipe)
                           _buildTextInputArea(primary, isDark, textColor)
-                        else
-                          // Voice input mode (default)
+                        else if (!(_showTranscript && _aphorisms.isNotEmpty))
+                          // Voice input mode (default) - 隐藏当金句显示时
                           _buildVoiceInputControls(primary, isDark),
                         
                         const SizedBox(height: 80), // Bottom padding to avoid phone's one-hand mode
@@ -1570,6 +1571,20 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         }
       });
     } else {
+      // 切换到 VoiceInput 模式
+      // 重要：先停止 AudioUtil 的录音，释放麦克风资源
+      try {
+        await AudioUtil.stopRecording();
+        print('Switch to voiceInput: AudioUtil recording stopped');
+      } catch (e) {
+        print('Switch to voiceInput: Error stopping AudioUtil: $e');
+      }
+      
+      // 给iOS一点时间释放资源
+      if (!kIsWeb && Platform.isIOS) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
       // VoiceInput mode needs local recorder
       if (_audioRecorder == null) {
         _audioRecorder = AudioRecorder();
@@ -1584,11 +1599,27 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   }
 
   /// Hang up call and return to voiceInput mode
-  void _hangUp() {
+  Future<void> _hangUp() async {
     if (_isMicOn) {
       _toggleMic();
     }
     _voiceService.abort(); // Use abort to stop any ongoing activity
+    
+    // 重要：停止 AudioUtil 的录音，释放麦克风资源
+    try {
+      await AudioUtil.stopRecording();
+      print('Hang up: AudioUtil recording stopped');
+    } catch (e) {
+      print('Hang up: Error stopping AudioUtil: $e');
+    }
+    
+    // 给iOS一点时间释放资源
+    if (!kIsWeb && Platform.isIOS) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    // 重新创建本地录音器供倾诉模式使用
+    _audioRecorder = AudioRecorder();
     
     setState(() {
       _currentMode = VentingMode.voiceInput;
@@ -1673,20 +1704,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   Future<void> _startVoiceInputRecording() async {
     print('Starting voice input recording...');
     
-    // Ensure recorder is initialized
-    if (_audioRecorder == null) {
-      _audioRecorder = AudioRecorder();
-    }
-    
-    final hasPermission = await _audioRecorder!.hasPermission();
-    print('Microphone permission: $hasPermission');
-    
-    if (!hasPermission) {
-      print('No microphone permission!');
-      return;
-    }
-    
-    // === IMMEDIATE UI RESPONSE ===
+    // === IMMEDIATE UI RESPONSE ===（先做UI反馈，提高响应速度）
     HapticHelper(ref).mediumImpact();
     
     // Abort any ongoing server response (but keep connection)
@@ -1709,6 +1727,24 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
     });
+    
+    // === NOW DO ASYNC OPERATIONS ===
+    
+    // Ensure recorder is initialized
+    if (_audioRecorder == null) {
+      _audioRecorder = AudioRecorder();
+    }
+    
+    final hasPermission = await _audioRecorder!.hasPermission();
+    print('Microphone permission: $hasPermission');
+    
+    if (!hasPermission) {
+      print('No microphone permission!');
+      // 取消录音状态
+      _timer?.cancel();
+      setState(() => _isRecording = false);
+      return;
+    }
     
     // === START LOCAL RECORDING ===
     print('Starting audio stream...');
