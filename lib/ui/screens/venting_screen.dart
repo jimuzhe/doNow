@@ -1604,8 +1604,18 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         // IMPORTANT: Stop and release VentingScreen's own _audioRecorder
         // to avoid conflict with AudioUtil's recorder on iOS
         try {
-           if (_audioRecorder != null && await _audioRecorder!.isRecording()) {
-             await _audioRecorder!.stop();
+           // FORCE CLEANUP: Ensure local recorder is completely dead before starting AI service
+           if (_audioRecorder != null) {
+             if (await _audioRecorder!.isRecording()) {
+               await _audioRecorder!.stop();
+             }
+             await _audioRecorder!.dispose();
+             _audioRecorder = null;
+             
+             // Give OS a moment to release the mic resource completely
+             if (Platform.isIOS) {
+               await Future.delayed(const Duration(milliseconds: 50));
+             }
            }
         } catch (_) {}
         
