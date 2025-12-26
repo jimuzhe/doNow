@@ -542,8 +542,10 @@ class AudioUtil {
   }
 
   /// Build a WAV header for PCM data
-  static Uint8List buildWavHeader(int dataLength, {int wavSampleRate = AudioConfig.sampleRate, int wavChannels = AudioConfig.channels}) {
-    final byteRate = wavSampleRate * wavChannels * 2;
+  static Uint8List buildWavHeader(int dataLength, {int? wavSampleRate, int? wavChannels}) {
+    final effectiveSampleRate = wavSampleRate ?? AudioConfig.sampleRate;
+    final effectiveChannels = wavChannels ?? AudioConfig.channels;
+    final byteRate = effectiveSampleRate * effectiveChannels * 2;
     final totalDataLen = dataLength + 36;
 
     final header = Uint8List(44);
@@ -567,10 +569,10 @@ class AudioUtil {
     view.setUint8(15, 0x20); // space
     view.setUint32(16, 16, Endian.little);
     view.setUint16(20, 1, Endian.little); // PCM
-    view.setUint16(22, wavChannels, Endian.little);
-    view.setUint32(24, wavSampleRate, Endian.little);
+    view.setUint16(22, effectiveChannels, Endian.little);
+    view.setUint32(24, effectiveSampleRate, Endian.little);
     view.setUint32(28, byteRate, Endian.little);
-    view.setUint16(32, wavChannels * 2, Endian.little);
+    view.setUint16(32, effectiveChannels * 2, Endian.little);
     view.setUint16(34, 16, Endian.little); // 16-bit
 
     // data chunk
@@ -579,7 +581,6 @@ class AudioUtil {
     view.setUint8(38, 0x74); // t
     view.setUint8(39, 0x61); // a
     view.setUint32(40, dataLength, Endian.little);
-
     return header;
   }
 }
