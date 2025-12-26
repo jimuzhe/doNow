@@ -14,14 +14,14 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 class AudioConfig {
   AudioConfig._();
   
-  /// 统一采样率 - 所有平台都用 24000Hz
-  static const int sampleRate = 24000;
+  /// 录音采样率 - iOS用16000Hz以提高兼容性
+  static int get recordSampleRate => (kIsWeb || !Platform.isIOS) ? 24000 : 16000;
   
-  /// 录音采样率（与sampleRate相同）
-  static int get recordSampleRate => sampleRate;
+  /// 播放采样率 - 始终24000Hz（服务器返回的音频采样率）
+  static const int playSampleRate = 24000;
   
-  /// 播放采样率（与sampleRate相同）
-  static int get playSampleRate => sampleRate;
+  /// 旧的sampleRate getter保持向后兼容（用于录音）
+  static int get sampleRate => recordSampleRate;
   
   static const int channels = 1;
   static const int frameDuration = 60; // milliseconds
