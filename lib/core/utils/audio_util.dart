@@ -14,7 +14,15 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 class AudioConfig {
   AudioConfig._();
   
-  static int get sampleRate => (kIsWeb || !Platform.isIOS) ? 24000 : 16000;
+  /// 统一采样率 - 所有平台都用 24000Hz
+  static const int sampleRate = 24000;
+  
+  /// 录音采样率（与sampleRate相同）
+  static int get recordSampleRate => sampleRate;
+  
+  /// 播放采样率（与sampleRate相同）
+  static int get playSampleRate => sampleRate;
+  
   static const int channels = 1;
   static const int frameDuration = 60; // milliseconds
 }
@@ -82,20 +90,22 @@ class AudioUtil {
         }
       }
 
+      // 编码器使用录音采样率（iOS: 16000, 其他: 24000）
       _encoder = SimpleOpusEncoder(
-        sampleRate: AudioConfig.sampleRate,
+        sampleRate: AudioConfig.recordSampleRate,
         channels: AudioConfig.channels,
         application: Application.voip,
       );
 
+      // 解码器使用播放采样率（始终24000，匹配服务器返回的音频）
       _decoder = SimpleOpusDecoder(
-        sampleRate: AudioConfig.sampleRate,
+        sampleRate: AudioConfig.playSampleRate,
         channels: AudioConfig.channels,
       );
 
       _opusInitialized = true;
       _opusInitCompleter!.complete();
-      print('$TAG: Opus 编解码器初始化成功 - ${AudioConfig.sampleRate} Hz');
+      print('$TAG: Opus 编解码器初始化成功 - 编码: ${AudioConfig.recordSampleRate} Hz, 解码: ${AudioConfig.playSampleRate} Hz');
     } catch (e) {
       print('$TAG: Opus 初始化失败: $e');
       _opusInitCompleter!.completeError(e);
@@ -247,21 +257,21 @@ class AudioUtil {
     await stopPlaying();
 
     try {
-      print('$TAG: 初始化音频播放器 - 单声道 ${AudioConfig.sampleRate}Hz');
+      print('$TAG: 初始化音频播放器 - 单声道 ${AudioConfig.playSampleRate}Hz');
 
       // 确保 Opus 解码器已初始化
       if (!_opusInitialized) {
         await _initOpusCodec();
       }
 
-      // 设置 flutter_pcm_sound
+      // 设置 flutter_pcm_sound - 使用播放采样率（24000Hz）
       await FlutterPcmSound.setup(
-        sampleRate: AudioConfig.sampleRate,
+        sampleRate: AudioConfig.playSampleRate,
         channelCount: AudioConfig.channels,
       );
 
       // 设置低缓冲阈值以实现实时播放 (100ms)
-      await FlutterPcmSound.setFeedThreshold(AudioConfig.sampleRate ~/ 10);
+      await FlutterPcmSound.setFeedThreshold(AudioConfig.playSampleRate ~/ 10);
 
       _isPlayerInitialized = true;
       print('$TAG: 音频播放器初始化成功');

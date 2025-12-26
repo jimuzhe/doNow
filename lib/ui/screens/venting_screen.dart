@@ -1715,7 +1715,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     try {
       final stream = await _audioRecorder!.startStream(const RecordConfig(
         encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
+        sampleRate: 24000, // 统一使用24000Hz
         numChannels: 1,
         echoCancel: true,
         noiseSuppress: true,
