@@ -277,6 +277,17 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
 
   /// Show dialog when task is explicitly DUE (0s) but user is busy
   void _showTaskDueDialog(Task task) {
+    // 如果用户正在录音，静默处理，避免打断
+    final isRecording = ref.read(isRecordingProvider);
+    if (isRecording) {
+      // 静默加入队列，不显示弹窗
+      if (!_deferredTaskQueue.contains(task.id)) {
+        _deferredTaskQueue.add(task.id);
+        debugPrint('[TaskDue] User is recording, task "${task.title}" silently queued');
+      }
+      return;
+    }
+    
     final context = navigatorKey.currentContext;
     if (context == null) return;
     final t = AppStrings.get;
@@ -313,6 +324,13 @@ class _AtomicAppState extends ConsumerState<AtomicApp> {
 
   /// Show dialog for upcoming task (3 min warning)
   void _showUpcomingDialog(Task task) {
+    // 如果用户正在录音，静默跳过，避免打断
+    final isRecording = ref.read(isRecordingProvider);
+    if (isRecording) {
+      debugPrint('[TaskUpcoming] User is recording, skipping dialog for "${task.title}"');
+      return;
+    }
+    
     final context = navigatorKey.currentContext;
     if (context == null) return;
     

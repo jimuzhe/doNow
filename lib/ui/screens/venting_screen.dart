@@ -1658,6 +1658,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       _micStreamSub?.cancel();
       _voiceService.stopListening();
       setState(() => _isMicOn = false);
+      // 更新全局录音状态
+      ref.read(isRecordingProvider.notifier).state = false;
     } else {
       // Turn on mic
       // Use AudioUtil's permission API for consistency and proper state tracking
@@ -1701,6 +1703,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         try {
           await _voiceService.startListening(mode: 'auto');
           setState(() => _isMicOn = true);
+          // 更新全局录音状态
+          ref.read(isRecordingProvider.notifier).state = true;
         } catch (e) {
           print('Companion mode: Failed to start listening: $e');
           if (mounted) {
@@ -1743,6 +1747,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       _aphorisms = "";  // Clear previous aphorisms
       _recordDuration = Duration.zero;
     });
+    // 同步更新全局录音状态，让到期提醒系统知道用户正在录音
+    ref.read(isRecordingProvider.notifier).state = true;
     _transcriptController.reverse();
     
     // Start timer
@@ -1835,6 +1841,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         _recordDuration = Duration.zero;
         _smoothedAmplitude = 0;
       });
+      // 重置全局录音状态
+      ref.read(isRecordingProvider.notifier).state = false;
       return;
     }
     
@@ -1854,6 +1862,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       _showTranscript = true; 
       _transcriptController.forward();
     });
+    // 重置全局录音状态
+    ref.read(isRecordingProvider.notifier).state = false;
     
     // === NOW SEND ALL AUDIO TO SERVER ===
     try {

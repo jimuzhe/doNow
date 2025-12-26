@@ -123,3 +123,7 @@ final activeTaskIdProvider = StateProvider<String?>((ref) => null);
 
 // Busy UI Provider
 final isBusyUIProvider = StateProvider<bool>((ref) => false);
+
+// Recording State Provider - 用户是否正在录音（按住说话/陪伴模式中）
+// 当此状态为 true 时，到期提醒应该静默处理，避免打断用户
+final isRecordingProvider = StateProvider<bool>((ref) => false);

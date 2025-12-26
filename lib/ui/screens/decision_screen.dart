@@ -35,6 +35,7 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
   String _resultText = ""; // yes (head) or no (tail)
   int _headsCount = 0;
   int _tailsCount = 0;
+  double _lastAngle = 0.0; // 记录上一次落地的角度
   
   // Confirmed decision text
   final TextEditingController _decisionController = TextEditingController();
@@ -55,10 +56,12 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
     );
 
     _rotateController.addListener(() {
-      // Trigger sound and haptic at impact point (now at 80% progress)
+      // Trigger sound and haptic at impact point (硬币接近地面时触发)
+      // 动画结构: 0-40%上升, 40-60%顶点, 60-80%下落, 80-100%晃动
       final val = _rotateController.value;
       
-      if (val >= 0.8 && !_landSoundPlayed) {
+      // 在硬币接近地面时播放落地音效 (约75%进度，下落阶段末尾)
+      if (val >= 0.75 && !_landSoundPlayed) {
          _landSoundPlayed = true;
          ref.read(soundEffectServiceProvider).playCoinLand();
          HapticHelper(ref).heavyImpact();
@@ -88,6 +91,7 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
           // Check result
           final isHeads = cos(angle) > 0;
           _resultText = isHeads ? "yes" : "no";
+          _lastAngle = _rotateAnimation.value; // 记录落地角度
           if (isHeads) {
             _headsCount++;
           } else {
@@ -170,10 +174,10 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
       final isHeads = Random().nextBool();
       
       // 2. Calculate Base Rotation (Multiple of 2pi)
-      // We want to land roughly flat, so exact multiples or multiples + pi.
+      // 从上一次落地的角度开始（实现流畅的连续动画）
       // 5 to 8 full spins.
       final spins = 5 + Random().nextInt(4); 
-      double targetBase = spins * 2 * pi;
+      double targetBase = _lastAngle + spins * 2 * pi;
       if (!isHeads) targetBase += pi;
 
       _rotateController.reset();
@@ -226,18 +230,15 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
       // Calculates target rotations
       // We want distinct speed changes: Fast -> Slow (almost stop) -> Fast -> Settle
       
-      // Calculate split targets
-      // 40% progress = 40% rotations
-      // 60% progress = 50% rotations (slow down)
-      // 80% progress = 100% rotations
-      
-      final double rotAtApexStart = targetBase * 0.45;
-      final double rotAtApexEnd = targetBase * 0.55;
+      // Calculate split targets (相对于起始角度的增量)
+      final double totalRotation = targetBase - _lastAngle;
+      final double rotAtApexStart = _lastAngle + totalRotation * 0.45;
+      final double rotAtApexEnd = _lastAngle + totalRotation * 0.55;
 
       _rotateAnimation = TweenSequence<double>([
-        // Rise: Fast Spin
+        // Rise: Fast Spin (从上次落地角度开始)
         TweenSequenceItem(
-          tween: Tween(begin: 0.0, end: rotAtApexStart).chain(CurveTween(curve: Curves.linear)), 
+          tween: Tween(begin: _lastAngle, end: rotAtApexStart).chain(CurveTween(curve: Curves.linear)), 
           weight: 40
         ),
         // Apex: Slow Spin (The "Matrix" moment)
