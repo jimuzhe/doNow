@@ -14,7 +14,7 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 class AudioConfig {
   AudioConfig._();
   
-  static const int sampleRate = 24000;
+  static int get sampleRate => (kIsWeb || !Platform.isIOS) ? 24000 : 16000;
   static const int channels = 1;
   static const int frameDuration = 60; // milliseconds
 }
