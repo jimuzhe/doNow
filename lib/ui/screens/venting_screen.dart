@@ -1547,7 +1547,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     if (mode == VentingMode.realtime) {
       // Realtime mode needs TTS and AEC
       _voiceService.setSttOnlyMode(false);
-      _voiceService.switchToVoiceCallMode(); // 开启语音通话模式以启用 AEC
+      await _voiceService.switchToVoiceCallMode(); // 开启语音通话模式以启用 AEC
       
       // IMPORTANT: Stop and DISPOSE VentingScreen's own _audioRecorder
       // to avoid conflict with AudioUtil's recorder on iOS
@@ -1609,7 +1609,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
       // VoiceInput mode only needs STT (don't disconnect, use abort if needed)
       _voiceService.setSttOnlyMode(true);
-      _voiceService.switchToChatMode(); // 退出语音通话模式
+      await _voiceService.switchToChatMode(); // 退出语音通话模式
       // 主动发起连接预热
       _preConnect();
     }

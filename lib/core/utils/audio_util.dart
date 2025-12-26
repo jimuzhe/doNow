@@ -430,20 +430,27 @@ class AudioUtil {
         
         print('$TAG: 启动流式录音 (AEC: $enableAEC, 采样率: ${AudioConfig.sampleRate}Hz)');
         
-        // iOS兼容性：倾诉模式可以工作，它没有使用autoGain
-        // 因此在iOS上禁用autoGain以保持兼容性
-        final useAutoGain = enableAEC && !(!kIsWeb && Platform.isIOS);
+        // iOS兼容性：
+        // 1. iOS 的 voiceChat 模式已内置回声消除，不需要 record 库的 echoCancel
+        // 2. echoCancel/noiseSuppress 在 iOS 上可能导致录音启动失败
+        // 3. autoGain 在 iOS 上也会导致问题
+        final isIOS = !kIsWeb && Platform.isIOS;
+        final useEchoCancel = enableAEC && !isIOS;
+        final useNoiseSuppress = enableAEC && !isIOS;
+        final useAutoGain = enableAEC && !isIOS;
+        
+        print('$TAG: iOS=$isIOS, useEchoCancel=$useEchoCancel, useNoiseSuppress=$useNoiseSuppress, useAutoGain=$useAutoGain');
         
         final stream = await _audioRecorder!.startStream(
           RecordConfig(
             encoder: AudioEncoder.pcm16bits,
             sampleRate: AudioConfig.sampleRate,
             numChannels: AudioConfig.channels,
-            // AEC 回声消除 - 持续监听模式下需要消除扬声器播放的回声
-            echoCancel: enableAEC,
-            // 降噪 - 减少背景噪音
-            noiseSuppress: enableAEC,
-            // 自动增益控制 - iOS上禁用以保持兼容性
+            // AEC 回声消除 - iOS 通过 AudioSession voiceChat 模式处理
+            echoCancel: useEchoCancel,
+            // 降噪 - iOS 上禁用
+            noiseSuppress: useNoiseSuppress,
+            // 自动增益控制 - iOS 上禁用
             autoGain: useAutoGain,
           ),
         );
