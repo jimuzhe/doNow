@@ -27,6 +27,7 @@ class AudioUtil {
   // 使用可空 recorder，每次录音创建新实例以避免流订阅冲突
   static AudioRecorder? _audioRecorder;
   static bool _isRecorderInitialized = false;
+  static bool _permissionGranted = false; // 跟踪权限状态
   static bool _isPlayerInitialized = false;
   static bool _isRecording = false;
   static bool _isPlaying = false;
@@ -103,6 +104,63 @@ class AudioUtil {
     }
   }
 
+  /// 请求麦克风权限（独立方法，供外部调用）
+  /// 返回 true 表示权限已授予
+  static Future<bool> requestMicrophonePermission() async {
+    if (kIsWeb) {
+      _permissionGranted = true;
+      return true;
+    }
+    
+    try {
+      print('$TAG: 请求麦克风权限...');
+      final status = await Permission.microphone.request();
+      _permissionGranted = status == PermissionStatus.granted;
+      print('$TAG: 麦克风权限状态: $status, granted: $_permissionGranted');
+      return _permissionGranted;
+    } catch (e) {
+      print('$TAG: 请求麦克风权限失败: $e');
+      _permissionGranted = false;
+      return false;
+    }
+  }
+  
+  /// 检查麦克风权限状态（不请求）
+  static Future<bool> checkMicrophonePermission() async {
+    if (kIsWeb) return true;
+    
+    try {
+      final status = await Permission.microphone.status;
+      _permissionGranted = status == PermissionStatus.granted;
+      return _permissionGranted;
+    } catch (e) {
+      print('$TAG: 检查麦克风权限失败: $e');
+      return false;
+    }
+  }
+  
+  /// 重置录音器初始化状态（用于权限变更后重新初始化）
+  static Future<void> resetRecorderState() async {
+    print('$TAG: 重置录音器状态');
+    
+    // 停止正在进行的录音
+    if (_isRecording) {
+      await stopRecording();
+    }
+    
+    // 销毁旧的 recorder
+    if (_audioRecorder != null) {
+      try {
+        await _audioRecorder!.dispose();
+      } catch (_) {}
+      _audioRecorder = null;
+    }
+    
+    // 重置初始化标志
+    _isRecorderInitialized = false;
+    _recorderInitCompleter = null;
+  }
+
   /// 初始化音频录制器
   static Future<void> initRecorder() async {
     // 如果已经初始化，直接返回
@@ -110,8 +168,14 @@ class AudioUtil {
     
     // 如果正在初始化，等待完成
     if (_recorderInitCompleter != null) {
-      await _recorderInitCompleter!.future;
-      return;
+      try {
+        await _recorderInitCompleter!.future;
+        return;
+      } catch (e) {
+        // 上次初始化失败，重试
+        print('$TAG: 上次初始化失败，重试...');
+        _recorderInitCompleter = null;
+      }
     }
     
     _recorderInitCompleter = Completer<void>();
@@ -119,25 +183,12 @@ class AudioUtil {
     try {
       print('$TAG: 开始初始化录音器');
 
-      // 请求权限
-      if (!kIsWeb) {
-        if (Platform.isAndroid) {
-          print('$TAG: 请求Android所需的所有权限');
-          Map<Permission, PermissionStatus> statuses = await [
-            Permission.microphone,
-            Permission.storage,
-          ].request();
-
-          if (statuses[Permission.microphone] != PermissionStatus.granted) {
-            print('$TAG: 麦克风权限被拒绝');
-            throw Exception('需要麦克风权限');
-          }
-        } else if (Platform.isIOS) {
-          final status = await Permission.microphone.request();
-          if (status != PermissionStatus.granted) {
-            print('$TAG: 麦克风权限被拒绝');
-            throw Exception('需要麦克风权限');
-          }
+      // 请求权限 - 使用独立方法
+      if (!kIsWeb && !_permissionGranted) {
+        final granted = await requestMicrophonePermission();
+        if (!granted) {
+          print('$TAG: 麦克风权限被拒绝');
+          throw Exception('需要麦克风权限');
         }
       }
 
@@ -149,41 +200,30 @@ class AudioUtil {
     );
     print('$TAG: PCM16编码支持状态: $isAvailable');
 
-    // 配置音频会话 (仅移动端)
-    if (!kIsWeb) {
-      print('$TAG: 配置音频会话');
+    // 配置音频会话 (仅Android)
+    // 注意：iOS上不在这里配置AudioSession，避免与其他录音器冲突
+    // iOS的AudioSession配置会在startRecording时按需进行
+    if (!kIsWeb && Platform.isAndroid) {
+      print('$TAG: 配置Android音频会话');
       final session = await AudioSession.instance;
-
-      if (Platform.isAndroid) {
-        await session.configure(
-          const AudioSessionConfiguration(
-            avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-            avAudioSessionCategoryOptions:
-                AVAudioSessionCategoryOptions.allowBluetooth,
-            avAudioSessionMode: AVAudioSessionMode.voiceChat,
-            androidAudioAttributes: AndroidAudioAttributes(
-              contentType: AndroidAudioContentType.speech,
-              usage: AndroidAudioUsage.voiceCommunication,
-              flags: AndroidAudioFlags.audibilityEnforced,
-            ),
-            androidAudioFocusGainType:
-                AndroidAudioFocusGainType.gainTransientExclusive,
-            androidWillPauseWhenDucked: false,
+      await session.configure(
+        const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.allowBluetooth,
+          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          androidAudioAttributes: AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+            flags: AndroidAudioFlags.audibilityEnforced,
           ),
-        );
-      } else {
-        // iOS 配置
-        await session.configure(
-          const AudioSessionConfiguration(
-            avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-            avAudioSessionCategoryOptions:
-                AVAudioSessionCategoryOptions.defaultToSpeaker,
-            avAudioSessionMode: AVAudioSessionMode.voiceChat,
-          ),
-        );
-        await session.setActive(true);
-      }
+          androidAudioFocusGainType:
+              AndroidAudioFocusGainType.gainTransientExclusive,
+          androidWillPauseWhenDucked: false,
+        ),
+      );
     }
+    // iOS: 跳过AudioSession配置，让startRecording处理
 
     // 初始化 Opus 编解码器
     await _initOpusCodec();
@@ -193,6 +233,8 @@ class AudioUtil {
     print('$TAG: 录音器初始化成功');
     } catch (e) {
       print('$TAG: 录音器初始化失败: $e');
+      // 重要：失败时重置状态，允许重试
+      _isRecorderInitialized = false;
       _recorderInitCompleter!.completeError(e);
       _recorderInitCompleter = null;
       rethrow;
@@ -292,44 +334,34 @@ class AudioUtil {
   /// 开始录音
   /// [enableAEC] - 是否启用回声消除（AEC）和降噪，持续监听模式建议开启
   static Future<void> startRecording({bool enableAEC = false}) async {
+    print('$TAG: startRecording called, enableAEC: $enableAEC, isInitialized: $_isRecorderInitialized');
+    
     if (!_isRecorderInitialized) {
+      print('$TAG: Recorder not initialized, calling initRecorder...');
       await initRecorder();
     }
 
-    // 注意：移除了 _isRecording 检查，因为现在我们会在开始前强制停止
-
     try {
-      print('$TAG: 尝试启动录音 (AEC: $enableAEC)');
+      print('$TAG: 尝试启动录音 (AEC: $enableAEC, Platform: ${Platform.operatingSystem})');
 
-      // Ensure AudioSession is active on iOS immediately before recording
-      if (!kIsWeb && Platform.isIOS) {
-         try {
-           final session = await AudioSession.instance;
-           await session.setActive(true);
-           print('$TAG: iOS AudioSession 强制激活成功');
-         } catch (e) {
-           print('$TAG: iOS AudioSession 激活失败: $e');
-         }
-      }
+      // 注意：iOS上不配置AudioSession，让record库自己处理
+      // 倾诉模式可以工作就是因为它没有配置AudioSession
+      // Android上的AudioSession在initRecorder中已经配置
 
       // 确保麦克风权限已获取
-      if (!kIsWeb) {
-        final status = await Permission.microphone.status;
-        print('$TAG: 麦克风权限状态: $status');
-
-        if (status != PermissionStatus.granted) {
-          final result = await Permission.microphone.request();
-          print('$TAG: 请求麦克风权限结果: $result');
-          if (result != PermissionStatus.granted) {
-            print('$TAG: 麦克风权限被拒绝');
-            return;
-          }
+      if (!kIsWeb && !_permissionGranted) {
+        print('$TAG: 权限未确认，重新检查...');
+        final granted = await requestMicrophonePermission();
+        if (!granted) {
+          print('$TAG: 麦克风权限被拒绝，无法录音');
+          return;
         }
       }
 
       // 启动流式录音
       try {
         // 强制停止之前的录音（如果有），避免流状态冲突
+        print('$TAG: 清理旧的录音资源...');
         await _audioRecordStreamSubscription?.cancel();
         _audioRecordStreamSubscription = null;
         await _amplitudeSubscription?.cancel();
@@ -337,16 +369,40 @@ class AudioUtil {
         
         // 停止并销毁旧的 recorder，创建新实例以避免流订阅冲突
         if (_audioRecorder != null) {
+          print('$TAG: 销毁旧的recorder...');
           try {
-            await _audioRecorder!.stop();
-          } catch (_) {}
+            if (await _audioRecorder!.isRecording()) {
+              await _audioRecorder!.stop();
+            }
+          } catch (e) {
+            print('$TAG: 停止旧录音失败 (可忽略): $e');
+          }
           try {
             await _audioRecorder!.dispose();
-          } catch (_) {}
+          } catch (e) {
+            print('$TAG: 销毁旧recorder失败 (可忽略): $e');
+          }
+          _audioRecorder = null;
         }
+        
+        // 创建新的recorder实例
+        print('$TAG: 创建新的AudioRecorder...');
         _audioRecorder = AudioRecorder();
         
-        print('$TAG: 启动流式录音 (AEC: $enableAEC, 降噪: $enableAEC, AGC: $enableAEC)');
+        // 检查权限
+        final hasPermission = await _audioRecorder!.hasPermission();
+        print('$TAG: AudioRecorder.hasPermission: $hasPermission');
+        
+        if (!hasPermission) {
+          print('$TAG: AudioRecorder报告无权限，尝试继续...');
+        }
+        
+        print('$TAG: 启动流式录音 (AEC: $enableAEC, 采样率: ${AudioConfig.sampleRate}Hz)');
+        
+        // iOS兼容性：倾诉模式可以工作，它没有使用autoGain
+        // 因此在iOS上禁用autoGain以保持兼容性
+        final useAutoGain = enableAEC && !(!kIsWeb && Platform.isIOS);
+        
         final stream = await _audioRecorder!.startStream(
           RecordConfig(
             encoder: AudioEncoder.pcm16bits,
@@ -356,13 +412,13 @@ class AudioUtil {
             echoCancel: enableAEC,
             // 降噪 - 减少背景噪音
             noiseSuppress: enableAEC,
-            // 自动增益控制 - 自动调整麦克风音量
-            autoGain: enableAEC,
+            // 自动增益控制 - iOS上禁用以保持兼容性
+            autoGain: useAutoGain,
           ),
         );
 
         _isRecording = true;
-        print('$TAG: 流式录音启动成功');
+        print('$TAG: 流式录音启动成功!');
 
         // 启动振幅监听（可选功能，失败不影响录音）
         try {
@@ -378,17 +434,22 @@ class AudioUtil {
           });
         } catch (ampError) {
           print('$TAG: 振幅监听启动失败（不影响录音）: $ampError');
-          // 振幅监听是可选的，失败不影响主要录音功能
         }
 
         // 直接从流中处理数据 - 保存订阅以便稍后取消
-        // 确保先完全取消旧订阅
         if (_audioRecordStreamSubscription != null) {
           await _audioRecordStreamSubscription!.cancel();
           _audioRecordStreamSubscription = null;
         }
+        
+        int chunkCount = 0;
         _audioRecordStreamSubscription = stream.listen(
           (data) async {
+            chunkCount++;
+            if (chunkCount <= 3 || chunkCount % 50 == 0) {
+              print('$TAG: 收到音频数据块 #$chunkCount, ${data.length} bytes');
+            }
+            
             if (data.isNotEmpty && data.length % 2 == 0) {
               final opusData = await encodeToOpus(Uint8List.fromList(data));
               if (opusData != null) {
@@ -405,14 +466,17 @@ class AudioUtil {
             _isRecording = false;
           },
         );
-      } catch (e) {
+        
+        print('$TAG: 音频流监听已设置');
+      } catch (e, stackTrace) {
         print('$TAG: 流式录音失败: $e');
+        print('$TAG: 堆栈: $stackTrace');
         _isRecording = false;
         rethrow;
       }
     } catch (e, stackTrace) {
       print('$TAG: 启动录音失败: $e');
-      print(stackTrace);
+      print('$TAG: 堆栈: $stackTrace');
       _isRecording = false;
     }
   }

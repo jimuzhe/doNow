@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../../data/providers/ai_providers.dart';
 import '../../data/services/voice_ai_service.dart';
 import '../../utils/haptic_helper.dart';
@@ -1540,6 +1539,29 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         _audioRecorder = null;
       } catch (_) {}
       
+      // 预先请求麦克风权限（iOS上会显示系统弹窗）
+      bool hasPermission = await AudioUtil.checkMicrophonePermission();
+      if (!hasPermission) {
+        print('Companion mode: Pre-requesting microphone permission...');
+        hasPermission = await AudioUtil.requestMicrophonePermission();
+        
+        if (!hasPermission) {
+          // 权限被拒绝，显示提示并返回
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('需要麦克风权限才能使用陪伴模式')),
+            );
+            // 切换回语音输入模式
+            setState(() => _currentMode = VentingMode.voiceInput);
+          }
+          HapticHelper(ref).selectionClick();
+          return;
+        }
+        
+        // 刚刚获得权限，重置录音器状态
+        await AudioUtil.resetRecorderState();
+      }
+      
       _voiceService.connect();
       // Auto-start mic after connection established
       Future.delayed(const Duration(milliseconds: 800), () {
@@ -1585,18 +1607,18 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       setState(() => _isMicOn = false);
     } else {
       // Turn on mic
-      // Check permission using permission_handler directly to avoid AudioRecorder conflict on iOS
-      // using _audioRecorder.hasPermission() can trigger session initialization which conflicts with AudioUtil
-      PermissionStatus status = await Permission.microphone.status;
-      bool hasPermission = status == PermissionStatus.granted;
+      // Use AudioUtil's permission API for consistency and proper state tracking
+      bool hasPermission = await AudioUtil.checkMicrophonePermission();
       
       // If permission not granted, try to request it explicitly
       if (!hasPermission) {
-        // Use permission_handler to explicitly request microphone permission
-        if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
-          status = await Permission.microphone.request();
-          hasPermission = status == PermissionStatus.granted;
-          print('Companion mode: Requested microphone permission, result: $status');
+        print('Companion mode: Requesting microphone permission...');
+        hasPermission = await AudioUtil.requestMicrophonePermission();
+        print('Companion mode: Permission result: $hasPermission');
+        
+        // 如果刚刚获得权限，重置录音器状态以确保正确初始化
+        if (hasPermission) {
+          await AudioUtil.resetRecorderState();
         }
       }
       
@@ -1613,17 +1635,27 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
              _audioRecorder = null;
              
              // Give OS a moment to release the mic resource completely
-             if (Platform.isIOS) {
-               await Future.delayed(const Duration(milliseconds: 50));
+             if (!kIsWeb && Platform.isIOS) {
+               await Future.delayed(const Duration(milliseconds: 100));
              }
            }
-        } catch (_) {}
+        } catch (e) {
+          print('Companion mode: Error cleaning up local recorder: $e');
+        }
         
         // Let XiaozhiService handle the recording internally via AudioUtil
         // NOTE: Server-side VAD "realtime" requires AEC support; prefer "auto" for reliability.
-        await _voiceService.startListening(mode: 'auto');
-        
-        setState(() => _isMicOn = true);
+        try {
+          await _voiceService.startListening(mode: 'auto');
+          setState(() => _isMicOn = true);
+        } catch (e) {
+          print('Companion mode: Failed to start listening: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('启动录音失败: $e')),
+            );
+          }
+        }
       } else {
         print('Companion mode: Microphone permission denied');
         // Optionally show a snackbar or dialog to inform user
