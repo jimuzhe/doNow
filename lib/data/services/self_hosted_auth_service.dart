@@ -361,18 +361,24 @@ class SelfHostedAuthService {
 
   /// 登出
   Future<void> signOut() async {
-    if (_accessToken != null && _refreshToken != null) {
-      try {
-        await _request('POST', '/logout', body: {
-          'refreshToken': _refreshToken,
-        }, requireAuth: true);
-      } catch (e) {
-        debugPrint('Logout request failed: $e');
-      }
-    }
+    final accessToken = _accessToken;
+    final refreshToken = _refreshToken;
     
+    // 先清除本地状态，立即让用户返回登录页面
     await _clearTokens();
     _notifyListeners();
+    
+    // 然后异步通知服务器（不阻塞用户）
+    if (accessToken != null && refreshToken != null) {
+      // 使用 unawaited 让请求在后台执行
+      _request('POST', '/logout', body: {
+        'refreshToken': refreshToken,
+      }, requireAuth: false).then((_) {
+        debugPrint('Logout request succeeded');
+      }).catchError((e) {
+        debugPrint('Logout request failed: $e');
+      });
+    }
   }
   
   /// 删除账户

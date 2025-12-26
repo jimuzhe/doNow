@@ -13,7 +13,10 @@ import '../widgets/custom_loading_overlay.dart';
 import '../widgets/subtask_editor_sheet.dart';
 import '../widgets/routine_selector_sheet.dart';
 import '../../data/models/routine.dart';
+import '../../data/services/voice_ai_service.dart';
+import '../../data/providers/ai_providers.dart';
 import 'task_detail_screen.dart';
+import 'dart:async';
 
 class CreateTaskModal extends ConsumerStatefulWidget {
   final Task? taskToEdit;
@@ -121,23 +124,40 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           Text(t('step_1'), style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           Text(t('what_to_do'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-          TextField(
-            controller: _titleController,
-            style: TextStyle(fontSize: 20, color: isDark ? Colors.white : Colors.black),
-            decoration: InputDecoration(
-              hintText: "...",
-              border: InputBorder.none,
-              hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.black26),
-            ),
-            autofocus: true,
-            onChanged: (_) {
-              // Invalidate cache when title changes
-              if (_cachedAIResult != null && _lastAITitle != _titleController.text.trim()) {
-                setState(() {
-                  _cachedAIResult = null;
-                });
-              }
-            },
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _titleController,
+                  style: TextStyle(fontSize: 20, color: isDark ? Colors.white : Colors.black),
+                  decoration: InputDecoration(
+                    hintText: "...",
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.black26),
+                  ),
+                  autofocus: true,
+                  onChanged: (_) {
+                    // Invalidate cache when title changes
+                    if (_cachedAIResult != null && _lastAITitle != _titleController.text.trim()) {
+                      setState(() {
+                        _cachedAIResult = null;
+                      });
+                    }
+                  },
+                ),
+              ),
+              // Voice Input Button
+              _VoiceInputButton(
+                onTextReceived: (text) {
+                  setState(() {
+                    _titleController.text = text;
+                    // Invalidate AI cache since title changed
+                    _cachedAIResult = null;
+                  });
+                },
+                isDark: isDark,
+              ),
+            ],
           ),
           
           const SizedBox(height: 24),
@@ -753,6 +773,148 @@ class _SwipeableDaySelectorState extends State<_SwipeableDaySelector> {
             ),
           );
         }),
+      ),
+    );
+  }
+}
+
+/// Voice Input Button - Press and hold to record, release to transcribe
+class _VoiceInputButton extends ConsumerStatefulWidget {
+  final Function(String) onTextReceived;
+  final bool isDark;
+
+  const _VoiceInputButton({
+    required this.onTextReceived,
+    required this.isDark,
+  });
+
+  @override
+  ConsumerState<_VoiceInputButton> createState() => _VoiceInputButtonState();
+}
+
+class _VoiceInputButtonState extends ConsumerState<_VoiceInputButton> {
+  bool _isRecording = false;
+  bool _isProcessing = false;
+  StreamSubscription? _sttSub;
+  StreamSubscription? _stateSub;
+  VoiceAIService? _voiceService;
+
+  @override
+  void dispose() {
+    _sttSub?.cancel();
+    _stateSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    if (_isRecording || _isProcessing) return;
+    
+    setState(() {
+      _isRecording = true;
+    });
+    
+    HapticHelper(ref).mediumImpact();
+    
+    // Initialize voice service
+    _voiceService = ref.read(voiceAIServiceProvider);
+    _voiceService!.setSttOnlyMode(true);
+    
+    // Listen for STT results
+    _sttSub?.cancel();
+    _sttSub = _voiceService!.sttStream.listen((transcript) {
+      debugPrint('[VoiceInput] STT received: $transcript');
+      if (mounted && transcript.isNotEmpty && !transcript.contains("识别") && !transcript.contains("Recognizing")) {
+        widget.onTextReceived(transcript);
+        setState(() => _isProcessing = false);
+        HapticHelper(ref).mediumImpact();
+      }
+    });
+    
+    // Listen for state changes to detect when processing is done
+    _stateSub?.cancel();
+    _stateSub = _voiceService!.stateStream.listen((state) {
+      if (mounted && state == VoiceState.ready && _isProcessing) {
+        // Timeout fallback - if we're still processing after returning to ready
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _isProcessing) {
+            setState(() => _isProcessing = false);
+          }
+        });
+      }
+    });
+    
+    // Connect and start listening - VoiceAIService handles recording internally
+    await _voiceService!.connect();
+    
+    // Wait for connection to be ready
+    if (_voiceService!.state == VoiceState.ready) {
+      // Start listening with manual mode (push to talk)
+      await _voiceService!.startListening(mode: 'manual');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    if (!_isRecording) return;
+    
+    setState(() {
+      _isRecording = false;
+      _isProcessing = true;
+    });
+    
+    HapticHelper(ref).lightImpact();
+    
+    // Stop listening - this will trigger STT processing
+    try {
+      await _voiceService?.stopListening();
+      
+      // Wait for STT result with timeout
+      await Future.delayed(const Duration(seconds: 8));
+      if (mounted && _isProcessing) {
+        setState(() => _isProcessing = false);
+      }
+    } catch (e) {
+      debugPrint('Voice input error: $e');
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: (_) => _startRecording(),
+      onLongPressEnd: (_) => _stopRecording(),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: _isRecording 
+              ? Colors.red.withOpacity(0.2)
+              : _isProcessing
+                  ? Colors.blue.withOpacity(0.1)
+                  : (widget.isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: _isProcessing
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: widget.isDark ? Colors.white : Colors.black54,
+                  ),
+                )
+              : Icon(
+                  _isRecording ? Icons.mic : Icons.mic_none_rounded,
+                  color: _isRecording 
+                      ? Colors.red 
+                      : (widget.isDark ? Colors.white60 : Colors.black45),
+                  size: 22,
+                ),
+        ),
       ),
     );
   }

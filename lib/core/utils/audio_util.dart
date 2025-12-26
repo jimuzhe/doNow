@@ -172,11 +172,12 @@ class AudioUtil {
           ),
         );
       } else {
+        // iOS 配置
         await session.configure(
           const AudioSessionConfiguration(
             avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
             avAudioSessionCategoryOptions:
-                AVAudioSessionCategoryOptions.allowBluetooth,
+                AVAudioSessionCategoryOptions.defaultToSpeaker,
             avAudioSessionMode: AVAudioSessionMode.voiceChat,
           ),
         );

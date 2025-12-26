@@ -111,6 +111,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   bool _showTextInput = false;
   bool _isCancelled = false;
   bool _showEncouragement = false;  // Show farewell encouragement before exit
+  bool _showConfirmButton = false;  // Show confirm button after typewriter completes
   
   // Animations
   late AnimationController _liquidController;
@@ -314,6 +315,9 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
     // Pre-connect when entering the page for faster response when user starts recording
     _preConnect();
+    
+    // Mark as Busy UI (prevents auto-navigation to other tasks)
+    Future.microtask(() => ref.read(isBusyUIProvider.notifier).state = true);
   }
 
   /// Pre-connect to voice service for faster response
@@ -412,6 +416,11 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
   @override
   void dispose() {
+    try {
+      // Reset Busy UI logic
+      ref.read(isBusyUIProvider.notifier).state = false;
+    } catch (_) {}
+    
     _textController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
@@ -746,69 +755,95 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                     ),
                     textAlign: TextAlign.start, // Left align to avoid jagged edges
                     duration: const Duration(milliseconds: 50),
+                    onComplete: () {
+                      if (mounted && !_showConfirmButton) {
+                        setState(() => _showConfirmButton = true);
+                      }
+                    },
                   ),
               ],
             ),
           ),
           const SizedBox(height: 32),
           
-          // Action buttons
-          if (_aphorisms.isNotEmpty)
+          // Action buttons - Show with glow effect after typewriter completes
+          if (_aphorisms.isNotEmpty && _showConfirmButton)
             // Finish Button - SAVE TO TIMELINE when user confirms
-            GestureDetector(
-              onTap: () async {
-                HapticHelper(ref).mediumImpact();
-                final locale = ref.read(localeProvider);
-                
-                // Save to timeline
-                final now = DateTime.now();
-                final task = Task(
-                  id: const Uuid().v4(),
-                  title: AppStrings.get('venting', locale),
-                  totalDuration: Duration.zero,
-                  scheduledStart: now,
-                  subTasks: [],
-                  isVenting: true,
-                  isCompleted: true,
-                  completedAt: now,
-                  journalAudioPath: _lastAudioPath,
-                  journalNote: "$_userTranscript\n\n$_aphorisms",
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: child,
+                  ),
                 );
-                
-                ref.read(taskListProvider.notifier).addTask(task);
-                
-                setState(() => _showEncouragement = true);
-                
-                // Delay to show encouragement, then close
-                await Future.delayed(const Duration(seconds: 4));
-                if (mounted) Navigator.pop(context);
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                decoration: BoxDecoration(
-                  gradient: isDark 
-                      ? const LinearGradient(
-                          colors: [Color(0xFF334155), Color(0xFF475569)],
-                        )
-                      : const LinearGradient(
-                          colors: [Color(0xFF475569), Color(0xFF64748B)],
-                        ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark ? Colors.black.withOpacity(0.2) : Colors.black.withOpacity(0.1),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  AppStrings.get('i_know_what_to_do', ref.read(localeProvider)),
-                  style: const TextStyle(
+              child: GestureDetector(
+                onTap: () async {
+                  HapticHelper(ref).mediumImpact();
+                  final locale = ref.read(localeProvider);
+                  
+                  // Save to timeline
+                  final now = DateTime.now();
+                  final task = Task(
+                    id: const Uuid().v4(),
+                    title: AppStrings.get('venting', locale),
+                    totalDuration: Duration.zero,
+                    scheduledStart: now,
+                    subTasks: [],
+                    isVenting: true,
+                    isCompleted: true,
+                    completedAt: now,
+                    journalAudioPath: _lastAudioPath,
+                    journalNote: "$_userTranscript\n\n$_aphorisms",
+                  );
+                  
+                  ref.read(taskListProvider.notifier).addTask(task);
+                  
+                  setState(() => _showEncouragement = true);
+                  
+                  // Delay to show encouragement, then close
+                  await Future.delayed(const Duration(seconds: 4));
+                  if (mounted) Navigator.pop(context);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  decoration: BoxDecoration(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      // Soft white glow
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.6),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                      // Outer glow
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.4),
+                        blurRadius: 30,
+                        spreadRadius: 4,
+                      ),
+                      // Soft shadow for depth
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    AppStrings.get('i_know_what_to_do', ref.read(localeProvider)),
+                    style: const TextStyle(
+                      color: Color(0xFF1E293B),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),
@@ -831,6 +866,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                       _showTranscript = false;
                       _userTranscript = "";
                       _aphorisms = "";
+                      _showConfirmButton = false;
                     });
                     _transcriptController.reverse();
                  },
@@ -858,6 +894,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         setState(() {
           _showTranscript = false;
           _userTranscript = "";
+          _showConfirmButton = false;
           // Don't reset _isConnected since we're keeping connection
           _voiceInputBuffer.clear(); // Clear local buffer on re-record
         });
@@ -1464,7 +1501,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
   // ==================== LOGIC ====================
 
-  void _switchMode(VentingMode mode) {
+  Future<void> _switchMode(VentingMode mode) async {
     if (_currentMode == mode) return;
     
     // Stop any ongoing recording/connection
@@ -1481,6 +1518,13 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     if (mode == VentingMode.realtime) {
       // Realtime mode needs TTS
       _voiceService.setSttOnlyMode(false);
+      
+      // IMPORTANT: Stop VentingScreen's own _audioRecorder first
+      // to avoid conflict with AudioUtil's recorder on iOS
+      try {
+        await _audioRecorder.stop();
+      } catch (_) {}
+      
       _voiceService.connect();
       // Auto-start mic after connection established
       Future.delayed(const Duration(milliseconds: 800), () {
@@ -1521,8 +1565,17 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       setState(() => _isMicOn = false);
     } else {
       // Turn on mic
-      if (await _audioRecorder.hasPermission()) {
-        // Let XiaozhiService handle the recording internally
+      // Check permission first
+      final hasPermission = await _audioRecorder.hasPermission();
+      
+      if (hasPermission) {
+        // IMPORTANT: Stop and release VentingScreen's own _audioRecorder
+        // to avoid conflict with AudioUtil's recorder on iOS
+        try {
+          await _audioRecorder.stop();
+        } catch (_) {}
+        
+        // Let XiaozhiService handle the recording internally via AudioUtil
         // NOTE: Server-side VAD "realtime" requires AEC support; prefer "auto" for reliability.
         await _voiceService.startListening(mode: 'auto');
         
@@ -1942,6 +1995,7 @@ class _TypewriterText extends StatefulWidget {
   final TextStyle style;
   final Duration duration;
   final TextAlign textAlign;
+  final VoidCallback? onComplete;
 
   const _TypewriterText({
     Key? key,
@@ -1949,6 +2003,7 @@ class _TypewriterText extends StatefulWidget {
     required this.style,
     this.duration = const Duration(milliseconds: 30),
     this.textAlign = TextAlign.center,
+    this.onComplete,
   }) : super(key: key);
 
   @override
@@ -2000,6 +2055,8 @@ class _TypewriterTextState extends State<_TypewriterText> {
         currentIndex++;
       } else {
         timer.cancel();
+        // Trigger onComplete callback when typing finishes
+        widget.onComplete?.call();
       }
     });
   }
@@ -2152,10 +2209,10 @@ class _EncouragementViewState extends ConsumerState<EncouragementView> with Tick
     final locale = ref.watch(localeProvider);
     
     // Postcard colors - Dark Mode Adaptation
-    final paperColor = widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFFDFBF7); // Dark Blue-Grey vs Warm Paper
+    final paperColor = widget.isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFDFBF7); // Dark Grey vs Warm Paper
     final inkColor = widget.isDark ? const Color(0xFFE2E8F0) : const Color(0xFF2D3748);   // Light Grey vs Dark Ink
     final stampColor = widget.isDark ? const Color(0xFFFC8181) : const Color(0xFFE53E3E); // Light Red vs Red
-    final bgBase = widget.isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F2F5);     // Darker BG
+    final bgBase = widget.isDark ? Colors.black : const Color(0xFFF0F2F5);     // Pure Black BG
 
     return Scaffold(
       backgroundColor: bgBase,
@@ -2169,7 +2226,7 @@ class _EncouragementViewState extends ConsumerState<EncouragementView> with Tick
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: widget.isDark 
-                  ? [const Color(0xFF0F172A), const Color(0xFF1E293B)]
+                  ? [Colors.black, const Color(0xFF1C1C1E)]
                   : [const Color(0xFFF0F2F5), const Color(0xFFE2E8F0)],
               ),
             ),
