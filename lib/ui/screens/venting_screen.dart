@@ -1589,15 +1589,16 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       setState(() => _isMicOn = false);
     } else {
       // Turn on mic
-      // IMPORTANT: On iOS, hasPermission() only checks but doesn't request permission.
-      // We must explicitly request permission first to trigger the system dialog.
-      bool hasPermission = await _audioRecorder.hasPermission();
+      // Check permission using permission_handler directly to avoid AudioRecorder conflict on iOS
+      // using _audioRecorder.hasPermission() can trigger session initialization which conflicts with AudioUtil
+      PermissionStatus status = await Permission.microphone.status;
+      bool hasPermission = status == PermissionStatus.granted;
       
       // If permission not granted, try to request it explicitly
       if (!hasPermission) {
-        // Use permission_handler to explicitly request microphone permission on iOS
+        // Use permission_handler to explicitly request microphone permission
         if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
-          final status = await Permission.microphone.request();
+          status = await Permission.microphone.request();
           hasPermission = status == PermissionStatus.granted;
           print('Companion mode: Requested microphone permission, result: $status');
         }
@@ -1607,7 +1608,9 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         // IMPORTANT: Stop and release VentingScreen's own _audioRecorder
         // to avoid conflict with AudioUtil's recorder on iOS
         try {
-          await _audioRecorder.stop();
+           if (await _audioRecorder.isRecording()) {
+             await _audioRecorder.stop();
+           }
         } catch (_) {}
         
         // Let XiaozhiService handle the recording internally via AudioUtil

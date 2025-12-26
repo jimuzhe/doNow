@@ -132,7 +132,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
                   controller: _titleController,
                   style: TextStyle(fontSize: 20, color: isDark ? Colors.white : Colors.black),
                   decoration: InputDecoration(
-                    hintText: "...",
+                    hintText: t('task_input_hint'),
                     border: InputBorder.none,
                     hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.black26),
                   ),
@@ -848,16 +848,8 @@ class _VoiceInputButtonState extends ConsumerState<_VoiceInputButton> {
     // Listen for state changes to detect when processing is done
     _stateSub?.cancel();
     _stateSub = _voiceService!.stateStream.listen((state) {
-      // Check if service needs activation
-      if (state == VoiceState.needActivation && mounted) {
-        setState(() {
-          _isRecording = false;
-          _isProcessing = false;
-        });
-        if (_voiceService!.activationCode != null) {
-          _showActivationDialog(_voiceService!.activationCode!, null);
-        }
-      }
+      // Logic for handling activation is already covered by _activationSub above.
+      // We don't need to duplicate it here, otherwise we get two dialogs.
       
       if (mounted && state == VoiceState.ready && _isProcessing) {
         // Timeout fallback - if we're still processing after returning to ready
