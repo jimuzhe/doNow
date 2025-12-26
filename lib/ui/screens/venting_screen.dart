@@ -158,7 +158,10 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     _voiceStateSub = _voiceService.stateStream.listen((state) {
       if (mounted) {
         setState(() {
-          _isConnected = state == VoiceState.ready || state == VoiceState.listening || state == VoiceState.speaking;
+          _isConnected = state == VoiceState.connecting || 
+                        state == VoiceState.ready || 
+                        state == VoiceState.listening || 
+                        state == VoiceState.speaking;
         });
         
         // Handle connection failure - show error to user
@@ -515,8 +518,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                         else if (_showTextInput)
                           // Text input mode (triggered by down swipe)
                           _buildTextInputArea(primary, isDark, textColor)
-                        else if (!(_showTranscript && _aphorisms.isNotEmpty))
-                          // Voice input mode (default) - 隐藏当金句显示时
+                        else if (!_showTranscript)
+                          // Voice input mode (default) - 隐藏当金句界面显示时
                           _buildVoiceInputControls(primary, isDark),
                         
                         const SizedBox(height: 80), // Bottom padding to avoid phone's one-hand mode
@@ -819,9 +822,11 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                   
                   setState(() => _showEncouragement = true);
                   
-                  // Delay to show encouragement, then close
+                  // Delay to show encouragement, then close automatically (if user hasn't already manually exited)
                   await Future.delayed(const Duration(seconds: 4));
-                  if (mounted) Navigator.pop(context);
+                  if (mounted && Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
@@ -875,11 +880,14 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                child: GestureDetector(
                  onTap: () {
                     HapticHelper(ref).mediumImpact();
+                    // 主动发起连接，为下次录音预热
+                    _voiceService.connect();
                     setState(() {
                       _showTranscript = false;
                       _userTranscript = "";
                       _aphorisms = "";
                       _showConfirmButton = false;
+                      _isConnected = true; 
                     });
                     _transcriptController.reverse();
                  },
@@ -902,14 +910,15 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     return GestureDetector(
       onTap: () {
         HapticHelper(ref).selectionClick();
-        // Use abort instead of disconnect to keep connection alive
-        _voiceService.abort();
+        // 主动发起连接，为下次录音预热
+        _voiceService.connect();
         setState(() {
           _showTranscript = false;
           _userTranscript = "";
           _showConfirmButton = false;
-          // Don't reset _isConnected since we're keeping connection
+          _isConnected = true; // 正在连接或已连接
           _voiceInputBuffer.clear(); // Clear local buffer on re-record
+          _aphorisms = ""; // 清除之前的格言
         });
         _transcriptController.reverse();
       },
@@ -1038,6 +1047,12 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
           ),
         );
       }
+      
+      // 如果正在显示金句结果界面，不显示提示文字
+      if (_showTranscript) {
+        return const SizedBox.shrink();
+      }
+
       return Text(
         t("hold_to_speak"),
         style: TextStyle(
@@ -1592,7 +1607,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
 
       // VoiceInput mode only needs STT (don't disconnect, use abort if needed)
       _voiceService.setSttOnlyMode(true);
-      // Don't disconnect - keep connection for faster re-recording
+      // 主动发起连接预热
+      _preConnect();
     }
     
     HapticHelper(ref).selectionClick();
@@ -1603,7 +1619,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     if (_isMicOn) {
       _toggleMic();
     }
-    _voiceService.abort(); // Use abort to stop any ongoing activity
+    _voiceService.disconnect(); // 直接断开连接
     
     // 重要：停止 AudioUtil 的录音，释放麦克风资源
     try {
@@ -1628,6 +1644,9 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     });
     
     HapticHelper(ref).heavyImpact();
+    
+    // 返回倾诉模式后，立即发起连接预热
+    _preConnect();
   }
 
   void _toggleMic() async {
@@ -1708,7 +1727,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     HapticHelper(ref).mediumImpact();
     
     // Abort any ongoing server response (but keep connection)
-    _voiceService.abort();
+    _voiceService.abort(reason: 'wake_word_detected');
     
     // Clear previous buffer
     _voiceInputBuffer.clear();
@@ -2341,9 +2360,15 @@ class _EncouragementViewState extends ConsumerState<EncouragementView> with Tick
 
     return Scaffold(
       backgroundColor: bgBase,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
+      body: GestureDetector(
+        onTap: () {
+          HapticHelper(ref).selectionClick();
+          Navigator.pop(context);
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
           // Background Texture (Subtle Noise or Gradient)
           Container(
             decoration: BoxDecoration(
@@ -2491,21 +2516,36 @@ class _EncouragementViewState extends ConsumerState<EncouragementView> with Tick
             child: FadeTransition(
               opacity: _contentOpacity,
               child: Center(
-                child: Text(
-                  AppStrings.get('encouragement_footer', locale),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: widget.isDark ? Colors.white54 : Colors.black45,
-                    letterSpacing: 2,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      AppStrings.get('encouragement_footer', locale),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: widget.isDark ? Colors.white54 : Colors.black45,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      AppStrings.get('encouragement_exit_hint', locale),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: widget.isDark ? Colors.white24 : Colors.black26,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildStamp(Color color) {
     return Container(

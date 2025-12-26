@@ -375,6 +375,7 @@ class AppStrings {
       'companion': 'Companion',
       'from_ai': 'From NowNow',
       'encouragement_footer': 'Carry this strength forward...',
+      'encouragement_exit_hint': 'Tap anywhere to exit',
     },
     'zh': {
       'home': '首页',
@@ -702,6 +703,7 @@ class AppStrings {
       'companion': '陪伴',
       'from_ai': '来自 诺诺',
       'encouragement_footer': '带着这份力量继续前行...',
+      'encouragement_exit_hint': '点击任意位置退出',
     }
   };
 

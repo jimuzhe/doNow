@@ -279,8 +279,8 @@ class VoiceAIService {
   }
 
   /// 中断（打断AI语音）
-  Future<void> abort() async {
-    await _xiaozhiService?.abort();
+  Future<void> abort({String? reason}) async {
+    await _xiaozhiService?.abort(reason: reason);
     _updateState(VoiceState.ready);
   }
 

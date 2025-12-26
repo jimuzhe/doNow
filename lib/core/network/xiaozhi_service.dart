@@ -62,7 +62,7 @@ class XiaozhiService {
   bool _isConnected = false;
   bool _isVoiceCallActive = false;
   bool _hasStartedCall = false;
-  bool _sttOnlyMode = false;  // STT only mode - 不播放音频，收到STT后自动abort
+  bool _sttOnlyMode = false;  // STT only mode - 不播放音频，收到STT后直接断开
 
   // 监听器
   final List<XiaozhiServiceListener> _listeners = [];
@@ -315,7 +315,7 @@ class XiaozhiService {
 
       // 更新session_id
       if (jsonData['session_id'] != null) {
-        _sessionId = jsonData['session_id'];
+        _sessionId = jsonData['session_id'] as String;
         print('$TAG: 更新会话ID: $_sessionId');
       }
 
@@ -354,6 +354,13 @@ class XiaozhiService {
           }
           break;
 
+        case 'llm':
+          // 处理 LLM 消息（目前只是打日志）
+          final llmText = jsonData['text']?.toString() ?? '';
+          final llmEmotion = jsonData['emotion']?.toString() ?? '';
+          print('$TAG: 收到 LLM 消息: text=$llmText, emotion=$llmEmotion');
+          break;
+
         case 'stt':
           final text = jsonData['text']?.toString() ?? '';
           if (text.isNotEmpty) {
@@ -361,11 +368,11 @@ class XiaozhiService {
             _dispatchEvent(XiaozhiServiceEvent(XiaozhiServiceEventType.sttResult, text));
             _dispatchEvent(XiaozhiServiceEvent(XiaozhiServiceEventType.userMessage, text));
             
-            // 在 STT Only 模式下，收到识别结果后立即发送 abort，阻止 AI 语音回复
+            // 在 STT Only 模式下，收到识别结果后直接断开连接
             if (_sttOnlyMode) {
-              final abortMsg = {'session_id': _sessionId, 'type': 'abort'};
-              _wsManager?.sendMessage(jsonEncode(abortMsg));
-              print('$TAG: STT Only 模式 - 已自动发送 abort');
+              print('$TAG: [STT_ONLY] 收到识别结果，断开连接');
+              // 异步断开，不阻塞事件分发
+              Future.microtask(() => disconnect());
             }
           }
           break;
@@ -509,8 +516,8 @@ class XiaozhiService {
 
     // 发送开始监听命令
     final message = {
-      'session_id': _sessionId,
       'type': 'listen',
+      'session_id': _sessionId,
       'state': 'start',
       'mode': 'auto',
     };
@@ -578,8 +585,8 @@ class XiaozhiService {
 
     // 发送 listen 开始消息（无论是否跳过录音）
     final message = {
-      'session_id': _sessionId ?? '',
       'type': 'listen',
+      'session_id': _sessionId ?? '',
       'state': 'start',
       'mode': mode,
     };
@@ -595,8 +602,8 @@ class XiaozhiService {
     await AudioUtil.stopRecording();
 
     final stopMsg = {
-      'session_id': _sessionId ?? '',
       'type': 'listen',
+      'session_id': _sessionId ?? '',
       'state': 'stop',
     };
     _wsManager?.sendMessage(jsonEncode(stopMsg));
@@ -611,7 +618,7 @@ class XiaozhiService {
   }
 
   /// 中断（打断服务器的 TTS 响应，但保持连接）
-  Future<void> abort() async {
+  Future<void> abort({String? reason}) async {
     try {
       // 取消音频流订阅
       await _audioStreamSubscription?.cancel();
@@ -627,9 +634,13 @@ class XiaozhiService {
 
       // 发送中止命令
       if (_sessionId != null && _wsManager != null) {
-        final message = {'session_id': _sessionId, 'type': 'abort'};
+        final message = {
+          'type': 'abort',
+          'session_id': _sessionId, 
+          if (reason != null) 'reason': reason
+        };
         _wsManager!.sendMessage(jsonEncode(message));
-        print('$TAG: 已发送中止消息, isConnected: $_isConnected');
+        print('$TAG: 已发送中止消息, reason: $reason, sessionId: $_sessionId');
       }
     } catch (e) {
       print('$TAG: 中止失败: $e');
