@@ -352,11 +352,32 @@ class AudioUtil {
     }
 
     try {
+      // 尝试启动录音
       print('$TAG: 尝试启动录音 (AEC: $enableAEC, Platform: ${Platform.operatingSystem})');
 
-      // 注意：iOS上不配置AudioSession，让record库自己处理
-      // 倾诉模式可以工作就是因为它没有配置AudioSession
-      // Android上的AudioSession在initRecorder中已经配置
+      // iOS 兼容性修复：在陪伴模式下，必须显式配置 AudioSession
+      // 否则 iOS 可能会将声音路由到听筒，或者导致录制和播放冲突
+      if (!kIsWeb && Platform.isIOS && enableAEC) {
+        print('$TAG: 为 iOS 陪伴模式配置音频会话');
+        final session = await AudioSession.instance;
+        await session.configure(AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth | 
+                                       AVAudioSessionCategoryOptions.defaultToSpeaker,
+          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          androidAudioAttributes: AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientExclusive,
+        ));
+        
+        // 激活会话
+        await session.setActive(true);
+        
+        // 给系统一点时间应用配置
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
 
       // 确保麦克风权限已获取
       if (!kIsWeb && !_permissionGranted) {
