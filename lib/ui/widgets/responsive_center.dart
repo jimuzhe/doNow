@@ -14,14 +14,28 @@ class ResponsiveCenter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Padding(
-          padding: padding,
-          child: child,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // On mobile (or small screens), pass through constraints naturally
+        // to preserve original layout behavior (like Column spaceBetween).
+        if (constraints.maxWidth <= maxWidth) {
+          return Padding(
+            padding: padding,
+            child: child,
+          );
+        }
+        
+        // On desktop/large screens, center the constrained content
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Padding(
+              padding: padding,
+              child: child,
+            ),
+          ),
+        );
+      },
     );
   }
 }

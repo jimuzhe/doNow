@@ -301,6 +301,17 @@ class AudioUtil {
     try {
       print('$TAG: 尝试启动录音 (AEC: $enableAEC)');
 
+      // Ensure AudioSession is active on iOS immediately before recording
+      if (!kIsWeb && Platform.isIOS) {
+         try {
+           final session = await AudioSession.instance;
+           await session.setActive(true);
+           print('$TAG: iOS AudioSession 强制激活成功');
+         } catch (e) {
+           print('$TAG: iOS AudioSession 激活失败: $e');
+         }
+      }
+
       // 确保麦克风权限已获取
       if (!kIsWeb) {
         final status = await Permission.microphone.status;

@@ -132,26 +132,9 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     _audioPlayer = AudioPlayer();
     
     // Configure AudioSession for Speaker output
-    Future.microtask(() async {
-      final session = await AudioSession.instance;
-      // Combine options using a non-const expression
-      final categoryOptions = AVAudioSessionCategoryOptions.defaultToSpeaker |
-          AVAudioSessionCategoryOptions.mixWithOthers;
-      await session.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-        avAudioSessionCategoryOptions: categoryOptions,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.speech,
-          flags: AndroidAudioFlags.none,
-          // Using voiceCommunication may route audio to the earpiece (call-like).
-          // media keeps playback on the speaker by default while still allowing mic recording.
-          usage: AndroidAudioUsage.media,
-        ),
-        // Allow other audio (e.g. focus sounds) to keep playing by ducking.
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
-        androidWillPauseWhenDucked: false,
-      ));
-    });
+    // NOTE: Don't configure AudioSession here for iOS compatibility.
+    // AudioUtil will handle session configuration globally when needed.
+    // This prevents conflicting session configurations between VentingScreen and AudioUtil.
 
     // Audio player will be used to play buffered TTS audio
     // No need for live streaming - we buffer and play when TTS stops
@@ -543,7 +526,6 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                 ),
               ),
             ),
-          ),
           ),
         ],
       ),
