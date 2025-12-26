@@ -22,6 +22,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../../data/localization.dart';
+import '../../ui/widgets/responsive_center.dart';
 
 enum VentingMode { 
   realtime,  // 实时通话模式 - AI陪伴
@@ -42,7 +43,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   late VentingMode _currentMode;
   
   // AI & Audio
-  late AudioRecorder _audioRecorder;
+  AudioRecorder? _audioRecorder;
   late AudioPlayer _audioPlayer;
   late VoiceAIService _voiceService;
 
@@ -124,7 +125,10 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
-    _audioRecorder = AudioRecorder();
+    // Initialize recorder only if starting in voice input mode
+    if (widget.initialMode == VentingMode.voiceInput) {
+      _audioRecorder = AudioRecorder();
+    }
     _audioPlayer = AudioPlayer();
     
     // Configure AudioSession for Speaker output
@@ -446,7 +450,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     } catch (_) {}
     
     _textController.dispose();
-    _audioRecorder.dispose();
+    _audioRecorder?.dispose();
     _audioPlayer.dispose();
     _liquidController.dispose();
     _introController.dispose();
@@ -500,9 +504,10 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                 constraints: BoxConstraints(
                   minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                child: ResponsiveCenter(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                     // Top section
                     Column(
                       children: [
@@ -538,6 +543,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
                 ),
               ),
             ),
+          ),
           ),
         ],
       ),
@@ -1543,10 +1549,12 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       // Realtime mode needs TTS
       _voiceService.setSttOnlyMode(false);
       
-      // IMPORTANT: Stop VentingScreen's own _audioRecorder first
+      // IMPORTANT: Stop and DISPOSE VentingScreen's own _audioRecorder
       // to avoid conflict with AudioUtil's recorder on iOS
       try {
-        await _audioRecorder.stop();
+        await _audioRecorder?.stop();
+        await _audioRecorder?.dispose();
+        _audioRecorder = null;
       } catch (_) {}
       
       _voiceService.connect();
@@ -1557,6 +1565,11 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         }
       });
     } else {
+      // VoiceInput mode needs local recorder
+      if (_audioRecorder == null) {
+        _audioRecorder = AudioRecorder();
+      }
+
       // VoiceInput mode only needs STT (don't disconnect, use abort if needed)
       _voiceService.setSttOnlyMode(true);
       // Don't disconnect - keep connection for faster re-recording
@@ -1608,8 +1621,8 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         // IMPORTANT: Stop and release VentingScreen's own _audioRecorder
         // to avoid conflict with AudioUtil's recorder on iOS
         try {
-           if (await _audioRecorder.isRecording()) {
-             await _audioRecorder.stop();
+           if (_audioRecorder != null && await _audioRecorder!.isRecording()) {
+             await _audioRecorder!.stop();
            }
         } catch (_) {}
         
@@ -1635,7 +1648,12 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
   Future<void> _startVoiceInputRecording() async {
     print('Starting voice input recording...');
     
-    final hasPermission = await _audioRecorder.hasPermission();
+    // Ensure recorder is initialized
+    if (_audioRecorder == null) {
+      _audioRecorder = AudioRecorder();
+    }
+    
+    final hasPermission = await _audioRecorder!.hasPermission();
     print('Microphone permission: $hasPermission');
     
     if (!hasPermission) {
@@ -1670,7 +1688,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     // === START LOCAL RECORDING ===
     print('Starting audio stream...');
     try {
-      final stream = await _audioRecorder.startStream(const RecordConfig(
+      final stream = await _audioRecorder!.startStream(const RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: 16000,
         numChannels: 1,
@@ -1716,7 +1734,7 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     }
     
     _micStreamSub?.cancel();
-    await _audioRecorder.stop();
+    await _audioRecorder?.stop();
     
     final recordedChunks = List<Uint8List>.from(_voiceInputBuffer);
     _voiceInputBuffer.clear();

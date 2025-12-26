@@ -7,6 +7,7 @@ import '../../data/models/task.dart';
 import '../../data/localization.dart';
 import '../../data/services/daily_summary_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/responsive_center.dart';
 
 class DailySummaryScreen extends ConsumerStatefulWidget {
   final DateTime date;
@@ -142,9 +143,10 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: ResponsiveCenter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Date Header
             Text(
               dateStr,
@@ -234,6 +236,7 @@ class _DailySummaryScreenState extends ConsumerState<DailySummaryScreen> {
               const SizedBox(height: 32),
             ],
           ],
+        ),
         ),
       ),
     );

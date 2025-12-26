@@ -13,6 +13,7 @@ import '../../data/services/focus_audio_service.dart';
 import '../../utils/haptic_helper.dart';
 import '../widgets/task_completion_sheet.dart';
 import '../widgets/focus_sound_sheet.dart';
+import '../widgets/responsive_center.dart';
 
 
 class QuickFocusScreen extends ConsumerStatefulWidget {
@@ -486,102 +487,104 @@ class _QuickFocusScreenState extends ConsumerState<QuickFocusScreen>
         ],
       ),
       body: SafeArea(
-        child: isLandscape 
-          ? Row(
-              children: [
-                // Left: Visual
-                Expanded(
-                  flex: 1,
-                  child: Center(
-                    child: _buildTimerVisual(isDark),
+        child: ResponsiveCenter(
+          child: isLandscape 
+            ? Row(
+                children: [
+                  // Left: Visual
+                  Expanded(
+                    flex: 1,
+                    child: Center(
+                      child: _buildTimerVisual(isDark),
+                    ),
                   ),
-                ),
-                // Right: Controls
-                Expanded(
-                  flex: 1,
-                  child: _buildControls(t, isDark, timeStr, isLandscape: true),
-                ),
-              ],
-            )
-          : Column(
-              children: [
-                 // Portrait: Input at top
-                 Padding(
-                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
-                   child: TextField(
-                     controller: _taskController,
-                     enabled: !_isRunning,
-                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
-                     decoration: InputDecoration(
-                       hintText: t('what_to_do'),
-                       border: InputBorder.none,
-                       hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                  // Right: Controls
+                  Expanded(
+                    flex: 1,
+                    child: _buildControls(t, isDark, timeStr, isLandscape: true),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                   // Portrait: Input at top
+                   Padding(
+                     padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+                     child: TextField(
+                       controller: _taskController,
+                       enabled: !_isRunning,
+                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark?Colors.white:Colors.black),
+                       decoration: InputDecoration(
+                         hintText: t('what_to_do'),
+                         border: InputBorder.none,
+                         hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                       ),
+                       textAlign: TextAlign.center,
                      ),
-                     textAlign: TextAlign.center,
                    ),
-                 ),
-                 
-                 // Visual
-                 Expanded(
-                   child: Center(
-                     child: _buildTimerVisual(isDark),
+                   
+                   // Visual
+                   Expanded(
+                     child: Center(
+                       child: _buildTimerVisual(isDark),
+                     ),
                    ),
-                 ),
-                 
-                 // Controls (Time + Buttons)
-                 // Reusing logic but simpler
-                 Text(
-                   timeStr,
-                   style: const TextStyle(fontSize: 64, fontWeight: FontWeight.bold, fontFamily: 'Courier'),
-                 ),
-                 if (!_isBreak)
-                   Text(t('accumulated_time'), style: const TextStyle(color: Colors.grey)),
-                 if (_isBreak)
-                   Text(t('break_timer'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-
-                 const SizedBox(height: 32),
-
-                 Padding(
-                   padding: const EdgeInsets.all(32),
-                   child: Row(
-                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                     children: [
-                       if (_accumulatedTime.inSeconds == 0 && !_isBreak)
-                         Expanded(
-                           child: SizedBox(
-                             height: 64,
-                             child: ElevatedButton(
-                               onPressed: _toggleTimer,
-                               style: ElevatedButton.styleFrom(
-                                 backgroundColor: isDark ? Colors.white : Colors.black,
-                                 foregroundColor: isDark ? Colors.black : Colors.white,
-                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                   
+                   // Controls (Time + Buttons)
+                   // Reusing logic but simpler
+                   Text(
+                     timeStr,
+                     style: const TextStyle(fontSize: 64, fontWeight: FontWeight.bold, fontFamily: 'Courier'),
+                   ),
+                   if (!_isBreak)
+                     Text(t('accumulated_time'), style: const TextStyle(color: Colors.grey)),
+                   if (_isBreak)
+                     Text(t('break_timer'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+  
+                   const SizedBox(height: 32),
+  
+                   Padding(
+                     padding: const EdgeInsets.all(32),
+                     child: Row(
+                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                       children: [
+                         if (_accumulatedTime.inSeconds == 0 && !_isBreak)
+                           Expanded(
+                             child: SizedBox(
+                               height: 64,
+                               child: ElevatedButton(
+                                 onPressed: _toggleTimer,
+                                 style: ElevatedButton.styleFrom(
+                                   backgroundColor: isDark ? Colors.white : Colors.black,
+                                   foregroundColor: isDark ? Colors.black : Colors.white,
+                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                 ),
+                                 child: Text(t('btn_start')),
                                ),
-                               child: Text(t('btn_start')),
+                             ),
+                           )
+                         else
+                           Expanded(
+                             child: SizedBox(
+                               height: 64,
+                               child: OutlinedButton(
+                                 onPressed: _finishFocus,
+                                 style: OutlinedButton.styleFrom(
+                                   side: BorderSide(color: isDark ? Colors.white : Colors.black, width: 2),
+                                   foregroundColor: isDark ? Colors.white : Colors.black,
+                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                   backgroundColor: isDark ? Colors.black : Colors.white,
+                                 ),
+                                 child: Text(t('record_activity')),
+                               ),
                              ),
                            ),
-                         )
-                       else
-                         Expanded(
-                           child: SizedBox(
-                             height: 64,
-                             child: OutlinedButton(
-                               onPressed: _finishFocus,
-                               style: OutlinedButton.styleFrom(
-                                 side: BorderSide(color: isDark ? Colors.white : Colors.black, width: 2),
-                                 foregroundColor: isDark ? Colors.white : Colors.black,
-                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                 backgroundColor: isDark ? Colors.black : Colors.white,
-                               ),
-                               child: Text(t('record_activity')),
-                             ),
-                           ),
-                         ),
-                     ],
-                   ),
-                 )
-              ],
-            ),
+                       ],
+                     ),
+                   )
+                ],
+              ),
+        ),
       ),
     );
   }

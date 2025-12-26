@@ -80,6 +80,58 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     // Portrait: Standard Tabbed View
     final currentIndex = ref.watch(mainTabIndexProvider);
 
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 800; // Desktop breakpoint
+
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: currentIndex,
+              onDestinationSelected: _onTabTapped,
+              backgroundColor: isDark ? Colors.black : Colors.white,
+              labelType: NavigationRailLabelType.all,
+              groupAlignment: -0.9, // Align to top
+              leading: Column(
+                children: [
+                   const SizedBox(height: 20),
+                   Icon(Icons.check_circle_outline, size: 32, color: theme.primaryColor),
+                   const SizedBox(height: 20),
+                ],
+              ),
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_filled),
+                  label: Text('Home'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.bar_chart_outlined),
+                  selectedIcon: Icon(Icons.bar_chart),
+                  label: Text('Analysis'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: Text('Me'),
+                ),
+              ],
+            ),
+            const VerticalDivider(thickness: 1, width: 1),
+            Expanded(
+              child: ClipRect(
+                child: IndexedStack(
+                  index: currentIndex,
+                  children: _screens,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: currentIndex,

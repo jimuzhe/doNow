@@ -18,6 +18,7 @@ import '../../data/providers/ai_providers.dart';
 import '../theme/app_theme.dart';
 import 'task_detail_screen.dart';
 import 'dart:async';
+import '../widgets/responsive_center.dart';
 
 class CreateTaskModal extends ConsumerStatefulWidget {
   final Task? taskToEdit;
@@ -74,9 +75,10 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          child: ResponsiveCenter(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               // Handle
               Center(
                  child: Container(
@@ -106,6 +108,7 @@ class _CreateTaskModalState extends ConsumerState<CreateTaskModal> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

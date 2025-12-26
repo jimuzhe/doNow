@@ -18,6 +18,7 @@ import '../widgets/custom_dialog.dart';
 import '../widgets/task_detail_dialog.dart';
 import '../../data/models/gamification_state.dart';
 import '../../data/services/gamification_service.dart';
+import '../widgets/responsive_center.dart';
 
 // Extracted Widgets
 import '../widgets/analysis/stat_card.dart';
@@ -144,10 +145,11 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: _isSearching 
-          ? _buildSearchView(searchResults, t, isDark, locale)
+          ? ResponsiveCenter(child: _buildSearchView(searchResults, t, isDark, locale))
           : SingleChildScrollView(
-        child: Column(
-          children: [
+              child: ResponsiveCenter(
+                child: Column(
+                  children: [
             // Header Title with Search Button
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 16, 24),
@@ -269,6 +271,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
           ],
         ),
       ),
+        ),
       ),
     );
   }

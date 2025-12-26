@@ -11,6 +11,7 @@ import '../../utils/haptic_helper.dart';
 import '../widgets/task_completion_sheet.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:async'; // For StreamSubscription
+import '../widgets/responsive_center.dart';
 
 class DecisionScreen extends ConsumerStatefulWidget {
   final String? initialText;
@@ -374,8 +375,9 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
         children: [
           // Layer 1: Main content (below the coin)
           SafeArea(
-            child: Column(
-              children: [
+            child: ResponsiveCenter(
+              child: Column(
+                children: [
                 // Custom AppBar-like header
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -488,6 +490,7 @@ class _DecisionScreenState extends ConsumerState<DecisionScreen> with TickerProv
                 )
               ],
             ),
+          ),
           ),
           
           // Layer 2: Coin (on top of everything, can cover AppBar when flying up)
