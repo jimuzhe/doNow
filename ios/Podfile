@@ -47,6 +47,30 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+      
+      # PermissionHandler: Enable required permissions
+      # These GCC_PREPROCESSOR_DEFINITIONS are REQUIRED for permission_handler to work on iOS
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        
+        # Microphone permission - REQUIRED for voice recording
+        'PERMISSION_MICROPHONE=1',
+        
+        # Camera permission - for taking photos/videos
+        'PERMISSION_CAMERA=1',
+        
+        # Photo library permission - for attaching photos
+        'PERMISSION_PHOTOS=1',
+        
+        # Speech recognition permission - for voice-to-text
+        'PERMISSION_SPEECH_RECOGNIZER=1',
+        
+        # Location permission - for geotagging
+        'PERMISSION_LOCATION=1',
+        
+        # Notification permission - for reminders
+        'PERMISSION_NOTIFICATIONS=1',
+      ]
     end
   end
 end

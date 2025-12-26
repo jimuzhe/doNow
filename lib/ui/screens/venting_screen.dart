@@ -4,10 +4,12 @@ import 'dart:ui';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../data/providers/ai_providers.dart';
 import '../../data/services/voice_ai_service.dart';
 import '../../utils/haptic_helper.dart';
@@ -406,6 +408,28 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
     final result = await _voiceService.checkOtaActivation();
     if (!result.isActivated && mounted) {
       _showActivationDialog(result.activationCode ?? '', result.message);
+    } else if (result.isActivated && mounted) {
+      // Successfully activated! Auto-reconnect and start the service
+      setState(() => _isConnected = true);
+      
+      // If in realtime mode, auto-start mic
+      if (_currentMode == VentingMode.realtime) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && !_isMicOn) {
+            _toggleMic();
+          }
+        });
+      }
+      
+      // Show success feedback
+      HapticHelper(ref).success();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('激活成功！'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
@@ -1565,8 +1589,19 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
       setState(() => _isMicOn = false);
     } else {
       // Turn on mic
-      // Check permission first
-      final hasPermission = await _audioRecorder.hasPermission();
+      // IMPORTANT: On iOS, hasPermission() only checks but doesn't request permission.
+      // We must explicitly request permission first to trigger the system dialog.
+      bool hasPermission = await _audioRecorder.hasPermission();
+      
+      // If permission not granted, try to request it explicitly
+      if (!hasPermission) {
+        // Use permission_handler to explicitly request microphone permission on iOS
+        if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
+          final status = await Permission.microphone.request();
+          hasPermission = status == PermissionStatus.granted;
+          print('Companion mode: Requested microphone permission, result: $status');
+        }
+      }
       
       if (hasPermission) {
         // IMPORTANT: Stop and release VentingScreen's own _audioRecorder
@@ -1580,6 +1615,14 @@ class _VentingScreenState extends ConsumerState<VentingScreen> with TickerProvid
         await _voiceService.startListening(mode: 'auto');
         
         setState(() => _isMicOn = true);
+      } else {
+        print('Companion mode: Microphone permission denied');
+        // Optionally show a snackbar or dialog to inform user
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('需要麦克风权限才能使用陪伴模式')),
+          );
+        }
       }
     }
     HapticHelper(ref).mediumImpact();

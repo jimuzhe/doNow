@@ -2,12 +2,14 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
 /// 设备信息工具类
 /// 基于 xiaozhi-client-flutter 参考项目重构
+/// 使用 SecureStorage 确保设备ID在重装后保持不变
 class XiaozhiDeviceInfo {
   static const String TAG = "XiaozhiDeviceInfo";
 
@@ -16,12 +18,33 @@ class XiaozhiDeviceInfo {
   static final XiaozhiDeviceInfo _instance = XiaozhiDeviceInfo._();
   static XiaozhiDeviceInfo get instance => _instance;
 
+  // SecureStorage keys (stored in Keychain on iOS, Keystore on Android)
+  static const String _secureKeyMacAddress = 'xiaozhi_mac_address_secure';
+  static const String _secureKeyClientId = 'xiaozhi_client_id_secure';
+  
+  // Legacy SharedPreferences keys (for migration)
   static const String _keyDeviceId = 'xiaozhi_device_id_v4';
   static const String _keyMacAddress = 'xiaozhi_mac_address_v4';
   static const String _keyClientId = 'xiaozhi_client_id_v4';
 
   String? _cachedMacAddress;
   String? _cachedClientId;
+  
+  // Use secure storage with iOS Keychain options
+  FlutterSecureStorage? _secureStorage;
+  
+  FlutterSecureStorage get _storage {
+    _secureStorage ??= const FlutterSecureStorage(
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+        // Data persists across reinstalls
+      ),
+      aOptions: AndroidOptions(
+        encryptedSharedPreferences: true,
+      ),
+    );
+    return _secureStorage!;
+  }
 
   /// 获取设备唯一标识（基于设备信息生成稳定的MD5哈希）
   Future<String> getDeviceUniqueId() async {
@@ -81,22 +104,38 @@ class XiaozhiDeviceInfo {
     }
   }
 
-  /// 获取设备MAC地址（模拟）
+  /// 获取设备MAC地址（使用安全存储，重装后保持不变）
   Future<String> getDeviceMacAddress() async {
     if (_cachedMacAddress != null) {
       return _cachedMacAddress!;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    String? savedMac = prefs.getString(_keyMacAddress);
-
-    if (savedMac != null && savedMac.isNotEmpty) {
-      _cachedMacAddress = savedMac;
-      print('$TAG: Using existing MAC: $savedMac');
-      return savedMac;
+    try {
+      // Try to read from secure storage first (persists across reinstalls)
+      String? savedMac = await _storage.read(key: _secureKeyMacAddress);
+      
+      if (savedMac != null && savedMac.isNotEmpty) {
+        _cachedMacAddress = savedMac;
+        print('$TAG: Using existing MAC from secure storage: $savedMac');
+        return savedMac;
+      }
+      
+      // Migration: Check if there's an old MAC in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      String? legacyMac = prefs.getString(_keyMacAddress);
+      
+      if (legacyMac != null && legacyMac.isNotEmpty) {
+        // Migrate to secure storage
+        await _storage.write(key: _secureKeyMacAddress, value: legacyMac);
+        _cachedMacAddress = legacyMac;
+        print('$TAG: Migrated MAC to secure storage: $legacyMac');
+        return legacyMac;
+      }
+    } catch (e) {
+      print('$TAG: SecureStorage read failed: $e');
     }
 
-    // 使用随机 UUID 生成完全随机的 MAC 地址（不再基于设备 ID）
+    // Generate new MAC address
     final randomUuid = _generateUUID();
     final hash = md5.convert(utf8.encode(randomUuid)).bytes;
     final macAddress = '${hash[0].toRadixString(16).padLeft(2, '0')}:'
@@ -106,32 +145,65 @@ class XiaozhiDeviceInfo {
         '${hash[4].toRadixString(16).padLeft(2, '0')}:'
         '${hash[5].toRadixString(16).padLeft(2, '0')}';
 
-    // 使用小写，与参考项目保持一致（服务器对大小写敏感）
+    // Save to both secure storage and SharedPreferences
+    try {
+      await _storage.write(key: _secureKeyMacAddress, value: macAddress);
+    } catch (e) {
+      print('$TAG: SecureStorage write failed: $e');
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMacAddress, macAddress);
+    
     _cachedMacAddress = macAddress;
-    print('$TAG: Generated new MAC: $macAddress');
+    print('$TAG: Generated new MAC: $macAddress (saved to secure storage)');
     return macAddress;
   }
 
-  /// 获取设备客户端ID（UUID格式）
+  /// 获取设备客户端ID（使用安全存储，重装后保持不变）
   Future<String> getDeviceClientId() async {
     if (_cachedClientId != null) {
       return _cachedClientId!;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    String? savedId = prefs.getString(_keyClientId);
-
-    if (savedId != null && savedId.isNotEmpty) {
-      _cachedClientId = savedId;
-      print('$TAG: Using existing Client ID: $savedId');
-      return savedId;
+    try {
+      // Try to read from secure storage first
+      String? savedId = await _storage.read(key: _secureKeyClientId);
+      
+      if (savedId != null && savedId.isNotEmpty) {
+        _cachedClientId = savedId;
+        print('$TAG: Using existing Client ID from secure storage: $savedId');
+        return savedId;
+      }
+      
+      // Migration: Check SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      String? legacyId = prefs.getString(_keyClientId);
+      
+      if (legacyId != null && legacyId.isNotEmpty) {
+        await _storage.write(key: _secureKeyClientId, value: legacyId);
+        _cachedClientId = legacyId;
+        print('$TAG: Migrated Client ID to secure storage: $legacyId');
+        return legacyId;
+      }
+    } catch (e) {
+      print('$TAG: SecureStorage read failed: $e');
     }
 
+    // Generate new Client ID
     final uuid = _generateUUID();
+    
+    try {
+      await _storage.write(key: _secureKeyClientId, value: uuid);
+    } catch (e) {
+      print('$TAG: SecureStorage write failed: $e');
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyClientId, uuid);
+    
     _cachedClientId = uuid;
-    print('$TAG: Generated new Client ID: $uuid');
+    print('$TAG: Generated new Client ID: $uuid (saved to secure storage)');
     return uuid;
   }
 
@@ -180,14 +252,25 @@ class XiaozhiDeviceInfo {
     }
   }
 
-  /// 重置所有设备信息
+  /// 重置所有设备信息（包括安全存储）
   Future<void> reset() async {
+    // Clear secure storage
+    try {
+      await _storage.delete(key: _secureKeyMacAddress);
+      await _storage.delete(key: _secureKeyClientId);
+    } catch (e) {
+      print('$TAG: SecureStorage delete failed: $e');
+    }
+    
+    // Clear SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyDeviceId);
     await prefs.remove(_keyMacAddress);
     await prefs.remove(_keyClientId);
+    
+    // Clear cache
     _cachedMacAddress = null;
     _cachedClientId = null;
-    print('$TAG: Device info reset');
+    print('$TAG: Device info reset (including secure storage)');
   }
 }

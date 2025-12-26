@@ -15,6 +15,7 @@ import '../widgets/routine_selector_sheet.dart';
 import '../../data/models/routine.dart';
 import '../../data/services/voice_ai_service.dart';
 import '../../data/providers/ai_providers.dart';
+import '../theme/app_theme.dart';
 import 'task_detail_screen.dart';
 import 'dart:async';
 
@@ -797,12 +798,14 @@ class _VoiceInputButtonState extends ConsumerState<_VoiceInputButton> {
   bool _isProcessing = false;
   StreamSubscription? _sttSub;
   StreamSubscription? _stateSub;
+  StreamSubscription? _activationSub;
   VoiceAIService? _voiceService;
 
   @override
   void dispose() {
     _sttSub?.cancel();
     _stateSub?.cancel();
+    _activationSub?.cancel();
     super.dispose();
   }
 
@@ -830,9 +833,32 @@ class _VoiceInputButtonState extends ConsumerState<_VoiceInputButton> {
       }
     });
     
+    // Listen for activation events (first-time use requires activation code)
+    _activationSub?.cancel();
+    _activationSub = _voiceService!.activationStream.listen((result) {
+      if (!result.isActivated && mounted) {
+        setState(() {
+          _isRecording = false;
+          _isProcessing = false;
+        });
+        _showActivationDialog(result.activationCode ?? '', result.message);
+      }
+    });
+    
     // Listen for state changes to detect when processing is done
     _stateSub?.cancel();
     _stateSub = _voiceService!.stateStream.listen((state) {
+      // Check if service needs activation
+      if (state == VoiceState.needActivation && mounted) {
+        setState(() {
+          _isRecording = false;
+          _isProcessing = false;
+        });
+        if (_voiceService!.activationCode != null) {
+          _showActivationDialog(_voiceService!.activationCode!, null);
+        }
+      }
+      
       if (mounted && state == VoiceState.ready && _isProcessing) {
         // Timeout fallback - if we're still processing after returning to ready
         Future.delayed(const Duration(seconds: 3), () {
@@ -845,6 +871,15 @@ class _VoiceInputButtonState extends ConsumerState<_VoiceInputButton> {
     
     // Connect and start listening - VoiceAIService handles recording internally
     await _voiceService!.connect();
+    
+    // Check if needs activation after connection attempt
+    if (_voiceService!.state == VoiceState.needActivation) {
+      setState(() {
+        _isRecording = false;
+        _isProcessing = false;
+      });
+      return;
+    }
     
     // Wait for connection to be ready
     if (_voiceService!.state == VoiceState.ready) {
@@ -878,6 +913,74 @@ class _VoiceInputButtonState extends ConsumerState<_VoiceInputButton> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  void _showActivationDialog(String code, String? message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.vpn_key_rounded, color: AppTheme.primaryBlue, size: 32),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '首次使用需激活',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SelectableText(
+                code,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 4,
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message ?? '请访问 xiaozhi.me 使用上述激活码注册设备',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('知道了', style: TextStyle(color: AppTheme.primaryBlue)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
