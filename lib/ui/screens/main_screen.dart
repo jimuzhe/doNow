@@ -6,6 +6,7 @@ import 'analysis_screen.dart';
 import 'settings_screen.dart';
 import 'quick_focus_screen.dart';
 import '../../data/providers.dart';
+import '../../data/localization.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -52,6 +53,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final autoFocusEnabled = ref.watch(autoLandscapeFocusProvider);
     final shortestSide = MediaQuery.of(context).size.shortestSide;
     final isTablet = shortestSide >= 600;
+    final locale = ref.watch(localeProvider);
     
     // Auto-Focus Navigation Logic:
     // 1. Must be Landscape
@@ -96,25 +98,25 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               leading: Column(
                 children: [
                    const SizedBox(height: 20),
-                   Icon(Icons.check_circle_outline, size: 32, color: theme.primaryColor),
+                   Icon(Icons.check_circle_outline, size: 32, color: isDark ? Colors.white : Colors.black),
                    const SizedBox(height: 20),
                 ],
               ),
-              destinations: const [
+              destinations: [
                 NavigationRailDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_filled),
-                  label: Text('Home'),
+                  icon: const Icon(Icons.home_outlined),
+                  selectedIcon: const Icon(Icons.home_filled),
+                  label: Text(AppStrings.get('home', locale), key: ValueKey('home_$locale')),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.bar_chart_outlined),
-                  selectedIcon: Icon(Icons.bar_chart),
-                  label: Text('Analysis'),
+                  icon: const Icon(Icons.bar_chart_outlined),
+                  selectedIcon: const Icon(Icons.bar_chart),
+                  label: Text(AppStrings.get('analysis', locale), key: ValueKey('analysis_$locale')),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: Text('Me'),
+                  icon: const Icon(Icons.person_outline),
+                  selectedIcon: const Icon(Icons.person),
+                  label: Text(AppStrings.get('me_title', locale), key: ValueKey('me_$locale')),
                 ),
               ],
             ),
@@ -153,21 +155,21 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           selectedItemColor: isDark ? Colors.white : Colors.black,
           unselectedItemColor: Colors.grey[500],
           iconSize: 28,
-          items: const [
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home_filled),
-              label: 'Home',
+              icon: const Icon(Icons.home_outlined),
+              activeIcon: const Icon(Icons.home_filled),
+              label: AppStrings.get('home', locale),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart_outlined), // More twitter like analysis icon?
-              activeIcon: Icon(Icons.bar_chart),
-              label: 'Analysis',
+              icon: const Icon(Icons.bar_chart_outlined), // More twitter like analysis icon?
+              activeIcon: const Icon(Icons.bar_chart),
+              label: AppStrings.get('analysis', locale),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Me',
+              icon: const Icon(Icons.person_outline),
+              activeIcon: const Icon(Icons.person),
+              label: AppStrings.get('me_title', locale),
             ),
           ],
         ),
